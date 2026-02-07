@@ -5,6 +5,7 @@ COPY package.json turbo.json tsconfig.json ./
 COPY packages/ ./packages/
 COPY apps/ ./apps/
 
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm install --legacy-peer-deps
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 RUN npx turbo run build --filter=@safeschool/api --filter=@safeschool/core --filter=@safeschool/dispatch --filter=@safeschool/cameras --filter=@safeschool/threat-intel

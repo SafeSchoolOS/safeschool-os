@@ -13,6 +13,7 @@ ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
 
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm install --legacy-peer-deps
 RUN npx turbo run build --filter=@safeschool/dashboard
 
