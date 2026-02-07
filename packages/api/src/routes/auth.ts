@@ -133,7 +133,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(401).send({ error: 'Invalid webhook signature' });
     }
 
-    const { type, data } = request.body;
+    const { type, data } = request.body as { type: string; data: any };
     const email = data.email_addresses?.[0]?.email_address;
     const name = `${data.first_name || ''} ${data.last_name || ''}`.trim();
 

@@ -97,8 +97,8 @@ export async function buildServer() {
 
   // Sync routes (cloud mode only)
   if (process.env.OPERATING_MODE === 'cloud') {
-    const { default: syncRoutes } = await import('./routes/sync.js');
-    await app.register(syncRoutes, { prefix: '/api/v1/sync' });
+    const syncModule = await import('./routes/sync.js');
+    await app.register(syncModule.default as any, { prefix: '/api/v1/sync' });
   }
 
   // WebSocket handler

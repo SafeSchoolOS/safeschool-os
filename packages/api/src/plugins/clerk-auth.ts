@@ -23,7 +23,7 @@ export default fp(async (fastify) => {
       const token = authHeader.slice(7);
 
       // Verify the Clerk session token
-      const payload = await clerk.verifyToken(token);
+      const payload = await (clerk as any).verifyToken(token);
 
       // Look up user by clerkId first, then by email
       let user = await fastify.prisma.user.findFirst({

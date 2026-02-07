@@ -1,11 +1,9 @@
-import type { FastifyPluginAsync } from 'fastify';
-
 /**
  * Auth provider factory — returns Clerk plugin or JWT plugin based on AUTH_PROVIDER env.
  * AUTH_PROVIDER=clerk → Clerk session token verification
  * AUTH_PROVIDER=dev (default) → Simple JWT (email-only login, no password)
  */
-export async function createAuthPlugin(): Promise<FastifyPluginAsync> {
+export async function createAuthPlugin(): Promise<any> {
   const provider = process.env.AUTH_PROVIDER || 'dev';
 
   if (provider === 'clerk') {
