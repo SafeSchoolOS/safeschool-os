@@ -50,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Run migrations then start server
-CMD npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && node packages/api/dist/server.js
+CMD sh -c "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && echo '=== Migration done ===' && echo '=== Checking dist files ===' && ls packages/api/dist/server.js packages/db/dist/index.js 2>&1 && echo '=== Testing @safeschool/db import ===' && node -e \"try { require('@safeschool/db'); console.log('DB import OK'); } catch(e) { console.error('DB IMPORT FAILED:', e.message); }\" && echo '=== Starting server ===' && node packages/api/dist/server.js"
