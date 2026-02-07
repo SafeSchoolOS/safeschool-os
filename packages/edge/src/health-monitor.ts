@@ -43,7 +43,7 @@ export class HealthMonitor {
   private checkRedisFn: () => Promise<boolean>;
   private intervalMs: number;
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
-  private currentMode: OperatingMode = 'EDGE';
+  private currentMode: OperatingMode = 'EDGE' as OperatingMode;
   private modeChangeCallbacks: ModeChangeCallback[] = [];
   private lastHealthCheck: HealthCheckResult | null = null;
   private cloudHealthy = false;
@@ -144,9 +144,9 @@ export class HealthMonitor {
    */
   getOperatingMode(): OperatingMode {
     if (this.cloudHealthy) {
-      return 'EDGE';
+      return 'EDGE' as OperatingMode;
     }
-    return 'STANDALONE';
+    return 'STANDALONE' as OperatingMode;
   }
 
   /**
