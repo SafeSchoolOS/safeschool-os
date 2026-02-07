@@ -108,15 +108,23 @@ export async function buildServer() {
 }
 
 async function start() {
-  const app = await buildServer();
+  console.log('=== SafeSchool API Starting ===');
+  console.log(`PORT=${PORT}, HOST=${HOST}`);
+  console.log(`NODE_ENV=${process.env.NODE_ENV}`);
+  console.log(`OPERATING_MODE=${process.env.OPERATING_MODE || 'cloud'}`);
+  console.log(`AUTH_PROVIDER=${process.env.AUTH_PROVIDER || 'dev'}`);
+  console.log(`DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
+  console.log(`REDIS_URL set: ${!!process.env.REDIS_URL}`);
 
   try {
+    const app = await buildServer();
     await app.listen({ port: PORT, host: HOST });
     app.log.info(`SafeSchool API running on ${HOST}:${PORT}`);
     app.log.info(`Operating mode: ${process.env.OPERATING_MODE || 'cloud'}`);
     app.log.info(`Auth provider: ${process.env.AUTH_PROVIDER || 'dev'}`);
   } catch (err) {
-    app.log.error(err);
+    console.error('=== STARTUP FAILED ===');
+    console.error(err);
     process.exit(1);
   }
 }
