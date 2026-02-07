@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "SafeSchool",
+    "slug": "safeschool-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "safeschool",
+    "platforms": ["ios", "android"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#dc2626"
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.safeschool.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.safeschool.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#111827"
+      }
+    }
+  }
+}

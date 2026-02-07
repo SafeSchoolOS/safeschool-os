@@ -1,24 +1,38 @@
 {
   "name": "@safeschool/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "main": "./dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/worker-entry.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "lint": "eslint src/"
+    "start:worker": "node dist/worker-entry.js",
+    "lint": "eslint src/",
+    "test": "vitest run"
   },
   "dependencies": {
     "@safeschool/core": "*",
+    "@safeschool/db": "*",
+    "@safeschool/dispatch": "*",
+    "@safeschool/access-control": "*",
+    "@safeschool/notifications": "*",
+    "@safeschool/grants": "*",
+    "@safeschool/visitor-mgmt": "*",
+    "@safeschool/transportation": "*",
+    "@clerk/backend": "^1.20.0",
     "fastify": "^5.0.0",
     "@fastify/websocket": "^11.0.0",
     "@fastify/cors": "^10.0.0",
+    "@fastify/jwt": "^9.0.0",
     "bullmq": "^5.0.0",
-    "ioredis": "^5.4.0"
+    "ioredis": "^5.4.0",
+    "fastify-plugin": "^5.0.0"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

@@ -6,6 +6,10 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
   }
 }

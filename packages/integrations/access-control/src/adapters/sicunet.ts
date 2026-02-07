@@ -73,7 +73,7 @@ export class SicunetAdapter implements AccessControlAdapter {
     const start = Date.now();
     try {
       const response = await this.request('POST', `/api/v1/doors/${doorId}/lock`);
-      const data = await response.json();
+      const data: any = await response.json();
 
       return {
         success: response.ok,
@@ -86,7 +86,7 @@ export class SicunetAdapter implements AccessControlAdapter {
       return {
         success: false,
         doorId,
-        newStatus: 'UNKNOWN',
+        newStatus: 'UNKNOWN' as DoorStatus,
         executionTimeMs: Date.now() - start,
         error: err instanceof Error ? err.message : 'Unknown error',
       };
@@ -97,7 +97,7 @@ export class SicunetAdapter implements AccessControlAdapter {
     const start = Date.now();
     try {
       const response = await this.request('POST', `/api/v1/doors/${doorId}/unlock`);
-      const data = await response.json();
+      const data: any = await response.json();
 
       return {
         success: response.ok,
@@ -110,7 +110,7 @@ export class SicunetAdapter implements AccessControlAdapter {
       return {
         success: false,
         doorId,
-        newStatus: 'UNKNOWN',
+        newStatus: 'UNKNOWN' as DoorStatus,
         executionTimeMs: Date.now() - start,
         error: err instanceof Error ? err.message : 'Unknown error',
       };
@@ -125,7 +125,7 @@ export class SicunetAdapter implements AccessControlAdapter {
         excludeFireEgress: true,
         source: 'SafeSchool',
       });
-      const data = await response.json();
+      const data: any = await response.json();
 
       return {
         lockdownId: data.lockdownId,
@@ -157,7 +157,7 @@ export class SicunetAdapter implements AccessControlAdapter {
       const response = await this.request('POST', `/api/v1/zones/${zoneId}/lockdown`, {
         source: 'SafeSchool',
       });
-      const data = await response.json();
+      const data: any = await response.json();
 
       return {
         lockdownId: data.lockdownId,
@@ -188,7 +188,7 @@ export class SicunetAdapter implements AccessControlAdapter {
     const response = await this.request('POST', `/api/v1/lockdowns/${lockdownId}/release`, {
       source: 'SafeSchool',
     });
-    const data = await response.json();
+    const data: any = await response.json();
 
     return {
       lockdownId,
@@ -202,13 +202,13 @@ export class SicunetAdapter implements AccessControlAdapter {
 
   async getDoorStatus(doorId: string): Promise<DoorStatus> {
     const response = await this.request('GET', `/api/v1/doors/${doorId}/status`);
-    const data = await response.json();
+    const data: any = await response.json();
     return data.status as DoorStatus;
   }
 
   async getAllDoorStatuses(): Promise<Map<string, DoorStatus>> {
     const response = await this.request('GET', '/api/v1/doors/status');
-    const data = await response.json();
+    const data: any = await response.json();
     const statuses = new Map<string, DoorStatus>();
 
     for (const door of data.doors || []) {
@@ -235,7 +235,7 @@ export class SicunetAdapter implements AccessControlAdapter {
       expiresAt: expiresAt.toISOString(),
       source: 'SafeSchool-Visitor',
     });
-    return response.json();
+    return response.json() as Promise<{ credentialId: string; cardNumber: string }>;
   }
 
   /**
@@ -250,7 +250,7 @@ export class SicunetAdapter implements AccessControlAdapter {
    */
   async getDoors(): Promise<any[]> {
     const response = await this.request('GET', '/api/v1/doors');
-    const data = await response.json();
+    const data: any = await response.json();
     return data.doors || [];
   }
 
@@ -294,7 +294,7 @@ export class SicunetAdapter implements AccessControlAdapter {
 
       try {
         const response = await this.request('GET', '/api/v1/events/recent');
-        const data = await response.json();
+        const data: any = await response.json();
 
         for (const event of data.events || []) {
           const doorEvent: DoorEvent = {

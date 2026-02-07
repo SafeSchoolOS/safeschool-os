@@ -1,0 +1,591 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Site Hierarchy
+// ============================================================================
+
+model Site {
+  id        String   @id @default(uuid())
+  name      String
+  district  String
+  address   String
+  city      String
+  state     String
+  zip       String
+  latitude  Float
+  longitude Float
+  timezone  String   @default("America/New_York")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  buildings Building[]
+  users     UserSite[]
+  alerts    Alert[]
+  lockdowns LockdownCommand[]
+  doors     Door[]
+  auditLogs AuditLog[]
+  visitors  Visitor[]
+  buses     Bus[]
+  busRoutes BusRoute[]
+  studentCards StudentCard[]
+  notificationLogs NotificationLog[]
+
+  @@map("sites")
+}
+
+model Building {
+  id           String  @id @default(uuid())
+  siteId       String  @map("site_id")
+  name         String
+  floors       Int     @default(1)
+  floorPlanUrl String? @map("floor_plan_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  site  Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  rooms Room[]
+  doors Door[]
+
+  @@map("buildings")
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  buildingId  String   @map("building_id")
+  name        String
+  number      String
+  floor       Int      @default(1)
+  type        RoomType @default(CLASSROOM)
+  capacity    Int?
+  bleBeaconId String?  @map("ble_beacon_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@map("rooms")
+}
+
+enum RoomType {
+  CLASSROOM
+  OFFICE
+  GYM
+  CAFETERIA
+  HALLWAY
+  ENTRANCE
+  OTHER
+}
+
+// ============================================================================
+// Users
+// ============================================================================
+
+model User {
+  id              String   @id @default(uuid())
+  clerkId         String?  @unique @map("clerk_id")
+  email           String   @unique
+  name            String
+  role            UserRole
+  phone           String?
+  wearableDeviceId String? @map("wearable_device_id")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  sites             UserSite[]
+  triggeredAlerts   Alert[]           @relation("AlertTriggeredBy")
+  acknowledgedAlerts Alert[]          @relation("AlertAcknowledgedBy")
+  lockdownsInitiated LockdownCommand[] @relation("LockdownInitiatedBy")
+  auditLogs         AuditLog[]
+  hostedVisitors    Visitor[]         @relation("VisitorHost")
+
+  @@map("users")
+}
+
+model UserSite {
+  userId String @map("user_id")
+  siteId String @map("site_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+  @@map("user_sites")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SITE_ADMIN
+  OPERATOR
+  TEACHER
+  FIRST_RESPONDER
+  PARENT
+}
+
+// ============================================================================
+// Alerts — denormalized location for zero-join panic path
+// ============================================================================
+
+model Alert {
+  id             String      @id @default(uuid())
+  siteId         String      @map("site_id")
+  level          AlertLevel
+  status         AlertStatus @default(TRIGGERED)
+  source         AlertSource
+  triggeredById  String      @map("triggered_by_id")
+  triggeredAt    DateTime    @default(now()) @map("triggered_at")
+  acknowledgedById String?   @map("acknowledged_by_id")
+  acknowledgedAt DateTime?   @map("acknowledged_at")
+  resolvedAt     DateTime?   @map("resolved_at")
+
+  // Denormalized location — no joins during a panic
+  buildingId   String  @map("building_id")
+  buildingName String  @map("building_name")
+  floor        Int?
+  roomId       String? @map("room_id")
+  roomName     String? @map("room_name")
+  zone         String?
+  latitude     Float?
+  longitude    Float?
+
+  message  String?
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  site           Site              @relation(fields: [siteId], references: [id])
+  triggeredBy    User              @relation("AlertTriggeredBy", fields: [triggeredById], references: [id])
+  acknowledgedBy User?             @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  dispatchRecords  DispatchRecord[]
+  lockdowns        LockdownCommand[]
+  notificationLogs NotificationLog[]
+
+  @@index([siteId, status])
+  @@index([triggeredAt])
+  @@map("alerts")
+}
+
+enum AlertLevel {
+  MEDICAL
+  LOCKDOWN
+  ACTIVE_THREAT
+  FIRE
+  WEATHER
+  ALL_CLEAR
+  CUSTOM
+}
+
+enum AlertStatus {
+  TRIGGERED
+  ACKNOWLEDGED
+  DISPATCHED
+  RESPONDING
+  RESOLVED
+  CANCELLED
+}
+
+enum AlertSource {
+  WEARABLE
+  MOBILE_APP
+  WALL_STATION
+  DASHBOARD
+  AUTOMATED
+}
+
+// ============================================================================
+// Doors
+// ============================================================================
+
+model Door {
+  id              String     @id @default(uuid())
+  siteId          String     @map("site_id")
+  buildingId      String     @map("building_id")
+  name            String
+  floor           Int        @default(1)
+  zone            String?
+  status          DoorStatus @default(LOCKED)
+  controllerType  String     @map("controller_type") @default("mock")
+  controllerId    String     @map("controller_id") @default("")
+  isExterior      Boolean    @default(false) @map("is_exterior")
+  isEmergencyExit Boolean    @default(false) @map("is_emergency_exit")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  site     Site     @relation(fields: [siteId], references: [id])
+  building Building @relation(fields: [buildingId], references: [id])
+
+  @@index([siteId])
+  @@index([buildingId])
+  @@map("doors")
+}
+
+enum DoorStatus {
+  LOCKED
+  UNLOCKED
+  OPEN
+  FORCED
+  HELD
+  UNKNOWN
+}
+
+// ============================================================================
+// Lockdown Commands
+// ============================================================================
+
+model LockdownCommand {
+  id           String        @id @default(uuid())
+  siteId       String        @map("site_id")
+  scope        LockdownScope
+  targetId     String        @map("target_id")
+  initiatedById String       @map("initiated_by_id")
+  initiatedAt  DateTime      @default(now()) @map("initiated_at")
+  releasedAt   DateTime?     @map("released_at")
+  alertId      String?       @map("alert_id")
+  doorsLocked  Int           @default(0) @map("doors_locked")
+  doorsFailed  Json?         @map("doors_failed")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  site        Site  @relation(fields: [siteId], references: [id])
+  initiatedBy User  @relation("LockdownInitiatedBy", fields: [initiatedById], references: [id])
+  alert       Alert? @relation(fields: [alertId], references: [id])
+
+  @@index([siteId])
+  @@map("lockdown_commands")
+}
+
+enum LockdownScope {
+  FULL_SITE
+  BUILDING
+  FLOOR
+  ZONE
+}
+
+// ============================================================================
+// 911 Dispatch Records
+// ============================================================================
+
+model DispatchRecord {
+  id             String         @id @default(uuid())
+  alertId        String         @map("alert_id")
+  method         DispatchMethod
+  status         DispatchStatus @default(PENDING)
+  sentAt         DateTime       @default(now()) @map("sent_at")
+  confirmedAt    DateTime?      @map("confirmed_at")
+  failoverUsed   Boolean        @default(false) @map("failover_used")
+  failoverMethod DispatchMethod? @map("failover_method")
+  responseTimeMs Int?           @map("response_time_ms")
+  metadata       Json?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  alert Alert @relation(fields: [alertId], references: [id])
+
+  @@index([alertId])
+  @@map("dispatch_records")
+}
+
+enum DispatchMethod {
+  RAPIDSОС
+  RAVE_911
+  SIP_DIRECT
+  CELLULAR
+  CONSOLE
+}
+
+enum DispatchStatus {
+  PENDING
+  SENT
+  RECEIVED
+  DISPATCHED
+  ON_SCENE
+  FAILED
+}
+
+// ============================================================================
+// Audit Log — compliance trail
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  siteId    String   @map("site_id")
+  userId    String?  @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  site Site  @relation(fields: [siteId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([siteId, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// Visitor Management
+// ============================================================================
+
+model Visitor {
+  id           String        @id @default(uuid())
+  siteId       String        @map("site_id")
+  firstName    String        @map("first_name")
+  lastName     String        @map("last_name")
+  photo        String?
+  idType       String?       @map("id_type")
+  idNumberHash String?       @map("id_number_hash")
+  purpose      String
+  destination  String
+  hostUserId   String?       @map("host_user_id")
+  status       VisitorStatus @default(PRE_REGISTERED)
+  checkedInAt  DateTime?     @map("checked_in_at")
+  checkedOutAt DateTime?     @map("checked_out_at")
+  badgeNumber  String?       @map("badge_number")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  site      Site              @relation(fields: [siteId], references: [id])
+  host      User?             @relation("VisitorHost", fields: [hostUserId], references: [id])
+  screening VisitorScreening?
+
+  @@index([siteId, status])
+  @@index([siteId, checkedInAt])
+  @@map("visitors")
+}
+
+model VisitorScreening {
+  id               String   @id @default(uuid())
+  visitorId        String   @unique @map("visitor_id")
+  sexOffenderCheck String   @map("sex_offender_check") // CLEAR, FLAGGED, ERROR
+  watchlistCheck   String   @map("watchlist_check")
+  customCheck      String?  @map("custom_check")
+  checkedAt        DateTime @map("checked_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  visitor Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@map("visitor_screenings")
+}
+
+enum VisitorStatus {
+  PRE_REGISTERED
+  CHECKED_IN
+  CHECKED_OUT
+  DENIED
+  FLAGGED
+}
+
+// ============================================================================
+// Student Transportation
+// ============================================================================
+
+model Bus {
+  id                  String   @id @default(uuid())
+  siteId              String   @map("site_id")
+  busNumber           String   @map("bus_number")
+  driverId            String?  @map("driver_id")
+  capacity            Int      @default(72)
+  hasRfidReader       Boolean  @default(false) @map("has_rfid_reader")
+  hasPanicButton      Boolean  @default(false) @map("has_panic_button")
+  hasCameras          Boolean  @default(false) @map("has_cameras")
+  isActive            Boolean  @default(true) @map("is_active")
+  currentLatitude     Float?   @map("current_latitude")
+  currentLongitude    Float?   @map("current_longitude")
+  currentSpeed        Float?   @map("current_speed")
+  currentHeading      Float?   @map("current_heading")
+  lastGpsAt           DateTime? @map("last_gps_at")
+  currentStudentCount Int      @default(0) @map("current_student_count")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  site             Site               @relation(fields: [siteId], references: [id])
+  routeAssignments BusRouteAssignment[]
+  ridershipEvents  RidershipEvent[]
+
+  @@index([siteId])
+  @@map("buses")
+}
+
+model BusRoute {
+  id                     String   @id @default(uuid())
+  siteId                 String   @map("site_id")
+  name                   String
+  routeNumber            String   @map("route_number")
+  scheduledDepartureTime String   @map("scheduled_departure_time")
+  scheduledArrivalTime   String   @map("scheduled_arrival_time")
+  isAmRoute              Boolean  @default(true) @map("is_am_route")
+  isPmRoute              Boolean  @default(false) @map("is_pm_route")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  site             Site               @relation(fields: [siteId], references: [id])
+  stops            BusStop[]
+  busAssignments   BusRouteAssignment[]
+  ridershipEvents  RidershipEvent[]
+
+  @@index([siteId])
+  @@map("bus_routes")
+}
+
+model BusRouteAssignment {
+  id      String @id @default(uuid())
+  busId   String @map("bus_id")
+  routeId String @map("route_id")
+
+  bus   Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
+  route BusRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([busId, routeId])
+  @@map("bus_route_assignments")
+}
+
+model BusStop {
+  id            String   @id @default(uuid())
+  routeId       String   @map("route_id")
+  name          String
+  address       String
+  latitude      Float
+  longitude     Float
+  scheduledTime String   @map("scheduled_time")
+  stopOrder     Int      @map("stop_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  route              BusRoute              @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  studentAssignments StudentStopAssignment[]
+
+  @@index([routeId])
+  @@map("bus_stops")
+}
+
+model StudentCard {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  studentName String   @map("student_name")
+  cardId      String   @unique @map("card_id")
+  grade       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  site              Site                  @relation(fields: [siteId], references: [id])
+  stopAssignments   StudentStopAssignment[]
+  ridershipEvents   RidershipEvent[]
+  parentContacts    ParentContact[]
+
+  @@index([siteId])
+  @@map("student_cards")
+}
+
+model StudentStopAssignment {
+  id            String @id @default(uuid())
+  studentCardId String @map("student_card_id")
+  stopId        String @map("stop_id")
+
+  studentCard StudentCard @relation(fields: [studentCardId], references: [id], onDelete: Cascade)
+  stop        BusStop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@unique([studentCardId, stopId])
+  @@map("student_stop_assignments")
+}
+
+model RidershipEvent {
+  id            String   @id @default(uuid())
+  studentCardId String   @map("student_card_id")
+  busId         String   @map("bus_id")
+  routeId       String   @map("route_id")
+  scanType      ScanType @map("scan_type")
+  scanMethod    String   @default("RFID") @map("scan_method")
+  scannedAt     DateTime @map("scanned_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  studentCard StudentCard @relation(fields: [studentCardId], references: [id])
+  bus         Bus         @relation(fields: [busId], references: [id])
+  route       BusRoute    @relation(fields: [routeId], references: [id])
+
+  @@index([studentCardId, scannedAt])
+  @@index([busId, scannedAt])
+  @@map("ridership_events")
+}
+
+enum ScanType {
+  BOARD
+  EXIT
+}
+
+model ParentContact {
+  id            String  @id @default(uuid())
+  studentCardId String  @map("student_card_id")
+  parentName    String  @map("parent_name")
+  relationship  String
+  phone         String?
+  email         String?
+  pushToken     String? @map("push_token")
+  boardAlerts   Boolean @default(true) @map("board_alerts")
+  exitAlerts    Boolean @default(true) @map("exit_alerts")
+  etaAlerts     Boolean @default(true) @map("eta_alerts")
+  delayAlerts   Boolean @default(true) @map("delay_alerts")
+  missedBusAlerts Boolean @default(true) @map("missed_bus_alerts")
+  smsEnabled    Boolean @default(true) @map("sms_enabled")
+  emailEnabled  Boolean @default(true) @map("email_enabled")
+  pushEnabled   Boolean @default(false) @map("push_enabled")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  studentCard StudentCard @relation(fields: [studentCardId], references: [id], onDelete: Cascade)
+
+  @@index([studentCardId])
+  @@map("parent_contacts")
+}
+
+// ============================================================================
+// Notification Log
+// ============================================================================
+
+model NotificationLog {
+  id             String   @id @default(uuid())
+  siteId         String   @map("site_id")
+  alertId        String?  @map("alert_id")
+  channel        String
+  recipientCount Int      @map("recipient_count")
+  message        String
+  status         String   @default("SENT")
+  sentAt         DateTime @map("sent_at")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  site  Site   @relation(fields: [siteId], references: [id])
+  alert Alert? @relation(fields: [alertId], references: [id])
+
+  @@index([siteId, sentAt])
+  @@map("notification_logs")
+}
+
+// ============================================================================
+// Demo Requests (Marketing Landing Page)
+// ============================================================================
+
+model DemoRequest {
+  id         String   @id @default(uuid())
+  name       String
+  email      String
+  school     String
+  role       String
+  phone      String?
+  buildings  Int?
+  state      String?
+  message    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("demo_requests")
+}

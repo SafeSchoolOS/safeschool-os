@@ -8,26 +8,25 @@
  * Additional adapters follow the same interface for vendor-agnostic operation.
  */
 
-export { SicunetAdapter } from './adapters/sicunet';
+export { SicunetAdapter } from './adapters/sicunet.js';
+export { MockAccessControlAdapter } from './adapters/mock.js';
+export { GenetecAdapter } from './adapters/genetec.js';
+export { BrivoAdapter } from './adapters/brivo.js';
+export { VerkadaAdapter } from './adapters/verkada.js';
 
-// Future adapters:
-// export { GenetecAdapter } from './adapters/genetec';
-// export { BrivoAdapter } from './adapters/brivo';
-// export { VerkadaAdapter } from './adapters/verkada';
-// export { LenelS2Adapter } from './adapters/lenels2';
-// export { OpenpathAdapter } from './adapters/openpath';
-// export { HidMercuryAdapter } from './adapters/hid-mercury';
-// export { AllegionAdapter } from './adapters/allegion';
-// export { AssaAbloyAdapter } from './adapters/assa-abloy';
-
-import type { AccessControlAdapter, AccessControlConfig } from '@safeschool/core';
-import { SicunetAdapter } from './adapters/sicunet';
+import type { AccessControlAdapter } from '@safeschool/core';
+import { SicunetAdapter } from './adapters/sicunet.js';
+import { MockAccessControlAdapter } from './adapters/mock.js';
+import { GenetecAdapter } from './adapters/genetec.js';
+import { BrivoAdapter } from './adapters/brivo.js';
+import { VerkadaAdapter } from './adapters/verkada.js';
 
 const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
   sicunet: SicunetAdapter,
-  // genetec: GenetecAdapter,
-  // brivo: BrivoAdapter,
-  // verkada: VerkadaAdapter,
+  mock: MockAccessControlAdapter,
+  genetec: GenetecAdapter,
+  brivo: BrivoAdapter,
+  verkada: VerkadaAdapter,
 };
 
 /**

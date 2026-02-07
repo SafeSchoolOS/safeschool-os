@@ -1,9 +1,9 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "deploy/railway/Dockerfile"
+dockerfilePath = "deploy/railway/Dockerfile.api"
 
 [deploy]
-startCommand = "node packages/api/dist/server.js"
+startCommand = "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && node packages/api/dist/server.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "always"

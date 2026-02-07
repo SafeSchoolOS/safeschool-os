@@ -1,0 +1,33 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from './client';
+
+export function useActiveLockdowns() {
+  return useQuery({
+    queryKey: ['lockdowns', 'active'],
+    queryFn: () => apiClient.get('/api/v1/lockdown/active'),
+    refetchInterval: 5000,
+  });
+}
+
+export function useInitiateLockdown() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { scope: string; targetId: string; alertId?: string }) =>
+      apiClient.post('/api/v1/lockdown', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lockdowns'] });
+      qc.invalidateQueries({ queryKey: ['doors'] });
+    },
+  });
+}
+
+export function useReleaseLockdown() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/api/v1/lockdown/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lockdowns'] });
+      qc.invalidateQueries({ queryKey: ['doors'] });
+    },
+  });
+}

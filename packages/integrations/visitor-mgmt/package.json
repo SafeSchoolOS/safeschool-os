@@ -1,0 +1,18 @@
+{
+  "name": "@safeschool/visitor-mgmt",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@safeschool/core": "*",
+    "@safeschool/db": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

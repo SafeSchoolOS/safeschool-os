@@ -1,0 +1,132 @@
+import type { AccessControlAdapter } from '@safeschool/core';
+
+interface AppConfig {
+  auth: {
+    provider: 'dev' | 'clerk';
+    clerkSecretKey?: string;
+    clerkPublishableKey?: string;
+    clerkWebhookSecret?: string;
+  };
+  dispatch: {
+    adapter: string;
+    primary?: string;
+    secondary?: string;
+    cellularEnabled: boolean;
+    cellularDevice?: string;
+    timeoutMs: number;
+  };
+  accessControl: {
+    adapter: string;
+    apiUrl?: string;
+    apiKey?: string;
+    username?: string;
+    password?: string;
+    options?: Record<string, unknown>;
+  };
+  notifications: {
+    adapter: string;
+    twilio: {
+      accountSid?: string;
+      authToken?: string;
+      fromNumber?: string;
+    };
+    sendgrid: {
+      apiKey?: string;
+      fromEmail?: string;
+    };
+    fcm: {
+      projectId?: string;
+      credentials?: string;
+    };
+    pa: {
+      endpoint?: string;
+      apiKey?: string;
+    };
+  };
+  transport: {
+    enabled: boolean;
+    geofenceRadiusMeters: number;
+    delayThresholdMinutes: number;
+    missedBusGraceMinutes: number;
+  };
+  visitorMgmt: {
+    screeningAdapter: string;
+  };
+  cameras: {
+    adapter: string;
+    onvifDiscovery: boolean;
+    genetecVmsUrl?: string;
+  };
+  threatIntel: {
+    adapter: string;
+    zeroEyesApiUrl?: string;
+    zeroEyesApiKey?: string;
+    zeroEyesWebhookSecret?: string;
+  };
+}
+
+export function getConfig(): AppConfig {
+  return {
+    auth: {
+      provider: (process.env.AUTH_PROVIDER as 'dev' | 'clerk') || 'dev',
+      clerkSecretKey: process.env.CLERK_SECRET_KEY,
+      clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+      clerkWebhookSecret: process.env.CLERK_WEBHOOK_SECRET,
+    },
+    dispatch: {
+      adapter: process.env.DISPATCH_ADAPTER || 'console',
+      primary: process.env.DISPATCH_PRIMARY,
+      secondary: process.env.DISPATCH_SECONDARY,
+      cellularEnabled: process.env.CELLULAR_FAILOVER_ENABLED === 'true',
+      cellularDevice: process.env.CELLULAR_MODEM_DEVICE,
+      timeoutMs: parseInt(process.env.DISPATCH_TIMEOUT_MS || '10000', 10),
+    },
+    accessControl: {
+      adapter: process.env.ACCESS_CONTROL_ADAPTER || 'mock',
+      apiUrl: process.env.SICUNET_API_URL || process.env.GENETEC_API_URL || process.env.BRIVO_API_URL || process.env.VERKADA_API_URL,
+      apiKey: process.env.SICUNET_API_KEY || process.env.GENETEC_API_KEY || process.env.BRIVO_API_KEY || process.env.VERKADA_API_KEY,
+      username: process.env.AC_USERNAME,
+      password: process.env.AC_PASSWORD,
+    },
+    notifications: {
+      adapter: process.env.NOTIFICATION_ADAPTER || 'console',
+      twilio: {
+        accountSid: process.env.TWILIO_ACCOUNT_SID,
+        authToken: process.env.TWILIO_AUTH_TOKEN,
+        fromNumber: process.env.TWILIO_FROM_NUMBER,
+      },
+      sendgrid: {
+        apiKey: process.env.SENDGRID_API_KEY,
+        fromEmail: process.env.SENDGRID_FROM_EMAIL,
+      },
+      fcm: {
+        projectId: process.env.FCM_PROJECT_ID,
+        credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+      },
+      pa: {
+        endpoint: process.env.PA_INTERCOM_ENDPOINT,
+        apiKey: process.env.PA_INTERCOM_API_KEY,
+      },
+    },
+    transport: {
+      enabled: process.env.TRANSPORT_TRACKING_ENABLED === 'true',
+      geofenceRadiusMeters: parseInt(process.env.GEOFENCE_RADIUS_METERS || '200', 10),
+      delayThresholdMinutes: parseInt(process.env.DELAY_THRESHOLD_MINUTES || '5', 10),
+      missedBusGraceMinutes: parseInt(process.env.MISSED_BUS_GRACE_MINUTES || '10', 10),
+    },
+    visitorMgmt: {
+      screeningAdapter: process.env.VISITOR_SCREENING_ADAPTER || 'console',
+    },
+    cameras: {
+      adapter: process.env.CAMERA_ADAPTER || 'none',
+      onvifDiscovery: process.env.ONVIF_DISCOVERY_ENABLED === 'true',
+      genetecVmsUrl: process.env.GENETEC_VMS_URL,
+    },
+    threatIntel: {
+      adapter: process.env.THREAT_INTEL_ADAPTER || 'none',
+      zeroEyesApiUrl: process.env.ZEROEYES_API_URL,
+      zeroEyesApiKey: process.env.ZEROEYES_API_KEY,
+      zeroEyesWebhookSecret: process.env.ZEROEYES_WEBHOOK_SECRET,
+    },
+  };
+}
