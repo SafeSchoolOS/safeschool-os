@@ -1,9 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "deploy/railway/Dockerfile.api"
-
-[deploy]
-healthcheckPath = "/health"
-healthcheckTimeout = 300
-restartPolicyType = "always"
-numReplicas = 1
