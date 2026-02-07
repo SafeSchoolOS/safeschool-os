@@ -9,8 +9,7 @@ ARG NEXT_PUBLIC_SITE_URL=https://safeschool.org
 
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN npm install --legacy-peer-deps
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm install --legacy-peer-deps
 RUN cd apps/web && npm run build
 
 FROM node:20-alpine AS runner
