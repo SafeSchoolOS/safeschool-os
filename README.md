@@ -85,17 +85,20 @@ Dual-path redundant emergency dispatch.
 Instant building-wide or zone-based lockdown.
 
 **Supported Access Control Systems:**
-| System | Integration Method | Lockdown Capable |
-|---|---|---|
-| Genetec Security Center | REST API | Yes |
-| LenelS2 OnGuard | OpenAccess API | Yes |
-| Honeywell Pro-Watch | SDK/API | Yes |
-| Brivo | Cloud API | Yes |
-| Verkada | REST API | Yes |
-| Openpath (Motorola) | REST API | Yes |
-| HID Mercury controllers | OSDP Protocol | Yes |
-| Allegion Schlage | ENGAGE API | Yes |
-| ASSA ABLOY Aperio | Integration Hub | Yes |
+| System | Integration Method | Lockdown Capable | Priority |
+|---|---|---|---|
+| **Sicunet** | REST API / Native | Yes | **Primary** |
+| Genetec Security Center | REST API | Yes | Tier 1 |
+| LenelS2 OnGuard | OpenAccess API | Yes | Tier 1 |
+| Brivo | Cloud API | Yes | Tier 1 |
+| Verkada | REST API | Yes | Tier 1 |
+| Openpath (Motorola) | REST API | Yes | Tier 2 |
+| Honeywell Pro-Watch | SDK/API | Yes | Tier 2 |
+| HID Mercury controllers | OSDP Protocol | Yes | Tier 2 |
+| Allegion Schlage | ENGAGE API | Yes | Tier 2 |
+| ASSA ABLOY Aperio | Integration Hub | Yes | Tier 2 |
+
+> **Sicunet is our primary access control integration** - built with deep native support. SafeSchool team members work directly with Sicunet, enabling the tightest possible integration for lockdown, door monitoring, and credential management.
 
 **Lockdown Features:**
 - One-button full building lockdown
@@ -170,14 +173,41 @@ Integration with building systems.
 - **AED location tracking** - Map of all AED devices
 - **Medical emergency protocols** - Allergy alerts, student medical info for first responders
 
-### 10. Bus Safety
-Transportation safety monitoring.
+### 10. Student Transportation & Tracking
+Complete student transportation safety with real-time parent notifications.
 
-- **GPS tracking** - Real-time bus location
+- **GPS tracking** - Real-time bus location on map
 - **Driver panic button** - Alert from bus to command center
-- **Student ridership** - RFID/NFC check-in tracking
-- **Route geofencing** - Alert on route deviation
-- **Parent notification** - ETA and arrival alerts
+- **Student ridership tracking** - RFID/NFC reader on bus scans student ID on board/exit
+- **Parent notifications** - Automated SMS/email when:
+  - Student boards the bus (with bus number and route)
+  - Bus is approaching their stop (ETA notification)
+  - Student exits the bus at school
+  - Student exits the bus at their home stop
+  - Bus is running late (delay notification with new ETA)
+  - Student did NOT board expected bus (missed bus alert)
+- **Route geofencing** - Alert on route deviation or unexpected stops
+- **Attendance integration** - Bus scan counts as "present" in SIS
+- **Historical tracking** - Full ridership history for safety audits
+- **Multi-modal** - Supports bus, van, parent pickup, walker tracking
+
+### 11. Grant & Funding Management
+Built-in tools to find, apply for, and track school safety funding.
+
+- **Grant finder** - Searchable database of federal, state, and private grants
+- **Eligibility checker** - Match your school/district profile to eligible grants
+- **Application tracker** - Track deadlines, submissions, and award status
+- **Budget planning** - Map SafeSchool modules to fundable line items
+- **Compliance reporting** - Auto-generate grant compliance reports
+- **Funding sources tracked**:
+  - STOP School Violence Prevention Program (DOJ/BJA)
+  - COPS School Violence Prevention Program
+  - Bipartisan Safer Communities Act
+  - State-specific school safety grants (NJ, FL, NY, TX, CA, etc.)
+  - E-Rate (network infrastructure)
+  - FEMA Preparedness Grants
+  - Private foundations (Sandy Hook Promise, etc.)
+- **ROI calculator** - Show cost savings and safety improvements for grant justification
 
 ---
 
@@ -243,12 +273,14 @@ safeschool/
 │   ├── api/                # Fastify REST API + WebSocket server
 │   ├── db/                 # Database schemas, migrations (Prisma/Drizzle)
 │   ├── integrations/       # Third-party integration adapters
-│   │   ├── access-control/ # Genetec, LenelS2, Brivo, Verkada, etc.
+│   │   ├── access-control/ # Sicunet (primary), Genetec, LenelS2, Brivo, Verkada
 │   │   ├── dispatch/       # RapidSOS, Rave 911, SIP/911
 │   │   ├── cameras/        # ONVIF, VMS integrations
 │   │   ├── notifications/  # Twilio, SendGrid, FCM, PA system
-│   │   ├── threat-intel/   # AccessIQ, ZeroEyes, Bark
+│   │   ├── threat-intel/   # ZeroEyes, Bark, Navigate360
 │   │   ├── visitor-mgmt/   # Raptor, ID scanning, badge printing
+│   │   ├── transportation/ # Bus GPS, student RFID tracking, parent alerts
+│   │   ├── grants/         # Grant finder, eligibility, application tracking
 │   │   └── environmental/  # Fire alarm, NOAA, sensors
 │   └── edge/               # On-site mini PC runtime & sync engine
 ├── deploy/
@@ -324,32 +356,38 @@ docker compose up -d
 - [ ] Core API with authentication and RBAC
 - [ ] Web dashboard (command center)
 - [ ] Panic alert engine (receive, process, escalate)
-- [ ] Basic access control integration (1-2 systems)
+- [ ] **Sicunet access control integration** (primary, native)
 - [ ] 911 dispatch integration (RapidSOS)
 - [ ] Railway deployment
 - [ ] On-site Docker deployment with sync engine
+- [ ] Grant & funding finder (help schools fund the system)
 
-### Phase 2 - Visitor & Notification
+### Phase 2 - Visitor, Transportation & Notification
 - [ ] Visitor management badge kiosk
 - [ ] ID scanning and sex offender screening
 - [ ] Mass notification (SMS, email, push)
 - [ ] PA/intercom integration
 - [ ] Mobile app (iOS/Android)
+- [ ] **Student bus tracking with RFID readers**
+- [ ] **Parent notification system** (board/exit/ETA/delay/missed bus alerts)
+- [ ] Additional access control adapters (Genetec, Brivo, Verkada)
 
 ### Phase 3 - Intelligence & Video
 - [ ] Camera/VMS integration (ONVIF)
-- [ ] AccessIQ threat analysis integration
 - [ ] AI weapon detection (ZeroEyes/Omnilert)
 - [ ] Anonymous tip line portal
 - [ ] Behavioral threat assessment workflow
+- [ ] Social media monitoring integration
+- [ ] Grant application tracker and compliance reporting
 
 ### Phase 4 - Full Platform
 - [ ] Reunification module
-- [ ] Bus safety tracking
 - [ ] Drill management and compliance reporting
-- [ ] Environmental monitoring
+- [ ] Environmental monitoring (fire, weather, air quality)
 - [ ] First responder data sharing portal
-- [ ] Additional access control integrations
+- [ ] LPR (license plate recognition)
+- [ ] Walk-through weapons detection (Evolv, CEIA)
+- [ ] Additional access control integrations (LenelS2, Openpath, HID, Allegion, ASSA ABLOY)
 
 ---
 

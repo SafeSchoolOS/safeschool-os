@@ -258,3 +258,271 @@ export interface SyncState {
   pendingChanges: number;
   lastError?: string;
 }
+
+// ============================================================================
+// Student Transportation & Tracking Types
+// ============================================================================
+
+export enum StudentTransportStatus {
+  WAITING_AT_STOP = 'WAITING_AT_STOP',
+  BOARDED = 'BOARDED',
+  IN_TRANSIT = 'IN_TRANSIT',
+  ARRIVED_AT_SCHOOL = 'ARRIVED_AT_SCHOOL',
+  DEPARTED_SCHOOL = 'DEPARTED_SCHOOL',
+  EXITED_AT_STOP = 'EXITED_AT_STOP',
+  MISSED_BUS = 'MISSED_BUS',
+  ABSENT = 'ABSENT',
+}
+
+export enum TransportNotificationType {
+  STUDENT_BOARDED = 'STUDENT_BOARDED',
+  STUDENT_EXITED = 'STUDENT_EXITED',
+  BUS_APPROACHING_STOP = 'BUS_APPROACHING_STOP',
+  BUS_ARRIVED_AT_SCHOOL = 'BUS_ARRIVED_AT_SCHOOL',
+  BUS_DEPARTED_SCHOOL = 'BUS_DEPARTED_SCHOOL',
+  BUS_DELAY = 'BUS_DELAY',
+  MISSED_BUS = 'MISSED_BUS',
+  ROUTE_DEVIATION = 'ROUTE_DEVIATION',
+  DRIVER_PANIC = 'DRIVER_PANIC',
+}
+
+export interface Bus {
+  id: string;
+  siteId: string;
+  busNumber: string;
+  routeId: string;
+  driverId?: string;
+  capacity: number;
+  currentLocation?: GpsPosition;
+  currentStudentCount: number;
+  isActive: boolean;
+  hasRfidReader: boolean;
+  hasPanicButton: boolean;
+  hasCameras: boolean;
+}
+
+export interface BusRoute {
+  id: string;
+  siteId: string;
+  name: string;
+  routeNumber: string;
+  stops: BusStop[];
+  scheduledDepartureTime: string; // HH:MM format
+  scheduledArrivalTime: string;
+  isAmRoute: boolean;
+  isPmRoute: boolean;
+}
+
+export interface BusStop {
+  id: string;
+  routeId: string;
+  name: string;
+  address: string;
+  location: GpsPosition;
+  scheduledTime: string; // HH:MM format
+  stopOrder: number;
+  studentIds: string[]; // Students assigned to this stop
+}
+
+export interface GpsPosition {
+  latitude: number;
+  longitude: number;
+  altitude?: number;
+  speed?: number; // mph
+  heading?: number; // degrees
+  timestamp: Date;
+}
+
+export interface StudentRidership {
+  id: string;
+  studentId: string;
+  studentName: string;
+  busId: string;
+  routeId: string;
+  stopId: string;
+  scanType: 'BOARD' | 'EXIT';
+  scannedAt: Date;
+  scanMethod: 'RFID' | 'NFC' | 'BARCODE' | 'MANUAL';
+  cardId?: string;
+}
+
+export interface TransportNotification {
+  id: string;
+  type: TransportNotificationType;
+  studentId: string;
+  parentContactIds: string[]; // Parent user IDs to notify
+  busId: string;
+  routeId: string;
+  message: string;
+  sentVia: ('SMS' | 'EMAIL' | 'PUSH')[];
+  sentAt: Date;
+  metadata?: {
+    busNumber?: string;
+    stopName?: string;
+    eta?: string;
+    delayMinutes?: number;
+  };
+}
+
+export interface ParentContact {
+  id: string;
+  studentId: string;
+  parentName: string;
+  relationship: 'MOTHER' | 'FATHER' | 'GUARDIAN' | 'EMERGENCY_CONTACT' | 'OTHER';
+  phone?: string;
+  email?: string;
+  pushToken?: string; // FCM token for push notifications
+  notificationPreferences: {
+    boardAlerts: boolean;
+    exitAlerts: boolean;
+    etaAlerts: boolean;
+    delayAlerts: boolean;
+    missedBusAlerts: boolean;
+    smsEnabled: boolean;
+    emailEnabled: boolean;
+    pushEnabled: boolean;
+  };
+}
+
+// ============================================================================
+// Grant & Funding Types
+// ============================================================================
+
+export enum GrantStatus {
+  IDENTIFIED = 'IDENTIFIED',       // Found, not yet applied
+  PREPARING = 'PREPARING',         // Application in progress
+  SUBMITTED = 'SUBMITTED',         // Application submitted
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  AWARDED = 'AWARDED',
+  DENIED = 'DENIED',
+  ACTIVE = 'ACTIVE',              // Funding received and being used
+  REPORTING = 'REPORTING',        // Compliance reporting period
+  CLOSED = 'CLOSED',
+}
+
+export enum GrantSource {
+  FEDERAL = 'FEDERAL',
+  STATE = 'STATE',
+  LOCAL = 'LOCAL',
+  PRIVATE_FOUNDATION = 'PRIVATE_FOUNDATION',
+  CORPORATE = 'CORPORATE',
+}
+
+export interface Grant {
+  id: string;
+  name: string;
+  source: GrantSource;
+  agency: string;             // e.g., "DOJ/BJA", "NJ DOE", "Sandy Hook Promise"
+  programName: string;        // e.g., "STOP School Violence Prevention Program"
+  description: string;
+  fundingAmount: {
+    min?: number;
+    max?: number;
+    typical?: number;
+  };
+  eligibility: {
+    schoolTypes: ('PUBLIC' | 'CHARTER' | 'PRIVATE' | 'PAROCHIAL')[];
+    states?: string[];        // Empty = all states
+    requirements: string[];
+    matchRequired: boolean;
+    matchPercentage?: number;
+  };
+  timeline: {
+    applicationOpens?: Date;
+    applicationDeadline?: Date;
+    awardAnnouncement?: Date;
+    performancePeriodStart?: Date;
+    performancePeriodEnd?: Date;
+    reportingDeadlines?: Date[];
+  };
+  allowedExpenses: string[];   // e.g., "panic alarm systems", "access control", "training"
+  url?: string;
+  status: GrantStatus;
+}
+
+export interface GrantApplication {
+  id: string;
+  grantId: string;
+  districtId: string;
+  siteIds: string[];            // Schools covered by this application
+  status: GrantStatus;
+  submittedAt?: Date;
+  awardedAmount?: number;
+  requestedAmount: number;
+  budgetItems: GrantBudgetItem[];
+  notes: string;
+  documents: GrantDocument[];
+}
+
+export interface GrantBudgetItem {
+  id: string;
+  applicationId: string;
+  category: string;             // e.g., "Equipment", "Installation", "Training"
+  description: string;          // e.g., "Sicunet access control - 30 doors"
+  amount: number;
+  safeschoolModule?: string;    // Map to SafeSchool module
+}
+
+export interface GrantDocument {
+  id: string;
+  applicationId: string;
+  name: string;
+  type: 'APPLICATION' | 'BUDGET' | 'NARRATIVE' | 'COMPLIANCE_REPORT' | 'RECEIPT' | 'OTHER';
+  fileUrl: string;
+  uploadedAt: Date;
+}
+
+// ============================================================================
+// Access Control Adapter Types (Vendor-Agnostic Interface)
+// ============================================================================
+
+export interface AccessControlAdapter {
+  name: string;
+  vendor: string;
+  connect(config: AccessControlConfig): Promise<void>;
+  disconnect(): Promise<void>;
+  healthCheck(): Promise<boolean>;
+  lockDoor(doorId: string): Promise<DoorCommandResult>;
+  unlockDoor(doorId: string): Promise<DoorCommandResult>;
+  lockdownBuilding(buildingId: string): Promise<LockdownResult>;
+  lockdownZone(zoneId: string): Promise<LockdownResult>;
+  releaseLockdown(lockdownId: string): Promise<LockdownResult>;
+  getDoorStatus(doorId: string): Promise<DoorStatus>;
+  getAllDoorStatuses(): Promise<Map<string, DoorStatus>>;
+  onDoorEvent(callback: (event: DoorEvent) => void): void;
+}
+
+export interface AccessControlConfig {
+  apiUrl: string;
+  apiKey?: string;
+  username?: string;
+  password?: string;
+  siteId?: string;
+  options?: Record<string, unknown>;
+}
+
+export interface DoorCommandResult {
+  success: boolean;
+  doorId: string;
+  newStatus: DoorStatus;
+  executionTimeMs: number;
+  error?: string;
+}
+
+export interface LockdownResult {
+  lockdownId: string;
+  status: 'INITIATED' | 'IN_PROGRESS' | 'COMPLETE' | 'PARTIAL_FAILURE';
+  doorsLocked: number;
+  doorsFailed: { doorId: string; doorName: string; reason: string }[];
+  timeToCompleteMs: number;
+  timestamp: Date;
+}
+
+export interface DoorEvent {
+  doorId: string;
+  doorName: string;
+  eventType: 'OPENED' | 'CLOSED' | 'LOCKED' | 'UNLOCKED' | 'FORCED' | 'HELD' | 'ALARM';
+  timestamp: Date;
+  userId?: string;
+  credentialType?: string;
+}
