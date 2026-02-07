@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Turbo
+.turbo/
+
+# Docker
+postgres_data/
+redis_data/
+
+# Temp
+*.tmp
+gh_installer.msi
+gh.zip
+gh_cli/
+
+# Secrets - NEVER commit these
+*.pem
+*.key
+credentials.json
+service-account.json

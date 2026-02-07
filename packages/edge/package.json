@@ -1,0 +1,18 @@
+{
+  "name": "@safeschool/edge",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/sync-engine.js",
+  "scripts": {
+    "dev": "tsx watch src/sync-engine.ts",
+    "build": "tsc",
+    "start": "node dist/sync-engine.js"
+  },
+  "dependencies": {
+    "@safeschool/core": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "safeschool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Comprehensive school safety platform - Alyssa's Law compliant",
+  "author": "bwattendorf",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "db:migrate": "turbo run db:migrate --filter=@safeschool/db",
+    "db:seed": "turbo run db:seed --filter=@safeschool/db"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0",
+    "prettier": "^3.4.0",
+    "eslint": "^9.16.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.9.0"
+}

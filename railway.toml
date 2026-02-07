@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "deploy/railway/Dockerfile"
+
+[deploy]
+startCommand = "node packages/api/dist/server.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "always"
+numReplicas = 1

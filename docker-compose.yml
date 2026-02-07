@@ -1,0 +1,104 @@
+# On-Site Mini PC Deployment
+# This runs the full SafeSchool stack locally at each school site
+# for redundancy and local failover capability
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "3000:3000"
+      - "3001:3001"  # WebSocket port
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - CLOUD_SYNC_URL=${RAILWAY_API_URL}
+      - CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}
+      - SITE_ID=${SCHOOL_SITE_ID}
+      - OPERATING_MODE=edge  # edge = on-site failover mode
+      - DISPATCH_911_ENABLED=true
+      - CELLULAR_FAILOVER_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - safeschool
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.dashboard
+    ports:
+      - "8080:80"
+    environment:
+      - API_URL=http://api:3000
+      - WS_URL=ws://api:3001
+    depends_on:
+      - api
+    restart: always
+    networks:
+      - safeschool
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=safeschool
+      - POSTGRES_USER=safeschool
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safeschool"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - safeschool
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - safeschool
+
+  # Sync engine - keeps on-site and cloud in sync
+  sync:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.sync
+    environment:
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - CLOUD_SYNC_URL=${RAILWAY_API_URL}
+      - CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}
+      - SITE_ID=${SCHOOL_SITE_ID}
+      - SYNC_INTERVAL_MS=5000
+    depends_on:
+      - api
+      - postgres
+      - redis
+    restart: always
+    networks:
+      - safeschool
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  safeschool:
+    driver: bridge

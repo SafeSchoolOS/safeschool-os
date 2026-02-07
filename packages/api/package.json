@@ -1,0 +1,24 @@
+{
+  "name": "@safeschool/api",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@safeschool/core": "*",
+    "fastify": "^5.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@fastify/cors": "^10.0.0",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
