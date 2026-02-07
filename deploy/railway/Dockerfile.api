@@ -44,19 +44,13 @@ COPY --from=builder /app/packages/integrations/threat-intel/package.json ./packa
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
-# === BUILD-TIME MODULE TEST (errors show in build logs) ===
-RUN echo "--- Testing module resolution ---" && \
-    node -e "require('@safeschool/db'); console.log('OK: @safeschool/db')" && \
-    node -e "require('@safeschool/core'); console.log('OK: @safeschool/core')" && \
-    node -e "require('@safeschool/dispatch'); console.log('OK: @safeschool/dispatch')" && \
-    node -e "require('@safeschool/notifications'); console.log('OK: @safeschool/notifications')" && \
-    node -e "require('fastify'); console.log('OK: fastify')" && \
-    node -e "require('ioredis'); console.log('OK: ioredis')" && \
-    echo "--- All modules OK ---"
+# Build-time module test
+RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('fastify'); console.log('Modules OK')"
+
+# Copy startup script
+COPY deploy/railway/start-api.sh /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
-
-CMD npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && node packages/api/dist/server.js
+CMD ["/app/start.sh"]

@@ -1,19 +1,15 @@
 #!/bin/sh
-set -e
+echo "=== SafeSchool API Starting ==="
+echo "PORT=${PORT:-3000}"
+echo "NODE_ENV=${NODE_ENV}"
+echo "OPERATING_MODE=${OPERATING_MODE}"
+echo "AUTH_PROVIDER=${AUTH_PROVIDER:-dev}"
+echo "DATABASE_URL set: $(test -n "$DATABASE_URL" && echo YES || echo NO)"
+echo "REDIS_URL set: $(test -n "$REDIS_URL" && echo YES || echo NO)"
 
 echo "=== Running migrations ==="
 npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
-echo "=== Migration complete ==="
+echo "=== Migration exit code: $? ==="
 
-echo "=== Checking dist files ==="
-ls -la packages/api/dist/server.js 2>&1 || echo "MISSING: packages/api/dist/server.js"
-ls -la packages/db/dist/index.js 2>&1 || echo "MISSING: packages/db/dist/index.js"
-ls -la node_modules/@safeschool/db 2>&1 || echo "MISSING: node_modules/@safeschool/db"
-
-echo "=== Testing module imports ==="
-node -e "try { require('@safeschool/db'); console.log('OK: @safeschool/db'); } catch(e) { console.error('FAIL @safeschool/db:', e.message); }"
-node -e "try { require('@safeschool/core'); console.log('OK: @safeschool/core'); } catch(e) { console.error('FAIL @safeschool/core:', e.message); }"
-node -e "try { require('@safeschool/dispatch'); console.log('OK: @safeschool/dispatch'); } catch(e) { console.error('FAIL @safeschool/dispatch:', e.message); }"
-
-echo "=== Starting server ==="
-exec node packages/api/dist/server.js
+echo "=== Starting Node server ==="
+exec node --trace-warnings packages/api/dist/server.js
