@@ -149,21 +149,19 @@ EXPOSE 3000
 CMD ["node", "packages/api/dist/worker-entry.js"]
 
 # ==========================================
-# Runner: Dashboard (nginx serving Vite SPA)
+# Runner: Dashboard (Node.js static server for Vite SPA)
 # ==========================================
-FROM nginx:alpine AS runner-dashboard
+FROM node:20-alpine AS runner-dashboard
+WORKDIR /app
 
-COPY --from=build-dashboard /app/apps/dashboard/dist /usr/share/nginx/html
-COPY deploy/railway/nginx-spa.conf /etc/nginx/conf.d/default.conf
-COPY deploy/railway/start-dashboard.sh /start.sh
-RUN chmod +x /start.sh
+COPY --from=build-dashboard /app/apps/dashboard/dist ./dist
+COPY deploy/railway/serve-dashboard.js ./serve-dashboard.js
 
 # Verify build output exists
-RUN ls -la /usr/share/nginx/html/ && test -f /usr/share/nginx/html/index.html
+RUN ls -la dist/ && test -f dist/index.html
 
-ENV PORT=3000
 EXPOSE 3000
-CMD ["/start.sh"]
+CMD ["node", "serve-dashboard.js"]
 
 # ==========================================
 # Final: Select target based on BUILD_TARGET arg
