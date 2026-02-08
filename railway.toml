@@ -1,0 +1,5 @@
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "always"
+numReplicas = 1
