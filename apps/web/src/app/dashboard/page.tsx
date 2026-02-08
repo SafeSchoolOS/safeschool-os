@@ -5,6 +5,9 @@ import { SITE_NAME } from '@/lib/constants';
 import { ScrollReveal } from '@/components/common/ScrollReveal';
 import { ExternalLink } from 'lucide-react';
 
+// Force dynamic rendering so DASHBOARD_URL is read at request time
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: `School Dashboard | ${SITE_NAME}`,
 };
