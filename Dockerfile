@@ -155,10 +155,15 @@ FROM nginx:alpine AS runner-dashboard
 
 COPY --from=build-dashboard /app/apps/dashboard/dist /usr/share/nginx/html
 COPY deploy/railway/nginx-spa.conf /etc/nginx/conf.d/default.conf
+COPY deploy/railway/start-dashboard.sh /start.sh
+RUN chmod +x /start.sh
+
+# Verify build output exists
+RUN ls -la /usr/share/nginx/html/ && test -f /usr/share/nginx/html/index.html
 
 ENV PORT=3000
 EXPOSE 3000
-CMD sh -c "sed -i \"s/listen 3000/listen \${PORT}/\" /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+CMD ["/start.sh"]
 
 # ==========================================
 # Final: Select target based on BUILD_TARGET arg
