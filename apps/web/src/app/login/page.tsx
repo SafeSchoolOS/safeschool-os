@@ -4,8 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Shield, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +17,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
