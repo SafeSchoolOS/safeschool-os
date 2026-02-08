@@ -1,3 +1,6 @@
+[build]
+builder = "dockerfile"
+
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 300
