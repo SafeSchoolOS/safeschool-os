@@ -4,6 +4,7 @@
 # Usage (set BUILD_TARGET as Railway build variable):
 #   API (default):  BUILD_TARGET=api
 #   Web:            BUILD_TARGET=web
+#   Dashboard:      BUILD_TARGET=dashboard
 #   Worker:         BUILD_TARGET=worker
 # ==========================================
 
@@ -33,6 +34,16 @@ FROM base AS build-web
 ARG NEXT_PUBLIC_SITE_URL=https://safeschool.org
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 RUN cd apps/web && npm run build
+
+# ==========================================
+# Build: Dashboard (Vite + React SPA)
+# ==========================================
+FROM base AS build-dashboard
+ARG VITE_API_URL
+ARG VITE_AUTH_PROVIDER=dev
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
+RUN npx turbo run build --filter=@safeschool/dashboard
 
 # ==========================================
 # Runner: API
@@ -136,6 +147,17 @@ COPY --from=build-api /app/package.json ./
 
 EXPOSE 3000
 CMD ["node", "packages/api/dist/worker-entry.js"]
+
+# ==========================================
+# Runner: Dashboard (nginx serving Vite SPA)
+# ==========================================
+FROM nginx:alpine AS runner-dashboard
+
+COPY --from=build-dashboard /app/apps/dashboard/dist /usr/share/nginx/html
+COPY deploy/railway/nginx-spa.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 3000
+CMD ["nginx", "-g", "daemon off;"]
 
 # ==========================================
 # Final: Select target based on BUILD_TARGET arg
