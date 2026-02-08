@@ -3,7 +3,6 @@
 # ==========================================
 # Usage (set BUILD_TARGET as Railway build variable):
 #   API (default):  BUILD_TARGET=api
-#   Web:            BUILD_TARGET=web
 #   Dashboard:      BUILD_TARGET=dashboard
 #   Worker:         BUILD_TARGET=worker
 # ==========================================
@@ -26,14 +25,6 @@ RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma gene
 # ==========================================
 FROM base AS build-api
 RUN npx turbo run build --filter='./packages/**'
-
-# ==========================================
-# Build: Web (Next.js marketing site)
-# ==========================================
-FROM base AS build-web
-ARG NEXT_PUBLIC_SITE_URL=https://safeschool.org
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-RUN cd apps/web && npm run build
 
 # ==========================================
 # Build: Dashboard (Vite + React SPA)
@@ -91,23 +82,6 @@ RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 3000
 CMD ["/app/start.sh"]
-
-# ==========================================
-# Runner: Web (Next.js standalone)
-# ==========================================
-FROM node:20-alpine AS runner-web
-WORKDIR /app
-ENV NODE_ENV=production
-ENV HOSTNAME=0.0.0.0
-ENV PORT=3000
-
-# Next.js standalone output (includes minimal node_modules)
-COPY --from=build-web /app/apps/web/.next/standalone ./
-# Static assets (CSS, JS bundles)
-COPY --from=build-web /app/apps/web/.next/static ./apps/web/.next/static
-
-EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
 
 # ==========================================
 # Runner: Worker (same packages as API, different entrypoint)
