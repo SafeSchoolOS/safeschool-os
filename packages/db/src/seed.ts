@@ -26,6 +26,7 @@ const IDS = {
     entranceAnnex: '00000000-0000-4000-a000-000000000203',
   },
   users: {
+    owner: '00000000-0000-4000-a000-000000001000',
     admin: '00000000-0000-4000-a000-000000001001',
     operator: '00000000-0000-4000-a000-000000001002',
     teacher1: '00000000-0000-4000-a000-000000001003',
@@ -159,6 +160,7 @@ async function main() {
 
   // Users
   const users = [
+    { id: IDS.users.owner, email: 'bwattendorf@gmail.com', name: 'Bruce Wattendorf', role: 'SITE_ADMIN' as const, phone: null },
     { id: IDS.users.admin, email: 'admin@lincoln.edu', name: 'Dr. Sarah Mitchell', role: 'SITE_ADMIN' as const, phone: '+15551000001' },
     { id: IDS.users.operator, email: 'operator@lincoln.edu', name: 'James Rodriguez', role: 'OPERATOR' as const, phone: '+15551000002' },
     { id: IDS.users.teacher1, email: 'teacher1@lincoln.edu', name: 'Emily Chen', role: 'TEACHER' as const, phone: '+15551000003', wearableDeviceId: 'CX-BADGE-001' },
