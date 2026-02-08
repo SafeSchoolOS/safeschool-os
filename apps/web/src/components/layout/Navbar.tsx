@@ -81,6 +81,12 @@ export function Navbar() {
         {/* CTA */}
         <div className="hidden lg:flex items-center gap-4">
           <Link
+            href="/login"
+            className="text-[15px] font-medium text-slate-700 hover:text-navy-700 transition-colors"
+          >
+            Login
+          </Link>
+          <Link
             href="/schools"
             className="inline-flex items-center px-5 py-2.5 bg-teal-500 text-white text-[15px] font-semibold rounded-button hover:bg-teal-600 transition-colors"
           >
@@ -127,6 +133,12 @@ export function Navbar() {
               </Link>
             ),
           )}
+          <Link
+            href="/login"
+            className="block py-2 text-slate-700 hover:text-teal-600 font-medium"
+          >
+            Login
+          </Link>
           <Link
             href="/schools"
             className="block w-full text-center px-5 py-3 bg-teal-500 text-white font-semibold rounded-button hover:bg-teal-600 transition-colors"
