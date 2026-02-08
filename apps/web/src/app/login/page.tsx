@@ -51,13 +51,13 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-navy-700 mb-2">Welcome, {userName}</h1>
           <p className="text-slate-600 mb-8">You are now authenticated.</p>
           <div className="space-y-3">
-            <Link
-              href="/dashboard"
+            <a
+              href="https://dashboard-production-ed96.up.railway.app"
               className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-teal-500 text-white font-semibold rounded-button hover:bg-teal-600 transition-colors"
             >
               Go to Dashboard
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </a>
             <button
               onClick={() => {
                 if (typeof window !== 'undefined') {
