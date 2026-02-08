@@ -156,8 +156,9 @@ FROM nginx:alpine AS runner-dashboard
 COPY --from=build-dashboard /app/apps/dashboard/dist /usr/share/nginx/html
 COPY deploy/railway/nginx-spa.conf /etc/nginx/conf.d/default.conf
 
+ENV PORT=3000
 EXPOSE 3000
-CMD ["nginx", "-g", "daemon off;"]
+CMD sh -c "sed -i \"s/listen 3000/listen \${PORT}/\" /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
 
 # ==========================================
 # Final: Select target based on BUILD_TARGET arg
