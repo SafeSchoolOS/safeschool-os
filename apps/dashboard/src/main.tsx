@@ -31,7 +31,8 @@ const ClerkWrapper = lazy(async () => {
   const [{ ClerkProvider }] = await Promise.all([import('@clerk/clerk-react')]);
   const key = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
   return {
-    default: ({ children }: { children: React.ReactNode }) => (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    default: ({ children }: { children: any }) => (
       <ClerkProvider publishableKey={key}>{children}</ClerkProvider>
     ),
   };
