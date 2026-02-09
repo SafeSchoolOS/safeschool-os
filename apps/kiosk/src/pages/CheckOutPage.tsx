@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useKioskMode } from '../hooks/useKioskMode';
 import { kioskApi } from '../api/client';
 
 export function CheckOutPage() {
   useKioskMode();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [allVisitors, setAllVisitors] = useState<any[]>([]);
@@ -26,7 +28,7 @@ export function CheckOutPage() {
       setFilteredVisitors(results);
       setError('');
     } catch {
-      setError('Could not load visitor list');
+      setError(t('checkOut.errorLoad'));
     } finally {
       setLoading(false);
     }
@@ -51,10 +53,10 @@ export function CheckOutPage() {
   const handleCheckOut = async (id: string, name: string) => {
     try {
       await kioskApi.post(`/visitors/${id}/check-out`, {});
-      setSuccess(`${name} has been checked out. Goodbye!`);
+      setSuccess(t('checkOut.successMessage', { name }));
       setTimeout(() => navigate('/'), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Check-out failed');
+      setError(err instanceof Error ? err.message : t('checkOut.errorDefault'));
     }
   };
 
@@ -69,9 +71,9 @@ export function CheckOutPage() {
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
-          Back
+          {t('common.back')}
         </button>
-        <h2 className="text-3xl font-bold">Visitor Check-Out</h2>
+        <h2 className="text-3xl font-bold">{t('checkOut.header')}</h2>
         <div className="w-20" />
       </div>
 
@@ -95,11 +97,11 @@ export function CheckOutPage() {
         <>
           {/* Search bar */}
           <div className="max-w-lg mx-auto mb-8">
-            <p className="text-xl text-center text-gray-300 mb-4">Find your name or badge number</p>
+            <p className="text-xl text-center text-gray-300 mb-4">{t('checkOut.searchPrompt')}</p>
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search by name or badge number..."
+              placeholder={t('checkOut.searchPlaceholder')}
               className="w-full p-5 text-xl bg-gray-800 rounded-xl border border-gray-700 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 outline-none transition-all"
               autoFocus
             />
@@ -113,7 +115,7 @@ export function CheckOutPage() {
               </div>
             ) : filteredVisitors.length === 0 ? (
               <div className="text-center text-gray-500 py-12 text-lg">
-                {query ? 'No matching visitors found' : 'No active visitors'}
+                {query ? t('checkOut.noMatchingVisitors') : t('checkOut.noActiveVisitors')}
               </div>
             ) : (
               filteredVisitors.map(v => (
@@ -125,7 +127,7 @@ export function CheckOutPage() {
                   <div className="text-left">
                     <div className="text-xl font-semibold">{v.firstName} {v.lastName}</div>
                     <div className="text-sm text-gray-400 mt-1">
-                      Badge: {v.badgeNumber} | {v.destination || v.purpose}
+                      {t('checkOut.badgeLabel')}: {v.badgeNumber} | {v.destination || v.purpose}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-red-400 text-lg font-medium">
@@ -134,7 +136,7 @@ export function CheckOutPage() {
                       <polyline points="16 17 21 12 16 7" />
                       <line x1="21" y1="12" x2="9" y2="12" />
                     </svg>
-                    Check Out
+                    {t('checkOut.checkOutButton')}
                   </div>
                 </button>
               ))

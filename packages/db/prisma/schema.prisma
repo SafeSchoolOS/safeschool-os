@@ -156,6 +156,7 @@ model User {
   lockdownsInitiated LockdownCommand[] @relation("LockdownInitiatedBy")
   auditLogs         AuditLog[]
   hostedVisitors    Visitor[]         @relation("VisitorHost")
+  notificationPreferences NotificationPreference[]
 
   @@map("users")
 }
@@ -978,6 +979,28 @@ model SiteLicense {
   site Site @relation(fields: [siteId], references: [id])
 
   @@map("site_licenses")
+}
+
+// ============================================================================
+// Notification Preferences (Per-User)
+// ============================================================================
+
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  siteId    String   @map("site_id")
+  channel   String   // SMS, EMAIL, PUSH, PA
+  alertLevel String  @map("alert_level") // MEDICAL, LOCKDOWN, ACTIVE_THREAT, FIRE, WEATHER, ALL_CLEAR, ALL
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, siteId, channel, alertLevel])
+  @@index([userId, siteId])
+  @@map("notification_preferences")
 }
 
 // ============================================================================

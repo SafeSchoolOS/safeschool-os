@@ -16,6 +16,7 @@
     "@clerk/backend": "^1.20.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/jwt": "^9.0.0",
+    "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.5",

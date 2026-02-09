@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useKioskMode } from '../hooks/useKioskMode';
 import { kioskApi } from '../api/client';
 
@@ -7,12 +8,16 @@ const SITE_NAME = import.meta.env.VITE_SITE_NAME || 'Lincoln Elementary';
 
 export function BadgePage() {
   useKioskMode(30000);
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [visitor, setVisitor] = useState<any>(null);
   const [features, setFeatures] = useState<any>(null);
   const [printing, setPrinting] = useState(false);
   const [printSuccess, setPrintSuccess] = useState(false);
+
+  const currentLang = i18n.language?.split('-')[0] || 'en';
+  const timeLocale = currentLang === 'es' ? 'es-US' : 'en-US';
 
   useEffect(() => {
     if (id) {
@@ -55,7 +60,7 @@ export function BadgePage() {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-white">
         <div className="w-12 h-12 border-3 border-blue-400 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-gray-400">Loading visitor information...</p>
+        <p className="text-gray-400">{t('badge.loadingMessage')}</p>
       </div>
     );
   }
@@ -71,33 +76,33 @@ export function BadgePage() {
           </svg>
         </div>
 
-        <h2 className="text-3xl font-bold mb-1">Welcome!</h2>
+        <h2 className="text-3xl font-bold mb-1">{t('badge.title')}</h2>
         <p className="text-xl text-gray-600 mb-6">{visitor.firstName} {visitor.lastName}</p>
 
         <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left space-y-3">
           <div className="flex justify-between items-baseline">
-            <span className="text-gray-500 text-sm">Badge #</span>
+            <span className="text-gray-500 text-sm">{t('badge.badgeNumber')}</span>
             <span className="font-bold text-2xl text-gray-900">{visitor.badgeNumber}</span>
           </div>
           <div className="h-px bg-gray-200" />
           <div className="flex justify-between">
-            <span className="text-gray-500 text-sm">Purpose</span>
+            <span className="text-gray-500 text-sm">{t('badge.purpose')}</span>
             <span className="text-gray-800 font-medium">{visitor.purpose}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500 text-sm">Destination</span>
+            <span className="text-gray-500 text-sm">{t('badge.destination')}</span>
             <span className="text-gray-800 font-medium">{visitor.destination}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500 text-sm">Time In</span>
+            <span className="text-gray-500 text-sm">{t('badge.timeIn')}</span>
             <span className="text-gray-800 font-medium">
-              {new Date(visitor.checkedInAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(visitor.checkedInAt).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         </div>
 
         <div className="bg-blue-50 text-blue-800 rounded-lg p-3 mb-4 text-sm print:hidden">
-          Please wear your badge visibly at all times while in {SITE_NAME}.
+          {t('badge.instructions', { siteName: SITE_NAME })}
         </div>
 
         <button
@@ -105,11 +110,11 @@ export function BadgePage() {
           disabled={printing}
           className="w-full p-4 bg-blue-600 text-white rounded-xl hover:bg-blue-500 active:bg-blue-700 transition-all duration-200 mb-3 disabled:bg-gray-400 print:hidden text-lg font-semibold active:scale-[0.98]"
         >
-          {printing ? 'Printing...' : printSuccess ? 'Print Another' : 'Print Badge'}
+          {printing ? t('badge.printing') : printSuccess ? t('badge.printAnother') : t('badge.printBadge')}
         </button>
 
         {features?.badgePrinting && (
-          <p className="text-xs text-green-600 print:hidden">Professional badge printing enabled</p>
+          <p className="text-xs text-green-600 print:hidden">{t('badge.printEnabled')}</p>
         )}
       </div>
 
@@ -117,7 +122,7 @@ export function BadgePage() {
         onClick={() => navigate('/')}
         className="mt-8 text-gray-400 hover:text-white text-lg print:hidden transition-colors"
       >
-        Done
+        {t('badge.done')}
       </button>
     </div>
   );

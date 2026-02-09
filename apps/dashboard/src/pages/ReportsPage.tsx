@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { exportToCsv, formatDate } from '../utils/export';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -65,6 +66,7 @@ export function ReportsPage() {
       }
       return {
         totalAlerts: filtered.length,
+        rawAlerts: filtered,
         byLevel,
         byStatus,
         byDay,
@@ -106,6 +108,45 @@ export function ReportsPage() {
   });
 
   const isLoading = incidentLoading || complianceLoading || visitorLoading;
+
+  const handleExportCsv = () => {
+    const timestamp = new Date().toISOString().slice(0, 10);
+
+    if (reportType === 'incident' && incidentData) {
+      const headers = ['ID', 'Level', 'Status', 'Message', 'Created At', 'Updated At'];
+      const rows = (incidentData.rawAlerts || []).map((a: any) => [
+        a.id || '',
+        a.level || '',
+        a.status || '',
+        a.message || '',
+        formatDate(a.createdAt),
+        formatDate(a.updatedAt),
+      ]);
+      exportToCsv(`incidents_${timestamp}`, headers, rows);
+    } else if (reportType === 'compliance' && complianceData) {
+      const headers = ['Drill Type', 'Required', 'Completed', 'Compliant'];
+      const rows = (complianceData.requirements || []).map((r: any) => [
+        r.label || r.type || '',
+        String(r.required),
+        String(r.completed),
+        r.compliant ? 'Yes' : 'No',
+      ]);
+      exportToCsv(`compliance_${timestamp}`, headers, rows);
+    } else if (reportType === 'visitor' && visitorData) {
+      const headers = ['Purpose', 'Count'];
+      const rows = Object.entries(visitorData.byPurpose).map(([purpose, count]) => [
+        purpose,
+        String(count),
+      ]);
+      rows.push(['---', '---']);
+      rows.push(['Total Visitors', String(visitorData.total)]);
+      rows.push(['Checked Out', String(visitorData.checkedOut)]);
+      rows.push(['Still On Site', String(visitorData.stillOnSite)]);
+      rows.push(['Screened', String(visitorData.screened)]);
+      rows.push(['Flagged', String(visitorData.flagged)]);
+      exportToCsv(`visitor_activity_${timestamp}`, headers, rows);
+    }
+  };
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -259,8 +300,17 @@ export function ReportsPage() {
             className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm"
           />
           <button
-            onClick={handlePrint}
+            onClick={handleExportCsv}
             className="ml-2 px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export CSV
+          </button>
+          <button
+            onClick={handlePrint}
+            className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />

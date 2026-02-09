@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useKioskMode } from '../hooks/useKioskMode';
 
 export function DeniedPage() {
   useKioskMode(15000);
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -16,16 +18,16 @@ export function DeniedPage() {
         </svg>
       </div>
 
-      <h2 className="text-4xl font-bold mb-4">Entry Not Authorized</h2>
+      <h2 className="text-4xl font-bold mb-4">{t('denied.title')}</h2>
       <p className="text-xl text-red-200 mb-8 text-center max-w-md leading-relaxed">
-        Your entry cannot be processed at this time. Please visit the main office for assistance.
+        {t('denied.message')}
       </p>
 
       <button
         onClick={() => navigate('/')}
         className="px-10 py-4 bg-red-800 hover:bg-red-700 active:bg-red-900 rounded-xl text-xl transition-all duration-200 active:scale-[0.98]"
       >
-        Return to Welcome Screen
+        {t('denied.returnButton')}
       </button>
     </div>
   );

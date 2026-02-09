@@ -5,6 +5,7 @@ import { useSites } from '../../api/sites';
 import { useActiveVisitors } from '../../api/visitors';
 import { useBuses } from '../../api/transportation';
 import { useWebSocket } from '../../ws/useWebSocket';
+import { ConnectionStatus } from './ConnectionStatus';
 
 interface NavItem {
   label: string;
@@ -61,7 +62,7 @@ export function DashboardLayout() {
   const site = sites?.[0];
   const activeBusCount = (buses || []).filter((b: any) => b.isActive).length;
 
-  useWebSocket(siteId);
+  const { connectionState } = useWebSocket(siteId);
 
   // Find current page title
   const currentItem = NAV_SECTIONS.flatMap((s) => s.items).find((i) => i.path === location.pathname);

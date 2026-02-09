@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const SITE_NAME = import.meta.env.VITE_SITE_NAME || 'Lincoln Elementary';
 
+const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'EN' },
+  { code: 'es', label: 'ES' },
+] as const;
+
 export function WelcomePage() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [guardTaps, setGuardTaps] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -25,24 +32,55 @@ export function WelcomePage() {
     }
   };
 
-  const dateStr = currentTime.toLocaleDateString('en-US', {
+  const handleLanguageChange = (langCode: string) => {
+    i18n.changeLanguage(langCode);
+    try {
+      localStorage.setItem('kiosk_language', langCode);
+    } catch {
+      // localStorage may not be available
+    }
+  };
+
+  const currentLang = i18n.language?.split('-')[0] || 'en';
+
+  const dateLocale = currentLang === 'es' ? 'es-US' : 'en-US';
+
+  const dateStr = currentTime.toLocaleDateString(dateLocale, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
 
-  const timeStr = currentTime.toLocaleTimeString('en-US', {
+  const timeStr = currentTime.toLocaleTimeString(dateLocale, {
     hour: '2-digit',
     minute: '2-digit',
   });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950 flex flex-col items-center justify-between text-white p-8 select-none">
-      {/* Top bar with time */}
+      {/* Top bar with time and language toggle */}
       <div className="w-full flex justify-between items-center text-gray-400 text-lg">
         <span>{dateStr}</span>
-        <span className="text-2xl font-mono tabular-nums">{timeStr}</span>
+        <div className="flex items-center gap-4">
+          {/* Language toggle */}
+          <div className="flex items-center bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+            {LANGUAGE_OPTIONS.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => handleLanguageChange(lang.code)}
+                className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  currentLang === lang.code
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-2xl font-mono tabular-nums">{timeStr}</span>
+        </div>
       </div>
 
       {/* Center content */}
@@ -59,9 +97,9 @@ export function WelcomePage() {
           </svg>
         </div>
 
-        <h1 className="text-5xl font-bold mb-2 text-center">Welcome to</h1>
+        <h1 className="text-5xl font-bold mb-2 text-center">{t('welcome.title')}</h1>
         <h2 className="text-6xl font-extrabold mb-4 text-center text-blue-400">{SITE_NAME}</h2>
-        <p className="text-xl text-gray-400 mb-16">All visitors must sign in at the front desk</p>
+        <p className="text-xl text-gray-400 mb-16">{t('welcome.subtitle')}</p>
 
         <div className="flex gap-8">
           <button
@@ -74,7 +112,7 @@ export function WelcomePage() {
               <line x1="19" y1="8" x2="19" y2="14" />
               <line x1="22" y1="11" x2="16" y2="11" />
             </svg>
-            Visitor Check-In
+            {t('welcome.checkIn')}
           </button>
 
           <button
@@ -86,7 +124,7 @@ export function WelcomePage() {
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            Visitor Check-Out
+            {t('welcome.checkOut')}
           </button>
         </div>
       </div>
@@ -98,7 +136,7 @@ export function WelcomePage() {
         tabIndex={-1}
         aria-hidden="true"
       >
-        BadgeKiosk by SafeSchool
+        {t('welcome.footer')}
       </button>
     </div>
   );

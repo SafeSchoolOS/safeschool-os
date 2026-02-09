@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { exportToCsv, formatDate } from '../utils/export';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -107,6 +108,25 @@ export function DrillsPage() {
     },
   });
 
+  const handleExportCsv = () => {
+    if (drills.length === 0) return;
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const headers = ['Type', 'Status', 'Scheduled At', 'Started At', 'Completed At', 'Evacuation Time (s)', 'Head Count', 'Participants', 'Compliance Met', 'Notes'];
+    const rows = drills.map((drill) => [
+      TYPE_LABELS[drill.type] || drill.type,
+      drill.status,
+      formatDate(drill.scheduledAt),
+      formatDate(drill.startedAt),
+      formatDate(drill.completedAt),
+      drill.evacuationTimeS != null ? String(drill.evacuationTimeS) : '',
+      drill.headCount != null ? String(drill.headCount) : '',
+      drill._count?.participants != null ? String(drill._count.participants) : '',
+      drill.complianceMet != null ? (drill.complianceMet ? 'Yes' : 'No') : '',
+      drill.notes || '',
+    ]);
+    exportToCsv(`drills_${timestamp}`, headers, rows);
+  };
+
   return (
     <div className="p-6">
       {/* Top Actions */}
@@ -123,12 +143,24 @@ export function DrillsPage() {
             ))}
           </select>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded text-sm font-medium transition-colors"
-        >
-          Schedule Drill
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={drills.length === 0}
+            className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export CSV
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded text-sm font-medium transition-colors"
+          >
+            Schedule Drill
+          </button>
+        </div>
       </div>
 
       {/* Compliance Report */}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
+import { exportToCsv, formatDate } from '../utils/export';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -76,6 +77,22 @@ export function AuditLogPage() {
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / pageSize);
 
+  const handleExportCsv = () => {
+    if (entries.length === 0) return;
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const headers = ['Timestamp', 'Action', 'Entity', 'Entity ID', 'User', 'Role', 'Details'];
+    const rows = entries.map((entry) => [
+      formatDate(entry.createdAt),
+      entry.action,
+      entry.entity,
+      entry.entityId || '',
+      entry.user?.name || 'System',
+      entry.user?.role || '',
+      entry.details ? JSON.stringify(entry.details) : '',
+    ]);
+    exportToCsv(`audit_log_${timestamp}`, headers, rows);
+  };
+
   return (
     <div className="p-6">
       {/* Filters */}
@@ -102,7 +119,19 @@ export function AuditLogPage() {
             ))}
           </select>
         </div>
-        <div className="text-sm text-gray-400">{total} entries</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCsv}
+            disabled={entries.length === 0}
+            className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export CSV
+          </button>
+          <span className="text-sm text-gray-400">{total} entries</span>
+        </div>
       </div>
 
       {/* Loading State */}

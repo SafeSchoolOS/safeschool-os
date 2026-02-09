@@ -9,18 +9,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.20.0",
+    "@tanstack/react-query": "^5.62.0",
+    "i18next": "^25.8.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.0",
-    "@clerk/clerk-react": "^5.20.0",
-    "@tanstack/react-query": "^5.62.0"
+    "react-i18next": "^16.5.4",
+    "react-router-dom": "^7.1.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/vite": "^4.0.0",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   }
