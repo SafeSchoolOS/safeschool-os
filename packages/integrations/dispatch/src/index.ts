@@ -18,6 +18,11 @@ export interface DispatchPayload {
   latitude?: number;
   longitude?: number;
   callerInfo?: string;
+  // Site address for NENA i3 civic address
+  siteAddress?: string;
+  siteCity?: string;
+  siteState?: string;
+  siteZip?: string;
 }
 
 export interface DispatchResult {

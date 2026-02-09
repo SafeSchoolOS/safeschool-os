@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { createCameraAdapter, type CameraAdapter } from '@safeschool/cameras';
 import { getConfig } from '../config.js';
+import { requireMinRole } from '../middleware/rbac.js';
 
 let cameraAdapter: CameraAdapter | null = null;
 
@@ -20,7 +21,7 @@ function getAdapter(): CameraAdapter {
 
 const cameraRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/cameras — List all cameras
-  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.get('/', { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] }, async (request, reply) => {
     try {
       const adapter = getAdapter();
       const cameras = await adapter.getCameras();
@@ -37,7 +38,7 @@ const cameraRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/cameras/:id/stream — Get stream URL for a camera
   fastify.get<{ Params: { id: string } }>(
     '/:id/stream',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] },
     async (request, reply) => {
       try {
         const adapter = getAdapter();
@@ -56,7 +57,7 @@ const cameraRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/cameras/:id/snapshot — Get snapshot image
   fastify.get<{ Params: { id: string } }>(
     '/:id/snapshot',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] },
     async (request, reply) => {
       try {
         const adapter = getAdapter();

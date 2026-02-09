@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 
 // Plugins
@@ -40,9 +41,46 @@ export async function buildServer() {
     logger: true,
   });
 
-  // Core middleware
-  await app.register(cors, { origin: true });
+  // CORS — restrict to known origins in production
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : true; // Allow all in dev
+  await app.register(cors, {
+    origin: allowedOrigins,
+    credentials: true,
+  });
+
+  // Rate limiting
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+    allowList: ['127.0.0.1', '::1'],
+  });
+
   await app.register(websocket);
+
+  // Global error handler
+  app.setErrorHandler((error: any, request, reply) => {
+    const statusCode = error.statusCode ?? 500;
+    app.log.error({
+      err: error,
+      url: request.url,
+      method: request.method,
+      userId: (request as any).jwtUser?.id,
+    });
+
+    if (statusCode >= 500) {
+      reply.code(statusCode).send({
+        error: 'Internal Server Error',
+        statusCode,
+      });
+    } else {
+      reply.code(statusCode).send({
+        error: error.message,
+        statusCode,
+      });
+    }
+  });
 
   // Plugins
   await app.register(prismaPlugin);

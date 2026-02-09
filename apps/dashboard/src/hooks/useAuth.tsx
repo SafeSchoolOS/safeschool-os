@@ -15,7 +15,7 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<void>;
   logout: () => void;
   isClerkMode: boolean;
 }
@@ -41,8 +41,8 @@ function DevAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
-  const login = async (email: string) => {
-    const data = await apiClient.post('/api/v1/auth/login', { email });
+  const login = async (email: string, password?: string) => {
+    const data = await apiClient.post('/api/v1/auth/login', { email, password });
     localStorage.setItem('safeschool_token', data.token);
     setToken(data.token);
     setUser(data.user);

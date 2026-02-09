@@ -1,11 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { scoreRisk, getAssessmentActions } from '@safeschool/threat-assessment';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/threat-assessments — List reports
   fastify.get<{
     Querystring: { siteId?: string; status?: string; riskLevel?: string; limit?: string };
-  }>('/', { preHandler: [fastify.authenticate] }, async (request) => {
+  }>('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const { siteId, status, riskLevel, limit } = request.query;
 
     const where: any = {};
@@ -32,7 +33,7 @@ const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
       evidence?: Record<string, unknown>;
       riskFactors?: string[];
     };
-  }>('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { subjectName, subjectGrade, subjectRole, category, description, evidence, riskFactors } = request.body;
 
     if (!subjectName || !category || !description) {
@@ -96,7 +97,7 @@ const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/v1/threat-assessments/:id — Report detail
-  fastify.get<{ Params: { id: string } }>('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.get<{ Params: { id: string } }>('/:id', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const report = await fastify.prisma.threatReport.findUnique({
       where: { id: request.params.id },
     });
@@ -119,7 +120,7 @@ const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
       notes?: string;
       riskFactors?: string[];
     };
-  }>('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/:id', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { status, assignedToId, riskLevel, actionTaken, riskFactors } = request.body;
 
     const existing = await fastify.prisma.threatReport.findUnique({
@@ -174,7 +175,7 @@ const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{
     Params: { id: string };
     Body: { riskFactors: string[] };
-  }>('/:id/score', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/:id/score', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { riskFactors } = request.body;
 
     if (!riskFactors || !Array.isArray(riskFactors)) {
@@ -202,7 +203,7 @@ const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/v1/threat-assessments/dashboard — Summary stats
-  fastify.get('/dashboard', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/dashboard', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const siteId = request.jwtUser.siteIds[0];
 
     const [total, byStatus, byRiskLevel] = await Promise.all([

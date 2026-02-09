@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const transportationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/transportation/buses — List buses for site
-  fastify.get('/buses', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/buses', { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] }, async (request) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return [];
 
@@ -23,7 +24,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       hasPanicButton?: boolean;
       hasCameras?: boolean;
     };
-  }>('/buses', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/buses', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return reply.code(403).send({ error: 'No site access' });
 
@@ -41,7 +42,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch<{
     Params: { id: string };
     Body: Record<string, any>;
-  }>('/buses/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/buses/:id', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { id } = request.params;
     const allowedFields = ['busNumber', 'driverId', 'capacity', 'hasRfidReader', 'hasPanicButton', 'hasCameras', 'isActive'];
     const data: any = {};
@@ -54,7 +55,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/v1/transportation/routes — List routes
-  fastify.get('/routes', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/routes', { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] }, async (request) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return [];
 
@@ -76,7 +77,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       isPmRoute?: boolean;
       stops?: { name: string; address: string; latitude: number; longitude: number; scheduledTime: string; stopOrder: number }[];
     };
-  }>('/routes', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/routes', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return reply.code(403).send({ error: 'No site access' });
 
@@ -103,7 +104,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/transportation/routes/:id — Route detail with stops
   fastify.get<{ Params: { id: string } }>(
     '/routes/:id',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] },
     async (request, reply) => {
       const route = await fastify.prisma.busRoute.findUnique({
         where: { id: request.params.id },
@@ -129,7 +130,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       speed?: number;
       heading?: number;
     };
-  }>('/gps', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/gps', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { busId, latitude, longitude, speed, heading } = request.body;
     if (!busId || latitude == null || longitude == null) {
       return reply.code(400).send({ error: 'busId, latitude, and longitude are required' });
@@ -176,7 +177,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       busId: string;
       scanType: 'BOARD' | 'EXIT';
     };
-  }>('/scan', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/scan', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { cardId, busId, scanType } = request.body;
     if (!cardId || !busId || !scanType) {
       return reply.code(400).send({ error: 'cardId, busId, and scanType are required' });
@@ -238,7 +239,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/transportation/student/:cardId/status
   fastify.get<{ Params: { cardId: string } }>(
     '/student/:cardId/status',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] },
     async (request, reply) => {
       const studentCard = await fastify.prisma.studentCard.findUnique({
         where: { cardId: request.params.cardId },
@@ -262,7 +263,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/transportation/parents/:studentCardId
   fastify.get<{ Params: { studentCardId: string } }>(
     '/parents/:studentCardId',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] },
     async (request) => {
       return fastify.prisma.parentContact.findMany({
         where: { studentCardId: request.params.studentCardId },
@@ -279,7 +280,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       phone?: string;
       email?: string;
     };
-  }>('/parents', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/parents', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { studentCardId, parentName, relationship, phone, email } = request.body;
     if (!studentCardId || !parentName || !relationship) {
       return reply.code(400).send({ error: 'studentCardId, parentName, and relationship are required' });
@@ -305,7 +306,7 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       emailEnabled?: boolean;
       pushEnabled?: boolean;
     };
-  }>('/parents/:id/preferences', { preHandler: [fastify.authenticate] }, async (request) => {
+  }>('/parents/:id/preferences', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const data: any = {};
     const fields = ['boardAlerts', 'exitAlerts', 'etaAlerts', 'delayAlerts', 'missedBusAlerts', 'smsEnabled', 'emailEnabled', 'pushEnabled'];
     for (const field of fields) {

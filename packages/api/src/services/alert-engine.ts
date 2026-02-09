@@ -92,6 +92,9 @@ export class AlertEngine {
     // Always dispatch 911 for threat-level alerts
     const dispatchLevels = ['ACTIVE_THREAT', 'LOCKDOWN', 'FIRE'];
     if (dispatchLevels.includes(alert.level)) {
+      // Fetch full site address for NENA i3 civic address
+      const site = await this.app.prisma.site.findUnique({ where: { id: alert.siteId } });
+
       await this.app.alertQueue.add('dispatch-911', {
         alertId: alert.id,
         siteId: alert.siteId,
@@ -102,6 +105,11 @@ export class AlertEngine {
         // GPS coordinates for 911 PSAP (Alyssa's Law location data)
         latitude: alert.latitude,
         longitude: alert.longitude,
+        // Site civic address for NENA i3 dispatch
+        siteAddress: site?.address,
+        siteCity: site?.city,
+        siteState: site?.state,
+        siteZip: site?.zip,
       });
     }
 

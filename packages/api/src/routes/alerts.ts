@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { AlertEngine } from '../services/alert-engine.js';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const alertRoutes: FastifyPluginAsync = async (fastify) => {
   const engine = new AlertEngine(fastify);
@@ -76,11 +77,11 @@ const alertRoutes: FastifyPluginAsync = async (fastify) => {
     return alert;
   });
 
-  // PATCH /api/v1/alerts/:id — Update alert status
+  // PATCH /api/v1/alerts/:id — Update alert status (FIRST_RESPONDER+)
   fastify.patch<{
     Params: { id: string };
     Body: { status: string };
-  }>('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/:id', { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] }, async (request, reply) => {
     const { status } = request.body;
     const alertId = request.params.id;
     const userId = request.jwtUser.id;

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const doorRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/doors — All door statuses
@@ -20,8 +21,8 @@ const doorRoutes: FastifyPluginAsync = async (fastify) => {
     return doors;
   });
 
-  // POST /api/v1/doors/:id/lock
-  fastify.post<{ Params: { id: string } }>('/:id/lock', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  // POST /api/v1/doors/:id/lock — requires FIRST_RESPONDER or higher
+  fastify.post<{ Params: { id: string } }>('/:id/lock', { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] }, async (request, reply) => {
     const door = await fastify.prisma.door.findUnique({ where: { id: request.params.id } });
     if (!door) return reply.code(404).send({ error: 'Door not found' });
 
@@ -46,8 +47,8 @@ const doorRoutes: FastifyPluginAsync = async (fastify) => {
     return updated;
   });
 
-  // POST /api/v1/doors/:id/unlock
-  fastify.post<{ Params: { id: string } }>('/:id/unlock', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  // POST /api/v1/doors/:id/unlock — requires FIRST_RESPONDER or higher
+  fastify.post<{ Params: { id: string } }>('/:id/unlock', { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] }, async (request, reply) => {
     const door = await fastify.prisma.door.findUnique({ where: { id: request.params.id } });
     if (!door) return reply.code(404).send({ error: 'Door not found' });
 

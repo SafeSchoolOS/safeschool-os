@@ -6,10 +6,35 @@ on:
   pull_request:
     branches: [main]
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+env:
+  NODE_VERSION: '20'
 
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Lint
+        run: npx turbo run lint
+
+      - name: Type check (build packages)
+        run: npx turbo run build --filter='./packages/*'
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
@@ -35,46 +60,47 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      DATABASE_URL: postgresql://safeschool:test@localhost:5432/safeschool_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: test-secret-for-ci
+      AUTH_PROVIDER: dev
+      NODE_ENV: test
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm install
+      - run: npm ci
 
-      - run: npx turbo run lint
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
 
-      - run: npx turbo run build
+      - name: Push schema to test DB
+        run: npx prisma db push --skip-generate --schema=packages/db/prisma/schema.prisma
 
-      - name: Setup test database
-        run: |
-          npx prisma db push --schema=packages/db/prisma/schema.prisma
-          npx tsx packages/db/src/seed.ts
-        env:
-          DATABASE_URL: postgresql://safeschool:test@localhost:5432/safeschool_test
+      - name: Seed test DB
+        run: npx tsx packages/db/src/seed.ts
 
-      - run: npx turbo run test
-        env:
-          DATABASE_URL: postgresql://safeschool:test@localhost:5432/safeschool_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: test-secret-for-ci
-          AUTH_PROVIDER: dev
+      - name: Run tests
+        run: npx turbo run test
 
   deploy:
-    needs: build-and-test
+    name: Deploy to Railway
+    needs: [lint-and-typecheck, test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy to Railway
+      - name: Deploy
         run: railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { GrantService } from '@safeschool/grants';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const grantRoutes: FastifyPluginAsync = async (fastify) => {
   const grantService = new GrantService();
@@ -12,7 +13,7 @@ const grantRoutes: FastifyPluginAsync = async (fastify) => {
       source?: string;
       modules?: string; // comma-separated list
     };
-  }>('/search', { preHandler: [fastify.authenticate] }, async (request) => {
+  }>('/search', { preHandler: [fastify.authenticate, requireMinRole('SITE_ADMIN')] }, async (request) => {
     const { schoolType, state, source, modules } = request.query;
 
     const results = grantService.searchGrants({
@@ -28,7 +29,7 @@ const grantRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/grants/estimate — Estimate potential funding for modules
   fastify.get<{
     Querystring: { modules: string }; // comma-separated list
-  }>('/estimate', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/estimate', { preHandler: [fastify.authenticate, requireMinRole('SITE_ADMIN')] }, async (request, reply) => {
     const { modules } = request.query;
 
     if (!modules) {
@@ -44,7 +45,7 @@ const grantRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/grants/budget-template — Generate budget template for grant applications
   fastify.get<{
     Querystring: { modules: string }; // comma-separated list
-  }>('/budget-template', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/budget-template', { preHandler: [fastify.authenticate, requireMinRole('SITE_ADMIN')] }, async (request, reply) => {
     const { modules } = request.query;
 
     if (!modules) {

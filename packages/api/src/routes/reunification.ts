@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 export default async function reunificationRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -6,7 +7,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/reunification — list reunification events
-  app.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/', { preHandler: [requireMinRole('FIRST_RESPONDER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { status } = request.query as { status?: string };
 
@@ -24,7 +25,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/reunification — start a reunification event
-  app.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/', { preHandler: [requireMinRole('FIRST_RESPONDER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[] };
     const body = request.body as {
       location: string;
@@ -60,7 +61,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/reunification/:id — get event detail with entries
-  app.get('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id', { preHandler: [requireMinRole('FIRST_RESPONDER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { id } = request.params as { id: string };
 
@@ -76,7 +77,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/reunification/:id/entries — add student to reunification
-  app.post('/:id/entries', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/entries', { preHandler: [requireMinRole('FIRST_RESPONDER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[] };
     const { id } = request.params as { id: string };
     const body = request.body as {
@@ -106,7 +107,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/v1/reunification/:eventId/entries/:entryId/release — release student to guardian
-  app.patch('/:eventId/entries/:entryId/release', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:eventId/entries/:entryId/release', { preHandler: [requireMinRole('FIRST_RESPONDER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[] };
     const { eventId, entryId } = request.params as { eventId: string; entryId: string };
     const body = request.body as {
@@ -141,7 +142,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/v1/reunification/:id — complete/cancel event
-  app.patch('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id', { preHandler: [requireMinRole('FIRST_RESPONDER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[] };
     const { id } = request.params as { id: string };
     const body = request.body as { status: string };

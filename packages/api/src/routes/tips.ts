@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createHash } from 'crypto';
+import { requireMinRole } from '../middleware/rbac.js';
 
 export default async function tipRoutes(app: FastifyInstance) {
   // POST /api/v1/tips — submit anonymous tip (NO auth required)
@@ -72,7 +73,7 @@ export default async function tipRoutes(app: FastifyInstance) {
     });
 
     // GET /api/v1/tips — list tips (admin only)
-    authedApp.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
+    authedApp.get('/', { preHandler: [requireMinRole('OPERATOR')] }, async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user as { siteIds: string[]; role: string };
 
       if (!['SUPER_ADMIN', 'SITE_ADMIN'].includes(user.role)) {
@@ -100,7 +101,7 @@ export default async function tipRoutes(app: FastifyInstance) {
     });
 
     // GET /api/v1/tips/:id
-    authedApp.get('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    authedApp.get('/:id', { preHandler: [requireMinRole('OPERATOR')] }, async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user as { siteIds: string[]; role: string };
       const { id } = request.params as { id: string };
 
@@ -117,7 +118,7 @@ export default async function tipRoutes(app: FastifyInstance) {
     });
 
     // PATCH /api/v1/tips/:id — update tip status (review, investigate, resolve)
-    authedApp.patch('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    authedApp.patch('/:id', { preHandler: [requireMinRole('OPERATOR')] }, async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user as { id: string; siteIds: string[]; role: string };
       const { id } = request.params as { id: string };
       const body = request.body as { status?: string; notes?: string };

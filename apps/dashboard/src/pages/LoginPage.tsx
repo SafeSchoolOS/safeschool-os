@@ -36,6 +36,7 @@ function ClerkSignIn() {
 function DevLoginForm() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -44,7 +45,7 @@ function DevLoginForm() {
     setError('');
     setLoading(true);
     try {
-      await login(email);
+      await login(email, password);
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -56,7 +57,7 @@ function DevLoginForm() {
     setError('');
     setLoading(true);
     try {
-      await login(preset);
+      await login(preset, 'safeschool123');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -83,6 +84,21 @@ function DevLoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@lincoln.edu"
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />

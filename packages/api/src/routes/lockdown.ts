@@ -1,23 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireMinRole, requireRole } from '../middleware/rbac.js';
 
 const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
-  // POST /api/v1/lockdown — Initiate lockdown
+  // POST /api/v1/lockdown — Initiate lockdown (FIRST_RESPONDER+)
   fastify.post<{
     Body: {
       scope: string;
       targetId: string;
       alertId?: string;
     };
-  }>('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    // Role check — only authorized roles can initiate lockdown
-    const initiateRoles = ['SUPER_ADMIN', 'SITE_ADMIN', 'OPERATOR', 'FIRST_RESPONDER'];
-    if (!initiateRoles.includes(request.jwtUser.role)) {
-      return reply.code(403).send({
-        error: 'Insufficient permissions to initiate lockdown',
-        code: 'ROLE_REQUIRED',
-        requiredRoles: initiateRoles,
-      });
-    }
+  }>('/', { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] }, async (request, reply) => {
 
     const { scope, targetId, alertId } = request.body;
     const siteId = request.jwtUser.siteIds[0];
@@ -67,24 +59,14 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.code(201).send(lockdown);
   });
 
-  // DELETE /api/v1/lockdown/:id — Release lockdown
-  fastify.delete<{ Params: { id: string } }>('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    // Guard 1: Only allow lockdown release from edge devices
+  // DELETE /api/v1/lockdown/:id — Release lockdown (OPERATOR+, edge only)
+  fastify.delete<{ Params: { id: string } }>('/:id', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
+    // Guard: Only allow lockdown release from edge devices
     const operatingMode = process.env.OPERATING_MODE || 'cloud';
     if (operatingMode === 'cloud') {
       return reply.code(403).send({
         error: 'Lockdown release must be performed from the on-site edge device',
         code: 'EDGE_ONLY_OPERATION',
-      });
-    }
-
-    // Guard 2: Role check — only SUPER_ADMIN, SITE_ADMIN, and OPERATOR can release
-    const releaseRoles = ['SUPER_ADMIN', 'SITE_ADMIN', 'OPERATOR'];
-    if (!releaseRoles.includes(request.jwtUser.role)) {
-      return reply.code(403).send({
-        error: 'Insufficient permissions to release lockdown',
-        code: 'ROLE_REQUIRED',
-        requiredRoles: releaseRoles,
       });
     }
 

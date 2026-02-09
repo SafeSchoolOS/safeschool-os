@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { VisitorService, ConsoleScreeningAdapter } from '@safeschool/visitor-mgmt';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   const screeningAdapter = new ConsoleScreeningAdapter();
@@ -17,7 +18,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
       idNumberHash?: string;
       photo?: string;
     };
-  }>('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return reply.code(403).send({ error: 'No site access' });
 
@@ -56,7 +57,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/v1/visitors/:id/check-in
   fastify.post<{ Params: { id: string } }>(
     '/:id/check-in',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] },
     async (request, reply) => {
       try {
         const visitor = await visitorService.checkIn(request.params.id, request.ip);
@@ -72,7 +73,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/v1/visitors/:id/check-out
   fastify.post<{ Params: { id: string } }>(
     '/:id/check-out',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] },
     async (request, reply) => {
       try {
         const visitor = await visitorService.checkOut(request.params.id, request.ip);
@@ -88,7 +89,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/visitors — List visitors with filters
   fastify.get<{
     Querystring: { siteId?: string; status?: string; date?: string; limit?: string };
-  }>('/', { preHandler: [fastify.authenticate] }, async (request) => {
+  }>('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const { siteId, status, date, limit } = request.query;
 
     const where: any = {};
@@ -111,7 +112,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/v1/visitors/active — Currently checked-in visitors
-  fastify.get('/active', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/active', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return [];
     return visitorService.getActiveVisitors(siteId);
@@ -120,7 +121,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/visitors/:id — Visitor detail + screening
   fastify.get<{ Params: { id: string } }>(
     '/:id',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] },
     async (request, reply) => {
       const visitor = await visitorService.getVisitor(request.params.id);
       if (!visitor) return reply.code(404).send({ error: 'Visitor not found' });

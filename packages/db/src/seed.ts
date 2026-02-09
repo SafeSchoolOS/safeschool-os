@@ -1,6 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+// Default dev password for all seed users
+const DEV_PASSWORD = 'safeschool123';
+const DEV_PASSWORD_HASH = bcrypt.hashSync(DEV_PASSWORD, 10);
 
 // Stable UUIDs for idempotent seeding
 const IDS = {
@@ -158,14 +163,14 @@ async function main() {
   }
   console.log(`  Rooms: ${mainRooms.length + annexRooms.length} total`);
 
-  // Users
+  // Users (all seed users get the same dev password: 'safeschool123')
   const users = [
-    { id: IDS.users.owner, email: 'bwattendorf@gmail.com', name: 'Bruce Wattendorf', role: 'SITE_ADMIN' as const, phone: null },
-    { id: IDS.users.admin, email: 'admin@lincoln.edu', name: 'Dr. Sarah Mitchell', role: 'SITE_ADMIN' as const, phone: '+15551000001' },
-    { id: IDS.users.operator, email: 'operator@lincoln.edu', name: 'James Rodriguez', role: 'OPERATOR' as const, phone: '+15551000002' },
-    { id: IDS.users.teacher1, email: 'teacher1@lincoln.edu', name: 'Emily Chen', role: 'TEACHER' as const, phone: '+15551000003', wearableDeviceId: 'CX-BADGE-001' },
-    { id: IDS.users.teacher2, email: 'teacher2@lincoln.edu', name: 'Michael Johnson', role: 'TEACHER' as const, phone: '+15551000004', wearableDeviceId: 'CX-BADGE-002' },
-    { id: IDS.users.responder, email: 'responder@lincoln.edu', name: 'Officer David Park', role: 'FIRST_RESPONDER' as const, phone: '+15551000005' },
+    { id: IDS.users.owner, email: 'bwattendorf@gmail.com', name: 'Bruce Wattendorf', role: 'SITE_ADMIN' as const, phone: null, passwordHash: DEV_PASSWORD_HASH },
+    { id: IDS.users.admin, email: 'admin@lincoln.edu', name: 'Dr. Sarah Mitchell', role: 'SITE_ADMIN' as const, phone: '+15551000001', passwordHash: DEV_PASSWORD_HASH },
+    { id: IDS.users.operator, email: 'operator@lincoln.edu', name: 'James Rodriguez', role: 'OPERATOR' as const, phone: '+15551000002', passwordHash: DEV_PASSWORD_HASH },
+    { id: IDS.users.teacher1, email: 'teacher1@lincoln.edu', name: 'Emily Chen', role: 'TEACHER' as const, phone: '+15551000003', wearableDeviceId: 'CX-BADGE-001', passwordHash: DEV_PASSWORD_HASH },
+    { id: IDS.users.teacher2, email: 'teacher2@lincoln.edu', name: 'Michael Johnson', role: 'TEACHER' as const, phone: '+15551000004', wearableDeviceId: 'CX-BADGE-002', passwordHash: DEV_PASSWORD_HASH },
+    { id: IDS.users.responder, email: 'responder@lincoln.edu', name: 'Officer David Park', role: 'FIRST_RESPONDER' as const, phone: '+15551000005', passwordHash: DEV_PASSWORD_HASH },
   ];
 
   for (const user of users) {

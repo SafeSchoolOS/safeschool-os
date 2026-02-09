@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 export default async function drillRoutes(app: FastifyInstance) {
   // All routes require authentication
@@ -7,7 +8,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/drills — list drills for user's site
-  app.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/', { preHandler: [requireMinRole('TEACHER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { status, type } = request.query as { status?: string; type?: string };
 
@@ -26,7 +27,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/drills — schedule a new drill
-  app.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[]; role: string };
     const body = request.body as {
       type: string;
@@ -65,7 +66,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/v1/drills/:id — update drill status (start, complete, cancel)
-  app.patch('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:id', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[] };
     const { id } = request.params as { id: string };
     const body = request.body as {
@@ -113,7 +114,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/drills/:id — get drill detail
-  app.get('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/:id', { preHandler: [requireMinRole('TEACHER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { id } = request.params as { id: string };
 
@@ -127,7 +128,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/drills/:id/participants — add participant to drill
-  app.post('/:id/participants', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/:id/participants', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { id } = request.params as { id: string };
     const body = request.body as { name: string; role: string };
@@ -146,7 +147,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/v1/drills/:drillId/participants/:participantId/checkin
-  app.patch('/:drillId/participants/:participantId/checkin', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch('/:drillId/participants/:participantId/checkin', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { drillId, participantId } = request.params as { drillId: string; participantId: string };
 
     const participant = await app.prisma.drillParticipant.update({
@@ -158,7 +159,7 @@ export default async function drillRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/drills/compliance/report — compliance summary
-  app.get('/compliance/report', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/compliance/report', { preHandler: [requireMinRole('TEACHER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { year } = request.query as { year?: string };
     const targetYear = parseInt(year || new Date().getFullYear().toString());

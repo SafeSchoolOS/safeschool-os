@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 export default async function environmentalRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -6,7 +7,7 @@ export default async function environmentalRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/environmental/sensors — list sensors
-  app.get('/sensors', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/sensors', { preHandler: [requireMinRole('TEACHER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { type } = request.query as { type?: string };
 
@@ -22,7 +23,7 @@ export default async function environmentalRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/environmental/sensors — register a sensor
-  app.post('/sensors', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/sensors', { preHandler: [requireMinRole('OPERATOR')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { id: string; siteIds: string[]; role: string };
     const body = request.body as {
       name: string;
@@ -49,7 +50,7 @@ export default async function environmentalRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/environmental/readings — ingest sensor reading
-  app.post('/readings', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/readings', { preHandler: [requireMinRole('OPERATOR')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const body = request.body as {
       sensorId: string;
@@ -105,7 +106,7 @@ export default async function environmentalRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/environmental/readings — get readings for a sensor
-  app.get('/readings', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/readings', { preHandler: [requireMinRole('TEACHER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
     const { sensorId, hours } = request.query as { sensorId: string; hours?: string };
 
@@ -129,7 +130,7 @@ export default async function environmentalRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/environmental/status — overview of all sensors
-  app.get('/status', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/status', { preHandler: [requireMinRole('TEACHER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user as { siteIds: string[] };
 
     const sensors = await app.prisma.environmentalSensor.findMany({

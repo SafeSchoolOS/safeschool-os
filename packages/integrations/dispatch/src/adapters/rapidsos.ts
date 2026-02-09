@@ -226,8 +226,22 @@ export class RapidSOSAdapter implements DispatchAdapter {
   }
 
   private buildCivicAddress(alert: DispatchPayload): CivicAddress {
-    // If callerInfo provides structured address data, we could parse it.
-    // For now we assemble from building/room/floor.
+    // Use site address if available, fall back to building name
+    if (alert.siteAddress) {
+      const parsed = parseAddress(
+        alert.siteAddress,
+        alert.siteCity || '',
+        alert.siteState || '',
+        alert.siteZip || '',
+      );
+      return {
+        ...parsed,
+        floor: alert.floor,
+        room: alert.roomName,
+        building: alert.buildingName,
+      };
+    }
+
     return {
       country: 'US',
       state: '',

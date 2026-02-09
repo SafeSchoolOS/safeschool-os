@@ -1,16 +1,17 @@
 import type { FastifyPluginAsync } from 'fastify';
 import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const authProvider = process.env.AUTH_PROVIDER || 'dev';
 
-  // POST /api/v1/auth/login — email-only login for dev mode (no password)
-  fastify.post<{ Body: { email: string } }>('/login', async (request, reply) => {
-    if (authProvider !== 'dev') {
-      return reply.code(404).send({ error: 'Email login is only available in dev mode. Use Clerk authentication.' });
+  // POST /api/v1/auth/login — email + password login
+  fastify.post<{ Body: { email: string; password?: string } }>('/login', async (request, reply) => {
+    if (authProvider === 'clerk') {
+      return reply.code(404).send({ error: 'Password login is not available. Use Clerk authentication.' });
     }
 
-    const { email } = request.body;
+    const { email, password } = request.body;
     if (!email) {
       return reply.code(400).send({ error: 'Email is required' });
     }
@@ -21,7 +22,18 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     if (!user || !user.isActive) {
-      return reply.code(401).send({ error: 'User not found or inactive' });
+      return reply.code(401).send({ error: 'Invalid credentials' });
+    }
+
+    // Verify password if user has one set
+    if (user.passwordHash) {
+      if (!password) {
+        return reply.code(401).send({ error: 'Password is required' });
+      }
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return reply.code(401).send({ error: 'Invalid credentials' });
+      }
     }
 
     const token = fastify.jwt.sign({

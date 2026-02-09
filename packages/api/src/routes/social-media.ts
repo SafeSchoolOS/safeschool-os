@@ -1,10 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/social-media/alerts — List social media alerts
   fastify.get<{
     Querystring: { siteId?: string; status?: string; severity?: string; source?: string; limit?: string };
-  }>('/alerts', { preHandler: [fastify.authenticate] }, async (request) => {
+  }>('/alerts', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const { siteId, status, severity, source, limit } = request.query;
 
     const where: any = {};
@@ -35,7 +36,7 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
       externalId?: string;
       metadata?: Record<string, unknown>;
     };
-  }>('/alerts', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/alerts', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { source, platform, contentType, flaggedContent, category, severity, studentName, studentGrade, externalId, metadata } = request.body;
 
     if (!source || !platform || !category) {
@@ -89,7 +90,7 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/v1/social-media/alerts/:id — Alert detail
-  fastify.get<{ Params: { id: string } }>('/alerts/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.get<{ Params: { id: string } }>('/alerts/:id', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const alert = await fastify.prisma.socialMediaAlert.findUnique({
       where: { id: request.params.id },
     });
@@ -105,7 +106,7 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch<{
     Params: { id: string };
     Body: { status?: string; actionTaken?: string };
-  }>('/alerts/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/alerts/:id', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const { status, actionTaken } = request.body;
 
     const existing = await fastify.prisma.socialMediaAlert.findUnique({
@@ -146,7 +147,7 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /api/v1/social-media/dashboard — Summary stats
-  fastify.get('/dashboard', { preHandler: [fastify.authenticate] }, async (request) => {
+  fastify.get('/dashboard', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request) => {
     const siteId = request.jwtUser.siteIds[0];
 
     const [total, byStatus, bySeverity, bySource, recentAlerts] = await Promise.all([

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { requireMinRole } from '../middleware/rbac.js';
 
 const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/v1/notifications/send — Send mass notification
@@ -10,7 +11,7 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       recipientIds?: string[];
       alertId?: string;
     };
-  }>('/send', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  }>('/send', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return reply.code(403).send({ error: 'No site access' });
 
@@ -77,7 +78,7 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/notifications/log — Notification history
   fastify.get<{
     Querystring: { siteId?: string; limit?: string };
-  }>('/log', { preHandler: [fastify.authenticate] }, async (request) => {
+  }>('/log', { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] }, async (request) => {
     const { siteId, limit } = request.query;
 
     const where: any = {};
@@ -94,7 +95,7 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/notifications/log/:id — Specific notification detail
   fastify.get<{ Params: { id: string } }>(
     '/log/:id',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] },
     async (request, reply) => {
       const log = await fastify.prisma.notificationLog.findUnique({
         where: { id: request.params.id },
@@ -105,7 +106,7 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /api/v1/notifications/test — Send test notification to self
-  fastify.post('/test', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post('/test', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return reply.code(403).send({ error: 'No site access' });
 
