@@ -15,6 +15,7 @@ import { GrantsPage } from './pages/GrantsPage';
 import { BadgeKioskPage } from './pages/BadgeKioskPage';
 import { FloorPlanPage } from './pages/FloorPlanPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { OnboardingPage } from './pages/OnboardingPage';
 
 export function App() {
   const { user, loading } = useAuth();
@@ -55,6 +56,7 @@ export function App() {
         <Route path="/badgekiosk" element={<ErrorBoundary><BadgeKioskPage /></ErrorBoundary>} />
         <Route path="/floor-plan" element={<ErrorBoundary><FloorPlanPage /></ErrorBoundary>} />
         <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
+        <Route path="/onboarding" element={<ErrorBoundary><OnboardingPage /></ErrorBoundary>} />
       </Route>
     </Routes>
   );

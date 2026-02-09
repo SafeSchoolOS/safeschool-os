@@ -8,6 +8,7 @@ import websocket from '@fastify/websocket';
 // Plugins
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
+import sentryPlugin from './plugins/sentry.js';
 import { createAuthPlugin } from './plugins/auth-provider.js';
 import wsManagerPlugin from './plugins/ws-manager.js';
 
@@ -34,6 +35,7 @@ import licenseRoutes from './routes/licenses.js';
 import badgePrintingRoutes from './routes/badge-printing.js';
 import guardRoutes from './routes/guard.js';
 import organizationRoutes from './routes/organizations.js';
+import onboardingRoutes from './routes/onboarding.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import wsHandler from './ws/handler.js';
 
@@ -137,6 +139,7 @@ export async function buildServer() {
 
   // Plugins
   await app.register(prismaPlugin);
+  await app.register(sentryPlugin);
   await app.register(redisPlugin);
 
   // Auth — Clerk or JWT based on AUTH_PROVIDER env
@@ -197,6 +200,7 @@ export async function buildServer() {
   await app.register(badgePrintingRoutes, { prefix: '/api/v1/badges' });
   await app.register(guardRoutes, { prefix: '/api/v1/guard' });
   await app.register(organizationRoutes, { prefix: '/api/v1/organizations' });
+  await app.register(onboardingRoutes, { prefix: '/api/v1/onboarding' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });

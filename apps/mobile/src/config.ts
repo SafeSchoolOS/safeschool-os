@@ -1,3 +1,3 @@
-export const API_BASE = __DEV__
-  ? 'http://localhost:3000/api/v1'
-  : 'https://api.safeschool.app/api/v1';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
+export const API_BASE = `${API_URL}/api/v1`;

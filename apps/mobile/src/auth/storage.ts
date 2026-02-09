@@ -1,14 +1,15 @@
-// Simple token storage for MVP — use expo-secure-store for production
-let _token: string | null = null;
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export async function saveToken(token: string) {
-  _token = token;
+const TOKEN_KEY = '@safeschool_token';
+
+export async function saveToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(TOKEN_KEY, token);
 }
 
 export async function getToken(): Promise<string | null> {
-  return _token;
+  return AsyncStorage.getItem(TOKEN_KEY);
 }
 
-export async function clearToken() {
-  _token = null;
+export async function clearToken(): Promise<void> {
+  await AsyncStorage.removeItem(TOKEN_KEY);
 }

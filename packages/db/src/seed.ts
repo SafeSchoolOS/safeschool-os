@@ -148,17 +148,17 @@ async function main() {
   });
   console.log(`  Buildings: ${mainBuilding.name}, ${annexBuilding.name}`);
 
-  // Main building rooms
+  // Main building rooms (with floor plan positions)
   const mainRooms = [
-    { id: IDS.rooms.office, name: 'Main Office', number: '100', floor: 1, type: 'OFFICE' as const, capacity: 10 },
-    { id: IDS.rooms.room101, name: 'Room 101', number: '101', floor: 1, type: 'CLASSROOM' as const, capacity: 30 },
-    { id: IDS.rooms.room102, name: 'Room 102', number: '102', floor: 1, type: 'CLASSROOM' as const, capacity: 30 },
-    { id: IDS.rooms.room103, name: 'Room 103', number: '103', floor: 2, type: 'CLASSROOM' as const, capacity: 30 },
-    { id: IDS.rooms.room104, name: 'Room 104', number: '104', floor: 2, type: 'CLASSROOM' as const, capacity: 30 },
-    { id: IDS.rooms.cafeteria, name: 'Cafeteria', number: 'CAF', floor: 1, type: 'CAFETERIA' as const, capacity: 200 },
-    { id: IDS.rooms.gym, name: 'Gymnasium', number: 'GYM', floor: 1, type: 'GYM' as const, capacity: 300 },
-    { id: IDS.rooms.hallwayMain, name: 'Main Hallway', number: 'HALL-1', floor: 1, type: 'HALLWAY' as const },
-    { id: IDS.rooms.entranceMain, name: 'Main Entrance', number: 'ENT-1', floor: 1, type: 'ENTRANCE' as const },
+    { id: IDS.rooms.office, name: 'Main Office', number: '100', floor: 1, type: 'OFFICE' as const, capacity: 10, mapX: 40, mapY: 40, mapW: 180, mapH: 90 },
+    { id: IDS.rooms.room101, name: 'Room 101', number: '101', floor: 1, type: 'CLASSROOM' as const, capacity: 30, mapX: 240, mapY: 40, mapW: 150, mapH: 90 },
+    { id: IDS.rooms.room102, name: 'Room 102', number: '102', floor: 1, type: 'CLASSROOM' as const, capacity: 30, mapX: 410, mapY: 40, mapW: 150, mapH: 90 },
+    { id: IDS.rooms.room103, name: 'Room 103', number: '103', floor: 2, type: 'CLASSROOM' as const, capacity: 30, mapX: 240, mapY: 40, mapW: 150, mapH: 90 },
+    { id: IDS.rooms.room104, name: 'Room 104', number: '104', floor: 2, type: 'CLASSROOM' as const, capacity: 30, mapX: 410, mapY: 40, mapW: 150, mapH: 90 },
+    { id: IDS.rooms.cafeteria, name: 'Cafeteria', number: 'CAF', floor: 1, type: 'CAFETERIA' as const, capacity: 200, mapX: 580, mapY: 40, mapW: 200, mapH: 90 },
+    { id: IDS.rooms.gym, name: 'Gymnasium', number: 'GYM', floor: 1, type: 'GYM' as const, capacity: 300, mapX: 580, mapY: 180, mapW: 200, mapH: 60 },
+    { id: IDS.rooms.hallwayMain, name: 'Main Hallway', number: 'HALL-1', floor: 1, type: 'HALLWAY' as const, mapX: 40, mapY: 140, mapW: 740, mapH: 30 },
+    { id: IDS.rooms.entranceMain, name: 'Main Entrance', number: 'ENT-1', floor: 1, type: 'ENTRANCE' as const, mapX: 40, mapY: 180, mapW: 180, mapH: 60 },
   ];
 
   for (const room of mainRooms) {
@@ -169,11 +169,11 @@ async function main() {
     });
   }
 
-  // Annex rooms
+  // Annex rooms (with floor plan positions)
   const annexRooms = [
-    { id: IDS.rooms.room201, name: 'Room 201', number: '201', floor: 1, type: 'CLASSROOM' as const, capacity: 25 },
-    { id: IDS.rooms.room202, name: 'Room 202', number: '202', floor: 1, type: 'CLASSROOM' as const, capacity: 25 },
-    { id: IDS.rooms.entranceAnnex, name: 'Annex Entrance', number: 'ENT-A', floor: 1, type: 'ENTRANCE' as const },
+    { id: IDS.rooms.room201, name: 'Room 201', number: '201', floor: 1, type: 'CLASSROOM' as const, capacity: 25, mapX: 40, mapY: 40, mapW: 150, mapH: 90 },
+    { id: IDS.rooms.room202, name: 'Room 202', number: '202', floor: 1, type: 'CLASSROOM' as const, capacity: 25, mapX: 210, mapY: 40, mapW: 150, mapH: 90 },
+    { id: IDS.rooms.entranceAnnex, name: 'Annex Entrance', number: 'ENT-A', floor: 1, type: 'ENTRANCE' as const, mapX: 380, mapY: 40, mapW: 120, mapH: 90 },
   ];
 
   for (const room of annexRooms) {
@@ -212,16 +212,16 @@ async function main() {
   }
   console.log(`  Users: ${users.length} (${users.map(u => u.role).join(', ')})`);
 
-  // Doors
+  // Doors (with floor plan positions)
   const doors = [
-    { id: IDS.doors.mainEntrance, name: 'Main Entrance', buildingId: IDS.buildings.main, floor: 1, zone: 'entrance', isExterior: true, isEmergencyExit: false },
-    { id: IDS.doors.mainExit, name: 'Main Emergency Exit', buildingId: IDS.buildings.main, floor: 1, zone: 'south', isExterior: true, isEmergencyExit: true },
-    { id: IDS.doors.office, name: 'Office Door', buildingId: IDS.buildings.main, floor: 1, zone: 'admin', isExterior: false, isEmergencyExit: false },
-    { id: IDS.doors.cafeteria, name: 'Cafeteria Door', buildingId: IDS.buildings.main, floor: 1, zone: 'common', isExterior: false, isEmergencyExit: false },
-    { id: IDS.doors.gym, name: 'Gym External Door', buildingId: IDS.buildings.main, floor: 1, zone: 'athletics', isExterior: true, isEmergencyExit: true },
-    { id: IDS.doors.hallway1, name: 'Hallway Fire Door', buildingId: IDS.buildings.main, floor: 1, zone: 'hallway', isExterior: false, isEmergencyExit: false },
-    { id: IDS.doors.annexEntrance, name: 'Annex Entrance', buildingId: IDS.buildings.annex, floor: 1, zone: 'entrance', isExterior: true, isEmergencyExit: false },
-    { id: IDS.doors.annexExit, name: 'Annex Emergency Exit', buildingId: IDS.buildings.annex, floor: 1, zone: 'south', isExterior: true, isEmergencyExit: true },
+    { id: IDS.doors.mainEntrance, name: 'Main Entrance', buildingId: IDS.buildings.main, floor: 1, zone: 'entrance', isExterior: true, isEmergencyExit: false, mapX: 130, mapY: 210 },
+    { id: IDS.doors.mainExit, name: 'Main Emergency Exit', buildingId: IDS.buildings.main, floor: 1, zone: 'south', isExterior: true, isEmergencyExit: true, mapX: 400, mapY: 240 },
+    { id: IDS.doors.office, name: 'Office Door', buildingId: IDS.buildings.main, floor: 1, zone: 'admin', isExterior: false, isEmergencyExit: false, mapX: 130, mapY: 130 },
+    { id: IDS.doors.cafeteria, name: 'Cafeteria Door', buildingId: IDS.buildings.main, floor: 1, zone: 'common', isExterior: false, isEmergencyExit: false, mapX: 580, mapY: 130 },
+    { id: IDS.doors.gym, name: 'Gym External Door', buildingId: IDS.buildings.main, floor: 1, zone: 'athletics', isExterior: true, isEmergencyExit: true, mapX: 680, mapY: 240 },
+    { id: IDS.doors.hallway1, name: 'Hallway Fire Door', buildingId: IDS.buildings.main, floor: 1, zone: 'hallway', isExterior: false, isEmergencyExit: false, mapX: 300, mapY: 155 },
+    { id: IDS.doors.annexEntrance, name: 'Annex Entrance', buildingId: IDS.buildings.annex, floor: 1, zone: 'entrance', isExterior: true, isEmergencyExit: false, mapX: 440, mapY: 130 },
+    { id: IDS.doors.annexExit, name: 'Annex Emergency Exit', buildingId: IDS.buildings.annex, floor: 1, zone: 'south', isExterior: true, isEmergencyExit: true, mapX: 210, mapY: 130 },
   ];
 
   for (const door of doors) {

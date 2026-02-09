@@ -51,8 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    clearToken();
+  const logout = async () => {
+    await clearToken();
     setUser(null);
   };
 

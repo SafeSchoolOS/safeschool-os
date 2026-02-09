@@ -37,6 +37,43 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
 
     return site;
   });
+
+  // PUT /api/v1/sites/:id/floor-plan — update room/door map positions (admin only)
+  fastify.put<{ Params: { id: string } }>(
+    '/:id/floor-plan',
+    { preHandler: [fastify.authenticate, requireMinRole('SITE_ADMIN')] },
+    async (request, reply) => {
+      const body = request.body as {
+        rooms?: Array<{ id: string; mapX: number; mapY: number; mapW: number; mapH: number }>;
+        doors?: Array<{ id: string; mapX: number; mapY: number }>;
+      };
+
+      const site = await fastify.prisma.site.findUnique({ where: { id: request.params.id } });
+      if (!site) return reply.code(404).send({ error: 'Site not found' });
+
+      // Update room positions
+      if (body.rooms) {
+        for (const room of body.rooms) {
+          await fastify.prisma.room.update({
+            where: { id: room.id },
+            data: { mapX: room.mapX, mapY: room.mapY, mapW: room.mapW, mapH: room.mapH },
+          });
+        }
+      }
+
+      // Update door positions
+      if (body.doors) {
+        for (const door of body.doors) {
+          await fastify.prisma.door.update({
+            where: { id: door.id },
+            data: { mapX: door.mapX, mapY: door.mapY },
+          });
+        }
+      }
+
+      return { message: 'Floor plan positions updated' };
+    }
+  );
 };
 
 export default siteRoutes;

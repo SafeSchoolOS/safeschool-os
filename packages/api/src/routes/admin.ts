@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
+import path from 'path';
 import os from 'os';
 
 const ENV_FILE = process.env.EDGE_ENV_FILE || '/app/deploy/edge/.env';
@@ -109,6 +110,41 @@ function getDockerLogs(service: string): Array<{ timestamp: string; message: str
   } catch {
     return [];
   }
+}
+
+const BACKUP_DIR = process.env.BACKUP_DIR || '/opt/safeschool/backups';
+
+function listBackupFiles(): Array<{ filename: string; category: string; size: number; date: string }> {
+  const results: Array<{ filename: string; category: string; size: number; date: string }> = [];
+
+  for (const category of ['daily', 'weekly']) {
+    const dir = path.join(BACKUP_DIR, category);
+    if (!existsSync(dir)) continue;
+
+    try {
+      const files = readdirSync(dir).filter((f) => f.endsWith('.sql.gz'));
+      for (const file of files) {
+        try {
+          const filePath = path.join(dir, file);
+          const stats = statSync(filePath);
+          results.push({
+            filename: file,
+            category,
+            size: stats.size,
+            date: stats.mtime.toISOString(),
+          });
+        } catch {
+          // Skip files we can't stat
+        }
+      }
+    } catch {
+      // Skip directories we can't read
+    }
+  }
+
+  // Sort by date descending (newest first)
+  results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return results;
 }
 
 export default async function adminRoutes(app: FastifyInstance) {
@@ -260,6 +296,199 @@ export default async function adminRoutes(app: FastifyInstance) {
       return { message: 'Update complete. Services are restarting.', version: newVersion };
     } catch (err: any) {
       return { statusCode: 500, message: `Update failed: ${err.message}` };
+    }
+  });
+
+  // GET /api/v1/admin/backups — list available database backups
+  app.get('/backups', async () => {
+    return { backups: listBackupFiles() };
+  });
+
+  // POST /api/v1/admin/backups — trigger an immediate database backup
+  app.post('/backups', async (request, reply) => {
+    const composeDir = process.env.EDGE_COMPOSE_DIR || '/app/deploy/edge';
+
+    try {
+      // Get the postgres container ID
+      const containerId = execSync(
+        'docker compose ps -q postgres',
+        { encoding: 'utf-8', cwd: composeDir }
+      ).trim();
+
+      if (!containerId) {
+        reply.code(503);
+        return { statusCode: 503, message: 'PostgreSQL container is not running' };
+      }
+
+      const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+      const backupFile = `safeschool_${timestamp}.sql.gz`;
+      const dailyDir = path.join(BACKUP_DIR, 'daily');
+
+      // Ensure backup directory exists
+      execSync(`mkdir -p ${dailyDir}`, { encoding: 'utf-8' });
+
+      // Run pg_dump inside the postgres container
+      execSync(
+        `docker exec ${containerId} pg_dump -U safeschool -d safeschool --format=custom --compress=6 --no-owner --no-acl > ${path.join(dailyDir, backupFile)}`,
+        { encoding: 'utf-8', timeout: 120000 }
+      );
+
+      // Verify the backup file is not empty
+      const stats = statSync(path.join(dailyDir, backupFile));
+      if (stats.size === 0) {
+        execSync(`rm -f ${path.join(dailyDir, backupFile)}`, { encoding: 'utf-8' });
+        reply.code(500);
+        return { statusCode: 500, message: 'Backup file is empty. pg_dump may have failed.' };
+      }
+
+      // Rotate daily backups: keep only 7
+      try {
+        const dailyFiles = readdirSync(dailyDir)
+          .filter((f) => f.startsWith('safeschool_') && f.endsWith('.sql.gz'))
+          .map((f) => ({ name: f, mtime: statSync(path.join(dailyDir, f)).mtime.getTime() }))
+          .sort((a, b) => b.mtime - a.mtime);
+
+        for (const old of dailyFiles.slice(7)) {
+          execSync(`rm -f ${path.join(dailyDir, old.name)}`, { encoding: 'utf-8' });
+        }
+      } catch {
+        // Rotation failure is non-critical
+      }
+
+      return {
+        message: 'Backup created successfully',
+        backup: {
+          filename: backupFile,
+          category: 'daily',
+          size: stats.size,
+          date: stats.mtime.toISOString(),
+        },
+      };
+    } catch (err: any) {
+      reply.code(500);
+      return { statusCode: 500, message: `Backup failed: ${err.message}` };
+    }
+  });
+
+  // POST /api/v1/admin/backups/restore — restore database from a specific backup
+  app.post('/backups/restore', async (request, reply) => {
+    const { filename } = request.body as { filename: string };
+
+    // Validate filename to prevent path traversal
+    if (!filename || !/^safeschool_[\w]+\.sql\.gz$/.test(filename)) {
+      reply.code(400);
+      return { statusCode: 400, message: 'Invalid backup filename' };
+    }
+
+    // Find the backup file in daily or weekly directories
+    let backupPath = '';
+    for (const category of ['daily', 'weekly']) {
+      const candidate = path.join(BACKUP_DIR, category, filename);
+      if (existsSync(candidate)) {
+        backupPath = candidate;
+        break;
+      }
+    }
+
+    if (!backupPath) {
+      reply.code(404);
+      return { statusCode: 404, message: `Backup file not found: ${filename}` };
+    }
+
+    const composeDir = process.env.EDGE_COMPOSE_DIR || '/app/deploy/edge';
+
+    try {
+      // Get the postgres container ID
+      const containerId = execSync(
+        'docker compose ps -q postgres',
+        { encoding: 'utf-8', cwd: composeDir }
+      ).trim();
+
+      if (!containerId) {
+        reply.code(503);
+        return { statusCode: 503, message: 'PostgreSQL container is not running' };
+      }
+
+      // Create a pre-restore safety backup
+      const preRestoreTimestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+      const preRestoreFile = path.join(BACKUP_DIR, 'daily', `safeschool_pre_restore_${preRestoreTimestamp}.sql.gz`);
+      try {
+        execSync(
+          `docker exec ${containerId} pg_dump -U safeschool -d safeschool --format=custom --compress=6 --no-owner --no-acl > ${preRestoreFile}`,
+          { encoding: 'utf-8', timeout: 120000 }
+        );
+      } catch {
+        // Pre-restore backup failure is non-fatal
+      }
+
+      // Stop API and worker containers
+      execSync('docker compose stop api worker', {
+        encoding: 'utf-8',
+        cwd: composeDir,
+        timeout: 60000,
+      });
+
+      // Terminate active connections and recreate the database
+      execSync(
+        `docker exec ${containerId} psql -U safeschool -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'safeschool' AND pid <> pg_backend_pid();"`,
+        { encoding: 'utf-8' }
+      );
+      execSync(
+        `docker exec ${containerId} psql -U safeschool -d postgres -c "DROP DATABASE IF EXISTS safeschool;"`,
+        { encoding: 'utf-8' }
+      );
+      execSync(
+        `docker exec ${containerId} psql -U safeschool -d postgres -c "CREATE DATABASE safeschool OWNER safeschool;"`,
+        { encoding: 'utf-8' }
+      );
+
+      // Restore from backup
+      execSync(
+        `docker exec -i ${containerId} pg_restore -U safeschool -d safeschool --no-owner --no-acl --clean --if-exists < ${backupPath}`,
+        { encoding: 'utf-8', timeout: 300000 }
+      );
+
+      // Restart API and worker
+      execSync('docker compose start api worker', {
+        encoding: 'utf-8',
+        cwd: composeDir,
+        timeout: 60000,
+      });
+
+      // Wait briefly and check health
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      let apiHealthy = false;
+      try {
+        const healthStatus = execSync(
+          'docker compose ps --format "{{.Health}}" api',
+          { encoding: 'utf-8', cwd: composeDir }
+        ).trim();
+        apiHealthy = healthStatus === 'healthy';
+      } catch {
+        // Health check may not be ready yet
+      }
+
+      return {
+        message: 'Database restored successfully. Services are restarting.',
+        restoredFrom: filename,
+        preRestoreBackup: path.basename(preRestoreFile),
+        apiHealthy,
+      };
+    } catch (err: any) {
+      // Attempt to restart services even if restore failed
+      try {
+        execSync('docker compose start api worker', {
+          encoding: 'utf-8',
+          cwd: composeDir,
+          timeout: 60000,
+        });
+      } catch {
+        // Best effort restart
+      }
+
+      reply.code(500);
+      return { statusCode: 500, message: `Restore failed: ${err.message}` };
     }
   });
 }

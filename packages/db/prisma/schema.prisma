@@ -111,6 +111,10 @@ model Room {
   type        RoomType @default(CLASSROOM)
   capacity    Int?
   bleBeaconId String?  @map("ble_beacon_id")
+  mapX        Float?   @map("map_x")
+  mapY        Float?   @map("map_y")
+  mapW        Float?   @map("map_w")
+  mapH        Float?   @map("map_h")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -263,6 +267,8 @@ model Door {
   controllerId    String     @map("controller_id") @default("")
   isExterior      Boolean    @default(false) @map("is_exterior")
   isEmergencyExit Boolean    @default(false) @map("is_emergency_exit")
+  mapX            Float?     @map("map_x")
+  mapY            Float?     @map("map_y")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 

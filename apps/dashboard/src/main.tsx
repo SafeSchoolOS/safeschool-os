@@ -1,3 +1,8 @@
+import { initSentry } from './utils/sentry';
+
+// Initialize Sentry before anything else
+initSentry();
+
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

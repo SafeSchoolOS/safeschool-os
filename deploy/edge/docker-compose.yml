@@ -16,12 +16,34 @@ services:
     networks:
       - safeschool
 
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+      - "3443:3443"
+    environment:
+      - EDGE_DOMAIN=${EDGE_DOMAIN:-}
+      - EDGE_TLS=${EDGE_TLS:-internal}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+      - kiosk
+      - api
+    restart: unless-stopped
+    networks:
+      - safeschool
+
   api:
     build:
       context: ../../
       dockerfile: deploy/docker/Dockerfile
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
@@ -106,8 +128,8 @@ services:
     build:
       context: ../../
       dockerfile: deploy/docker/Dockerfile.dashboard
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - api
     restart: unless-stopped
@@ -123,8 +145,8 @@ services:
     build:
       context: ../../
       dockerfile: deploy/docker/Dockerfile.kiosk
-    ports:
-      - "8080:80"
+    expose:
+      - "80"
     depends_on:
       - api
     restart: unless-stopped
@@ -184,6 +206,67 @@ services:
     networks:
       - safeschool
 
+  # Database backup scheduler — runs pg_dump daily at 2 AM UTC
+  backup:
+    image: postgres:16-alpine
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "SafeSchool backup scheduler starting..."
+        while true; do
+          # Calculate seconds until next 2:00 AM UTC
+          NOW=$$(date -u +%s)
+          TODAY_TARGET=$$(date -u -d "$$(date -u +%Y-%m-%d) 02:00:00" +%s 2>/dev/null || echo 0)
+          if [ "$$TODAY_TARGET" -le "$$NOW" ]; then
+            TARGET=$$((TODAY_TARGET + 86400))
+          else
+            TARGET=$$TODAY_TARGET
+          fi
+          SLEEP_SEC=$$((TARGET - NOW))
+          echo "[backup] Next backup in $$SLEEP_SEC seconds (at 02:00 UTC)"
+          sleep $$SLEEP_SEC
+
+          echo "[backup] Starting database backup at $$(date -u '+%Y-%m-%dT%H:%M:%SZ')..."
+          TIMESTAMP=$$(date -u '+%Y%m%dT%H%M%SZ')
+          BACKUP_FILE="safeschool_$${TIMESTAMP}.sql.gz"
+          DAY_OF_WEEK=$$(date '+%u')
+
+          mkdir -p /backups/daily /backups/weekly
+          if PGPASSWORD=$${POSTGRES_PASSWORD} pg_dump \
+            -h postgres -U safeschool -d safeschool \
+            --format=custom --compress=6 --no-owner --no-acl \
+            > "/backups/daily/$${BACKUP_FILE}"; then
+            SIZE=$$(stat -c%s "/backups/daily/$${BACKUP_FILE}" 2>/dev/null || echo "?")
+            echo "[backup] Daily backup saved: $${BACKUP_FILE} ($${SIZE} bytes)"
+
+            # Weekly copy on Sundays (day 7)
+            if [ "$$DAY_OF_WEEK" = "7" ]; then
+              cp "/backups/daily/$${BACKUP_FILE}" "/backups/weekly/safeschool_weekly_$${TIMESTAMP}.sql.gz"
+              echo "[backup] Weekly backup saved."
+            fi
+
+            # Rotate: keep 7 daily, 4 weekly
+            ls -1t /backups/daily/safeschool_*.sql.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null || true
+            ls -1t /backups/weekly/safeschool_weekly_*.sql.gz 2>/dev/null | tail -n +5 | xargs rm -f 2>/dev/null || true
+
+            echo "[backup] Rotation complete."
+          else
+            echo "[backup] ERROR: pg_dump failed."
+            rm -f "/backups/daily/$${BACKUP_FILE}"
+          fi
+        done
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safeschool
+
   # Auto-update watcher — checks for new images on schedule
   watchtower:
     image: containrrr/watchtower
@@ -204,6 +287,9 @@ volumes:
   postgres_data:
   redis_data:
   edge_data:
+  caddy_data:
+  caddy_config:
+  backup_data:
 
 networks:
   safeschool:

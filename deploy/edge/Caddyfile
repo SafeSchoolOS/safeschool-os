@@ -1,0 +1,58 @@
+# SafeSchool Edge — Caddy Reverse Proxy Configuration
+#
+# Environment variables (set in .env / docker-compose):
+#   EDGE_DOMAIN  — leave empty for local network (self-signed certs on bare ports)
+#                  set to a FQDN (e.g. edge.myschool.org) for Let's Encrypt auto-certs
+#   EDGE_TLS     — set to "internal" (default) for self-signed, or leave empty when
+#                  using a real domain so Caddy provisions Let's Encrypt certs
+
+# ---- Shared snippet: security headers applied to every site ----
+(security_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+# ====================================================================
+# Dashboard — HTTPS :443
+# ====================================================================
+{$EDGE_DOMAIN::443} {
+	tls {$EDGE_TLS:internal}
+
+	import security_headers
+
+	reverse_proxy dashboard:80
+}
+
+# ====================================================================
+# Kiosk — HTTPS :8443
+# ====================================================================
+{$EDGE_DOMAIN::8443} {
+	tls {$EDGE_TLS:internal}
+
+	import security_headers
+
+	reverse_proxy kiosk:80
+}
+
+# ====================================================================
+# API — HTTPS :3443
+# ====================================================================
+{$EDGE_DOMAIN::3443} {
+	tls {$EDGE_TLS:internal}
+
+	import security_headers
+
+	reverse_proxy api:3000
+}
+
+# ---- HTTP :80 redirect to HTTPS ----
+:80 {
+	redir https://{host}{uri} permanent
+}
