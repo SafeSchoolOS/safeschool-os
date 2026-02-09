@@ -5,13 +5,14 @@ import { useAuth } from '../auth/AuthContext';
 export function LoginScreen() {
   const { login, loading } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleLogin = async () => {
-    if (!email) return;
+    if (!email || !password) return;
     try {
       setError('');
-      await login(email);
+      await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }
@@ -34,9 +35,19 @@ export function LoginScreen() {
           autoCorrect={false}
         />
 
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#6b7280"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading || !email}>
+        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading || !email || !password}>
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (

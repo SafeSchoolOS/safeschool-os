@@ -2,11 +2,13 @@ import { View, Text, TouchableOpacity, FlatList, RefreshControl, StyleSheet, Ale
 import { useAuth } from '../auth/AuthContext';
 import { useAlerts, useCreateAlert } from '../api/alerts';
 
-export function HomeScreen() {
+export function HomeScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const siteId = user?.siteIds[0];
   const { data: alerts, isLoading, refetch } = useAlerts(siteId);
   const createAlert = useCreateAlert();
+
+  const isParent = user?.role === 'PARENT';
 
   const handlePanic = () => {
     Alert.alert(
@@ -63,22 +65,37 @@ export function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>SafeSchool</Text>
-          <Text style={styles.headerSubtitle}>{user?.name}</Text>
+          <Text style={styles.headerSubtitle}>{user?.name} ({user?.role})</Text>
         </View>
         <TouchableOpacity onPress={logout}>
           <Text style={styles.logout}>Sign Out</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={[styles.panicButton, createAlert.isPending && styles.panicButtonDisabled]}
-        onPress={handlePanic}
-        disabled={createAlert.isPending}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.panicText}>PANIC</Text>
-        <Text style={styles.panicSubtext}>Tap to send emergency alert</Text>
-      </TouchableOpacity>
+      {/* Quick Navigation */}
+      <View style={styles.navRow}>
+        {isParent && (
+          <TouchableOpacity style={[styles.navBtn, styles.navParent]} onPress={() => navigation.navigate('ParentPortal')}>
+            <Text style={styles.navBtnText}>Parent Portal</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.navBtn, styles.navBus]} onPress={() => navigation.navigate('BusTracker')}>
+          <Text style={styles.navBtnText}>Bus Tracker</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Panic Button (staff only) */}
+      {!isParent && (
+        <TouchableOpacity
+          style={[styles.panicButton, createAlert.isPending && styles.panicButtonDisabled]}
+          onPress={handlePanic}
+          disabled={createAlert.isPending}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.panicText}>PANIC</Text>
+          <Text style={styles.panicSubtext}>Tap to send emergency alert</Text>
+        </TouchableOpacity>
+      )}
 
       <Text style={styles.sectionTitle}>Recent Alerts</Text>
 
@@ -89,7 +106,10 @@ export function HomeScreen() {
         renderItem={({ item }: { item: any }) => {
           const badge = getStatusBadge(item.status);
           return (
-            <View style={[styles.alertCard, { borderLeftColor: getLevelColor(item.level) }]}>
+            <TouchableOpacity
+              style={[styles.alertCard, { borderLeftColor: getLevelColor(item.level) }]}
+              onPress={() => navigation.navigate('AlertDetail', { alert: item })}
+            >
               <View style={styles.alertHeader}>
                 <Text style={styles.alertLevel}>{item.level}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
@@ -99,7 +119,7 @@ export function HomeScreen() {
               <Text style={styles.alertLocation}>{item.buildingName}{item.roomName ? ` - ${item.roomName}` : ''}</Text>
               {item.message && <Text style={styles.alertMessage}>{item.message}</Text>}
               <Text style={styles.alertTime}>{new Date(item.triggeredAt).toLocaleString()}</Text>
-            </View>
+            </TouchableOpacity>
           );
         }}
         ListEmptyComponent={<Text style={styles.empty}>No alerts</Text>}
@@ -114,6 +134,11 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   headerSubtitle: { color: '#9ca3af', fontSize: 14 },
   logout: { color: '#9ca3af', fontSize: 14 },
+  navRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12 },
+  navBtn: { flex: 1, padding: 12, borderRadius: 12, alignItems: 'center' },
+  navParent: { backgroundColor: '#1e3a5f' },
+  navBus: { backgroundColor: '#1e3a5f' },
+  navBtnText: { color: '#60a5fa', fontSize: 14, fontWeight: '600' },
   panicButton: { backgroundColor: '#dc2626', margin: 16, padding: 32, borderRadius: 24, alignItems: 'center' },
   panicButtonDisabled: { opacity: 0.6 },
   panicText: { color: '#fff', fontSize: 48, fontWeight: 'bold', letterSpacing: 4 },

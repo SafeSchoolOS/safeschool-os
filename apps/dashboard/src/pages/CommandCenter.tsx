@@ -39,6 +39,7 @@ export function CommandCenter() {
           <a href="/reunification" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Reunification</a>
           <a href="/grants" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Grants</a>
           <a href="/audit-log" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Audit Log</a>
+          <a href="/floor-plan" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Floor Plan</a>
           <a href="/badgekiosk" className="text-sm text-green-400 hover:text-green-300 transition-colors">BadgeKiosk</a>
           <span className="text-sm text-gray-400">{user?.name} ({user?.role})</span>
           <button onClick={logout} className="text-sm text-gray-400 hover:text-white transition-colors">
