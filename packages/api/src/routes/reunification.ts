@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 export default async function reunificationRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -40,7 +41,7 @@ export default async function reunificationRoutes(app: FastifyInstance) {
     const event = await app.prisma.reunificationEvent.create({
       data: {
         siteId: user.siteIds[0],
-        location: body.location,
+        location: sanitizeText(body.location),
         alertId: body.alertId,
         totalStudents: body.totalStudents || 0,
       },
@@ -98,8 +99,8 @@ export default async function reunificationRoutes(app: FastifyInstance) {
     const entry = await app.prisma.reunificationEntry.create({
       data: {
         eventId: id,
-        studentName: body.studentName,
-        studentGrade: body.studentGrade,
+        studentName: sanitizeText(body.studentName),
+        studentGrade: sanitizeText(body.studentGrade),
       },
     });
 
@@ -123,8 +124,8 @@ export default async function reunificationRoutes(app: FastifyInstance) {
     const entry = await app.prisma.reunificationEntry.update({
       where: { id: entryId },
       data: {
-        guardianName: body.guardianName,
-        guardianIdType: body.guardianIdType,
+        guardianName: sanitizeText(body.guardianName),
+        guardianIdType: sanitizeText(body.guardianIdType),
         guardianIdCheck: body.guardianIdCheck || false,
         releasedAt: new Date(),
         releasedById: user.id,

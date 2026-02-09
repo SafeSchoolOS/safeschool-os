@@ -14,17 +14,38 @@ echo "=== Migration exit code: $? ==="
 echo "=== Seeding essential data ==="
 node -e "
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
 const p = new PrismaClient();
 (async () => {
   try {
+    const orgId = '00000000-0000-4000-a000-000000008001';
     const siteId = '00000000-0000-4000-a000-000000000001';
+    const passwordHash = bcrypt.hashSync('safeschool123', 10);
+
+    await p.organization.upsert({
+      where: { id: orgId },
+      update: {},
+      create: {
+        id: orgId,
+        name: 'Newark Public Schools',
+        slug: 'newark-public-schools',
+        type: 'DISTRICT',
+        address: '765 Broad St',
+        city: 'Newark',
+        state: 'NJ',
+        zip: '07102',
+      }
+    });
+    console.log('Organization ready');
+
     await p.site.upsert({
       where: { id: siteId },
-      update: {},
+      update: { organizationId: orgId },
       create: {
         id: siteId,
         name: 'Lincoln Elementary School',
         district: 'Newark Public Schools',
+        organizationId: orgId,
         address: '123 Lincoln Ave',
         city: 'Newark',
         state: 'NJ',
@@ -35,14 +56,16 @@ const p = new PrismaClient();
       }
     });
     console.log('Site ready');
+
     const u = await p.user.upsert({
       where: { email: 'bwattendorf@gmail.com' },
-      update: {},
+      update: { passwordHash: passwordHash },
       create: {
         id: '00000000-0000-4000-a000-000000001000',
         email: 'bwattendorf@gmail.com',
         name: 'Bruce Wattendorf',
         role: 'SITE_ADMIN',
+        passwordHash: passwordHash,
         sites: { create: { siteId: siteId } }
       }
     });

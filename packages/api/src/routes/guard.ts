@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 /**
  * Guard Console API — PAID FEATURE
@@ -131,10 +132,10 @@ const guardRoutes: FastifyPluginAsync = async (app) => {
     const visitor = await app.prisma.visitor.create({
       data: {
         siteId,
-        firstName: body.firstName,
-        lastName: body.lastName,
-        purpose: body.purpose,
-        destination: body.destination,
+        firstName: sanitizeText(body.firstName),
+        lastName: sanitizeText(body.lastName),
+        purpose: sanitizeText(body.purpose),
+        destination: sanitizeText(body.destination),
         idType: body.idType,
         status: 'CHECKED_IN',
         checkedInAt: new Date(),
@@ -236,7 +237,7 @@ const guardRoutes: FastifyPluginAsync = async (app) => {
         triggeredById: (request as any).jwtUser.id,
         buildingId: 'MAIN',
         buildingName: 'Main Entrance',
-        message: `Guard Alert: ${body.type} - ${body.description}`,
+        message: `Guard Alert: ${sanitizeText(body.type)} - ${sanitizeText(body.description)}`,
         metadata: {
           guardAlert: true,
           alertType: body.type,

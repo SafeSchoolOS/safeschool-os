@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { scoreRisk, getAssessmentActions } from '@safeschool/threat-assessment';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/threat-assessments — List reports
@@ -34,7 +35,10 @@ const threatAssessmentRoutes: FastifyPluginAsync = async (fastify) => {
       riskFactors?: string[];
     };
   }>('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
-    const { subjectName, subjectGrade, subjectRole, category, description, evidence, riskFactors } = request.body;
+    const { subjectGrade, subjectRole, evidence, riskFactors } = request.body;
+    const subjectName = sanitizeText(request.body.subjectName);
+    const category = sanitizeText(request.body.category);
+    const description = sanitizeText(request.body.description);
 
     if (!subjectName || !category || !description) {
       return reply.code(400).send({ error: 'subjectName, category, and description are required' });

@@ -42,7 +42,7 @@ export function ReunificationPage() {
   const [newEvent, setNewEvent] = useState({ location: '', totalStudents: '' });
   const [newStudent, setNewStudent] = useState({ studentName: '', studentGrade: '' });
 
-  const { data: events = [] } = useQuery<ReunificationEvent[]>({
+  const { data: events = [], isLoading } = useQuery<ReunificationEvent[]>({
     queryKey: ['reunification-events'],
     queryFn: async () => {
       const res = await fetch(`${API_URL}/api/v1/reunification`, {
@@ -131,21 +131,24 @@ export function ReunificationPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/" className="text-gray-400 hover:text-white transition-colors">&larr; Command Center</a>
-          <h1 className="text-xl font-bold">Reunification</h1>
-        </div>
+    <div className="p-6">
+      {/* Top Actions */}
+      <div className="flex items-center justify-end mb-4">
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="bg-red-600 hover:bg-red-700 px-4 py-1.5 rounded text-sm font-medium"
+          className="bg-red-600 hover:bg-red-700 px-4 py-1.5 rounded text-sm font-medium transition-colors"
         >
           Start Reunification
         </button>
-      </header>
+      </div>
 
-      <div className="p-6 flex gap-6">
+      {isLoading && (
+        <div className="flex justify-center py-12">
+          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      <div className="flex gap-6">
         {/* Events List */}
         <div className="w-1/3">
           {showCreateForm && (
@@ -205,7 +208,7 @@ export function ReunificationPage() {
                 <div className="text-xs text-gray-400">{new Date(event.startedAt).toLocaleString()}</div>
               </button>
             ))}
-            {events.length === 0 && (
+            {!isLoading && events.length === 0 && (
               <div className="text-center text-gray-500 py-8 text-sm">No reunification events.</div>
             )}
           </div>

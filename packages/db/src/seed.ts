@@ -79,19 +79,40 @@ const IDS = {
     preregistered: '00000000-0000-4000-a000-000000006001',
   },
   license: '00000000-0000-4000-a000-000000007001',
+  organization: '00000000-0000-4000-a000-000000008001',
 } as const;
 
 async function main() {
   console.log('🏫 Seeding Lincoln Elementary...');
 
+  // Organization (district)
+  const org = await prisma.organization.upsert({
+    where: { id: IDS.organization },
+    update: {},
+    create: {
+      id: IDS.organization,
+      name: 'Newark Public Schools',
+      slug: 'newark-public-schools',
+      type: 'DISTRICT',
+      address: '765 Broad St',
+      city: 'Newark',
+      state: 'NJ',
+      zip: '07102',
+      phone: '+19737333000',
+      website: 'https://www.nps.k12.nj.us',
+    },
+  });
+  console.log(`  Organization: ${org.name}`);
+
   // Site
   const site = await prisma.site.upsert({
     where: { id: IDS.site },
-    update: {},
+    update: { organizationId: IDS.organization },
     create: {
       id: IDS.site,
       name: 'Lincoln Elementary School',
       district: 'Newark Public Schools',
+      organizationId: IDS.organization,
       address: '123 Lincoln Ave',
       city: 'Newark',
       state: 'NJ',

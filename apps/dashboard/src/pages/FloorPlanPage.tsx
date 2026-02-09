@@ -76,42 +76,32 @@ export function FloorPlanPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/" className="text-blue-400 hover:text-blue-300">&larr; Dashboard</a>
-          <h1 className="text-xl font-bold">Floor Plan</h1>
-          {site && <span className="text-gray-400 text-sm">{site.name}</span>}
+    <div className="p-6">
+      {/* Building/Floor selectors */}
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex gap-2">
+          {['main', 'annex'].map(b => (
+            <button key={b} onClick={() => setSelectedBuilding(b)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                selectedBuilding === b ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}>
+              {b === 'main' ? 'Main Building' : 'Annex'}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-4">
-          {/* Building selector */}
+        {selectedBuilding === 'main' && (
           <div className="flex gap-2">
-            {['main', 'annex'].map(b => (
-              <button key={b} onClick={() => setSelectedBuilding(b)}
+            {[1, 2].map(f => (
+              <button key={f} onClick={() => setSelectedFloor(f)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  selectedBuilding === b ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  selectedFloor === f ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}>
-                {b === 'main' ? 'Main Building' : 'Annex'}
+                Floor {f}
               </button>
             ))}
           </div>
-          {/* Floor selector */}
-          {selectedBuilding === 'main' && (
-            <div className="flex gap-2">
-              {[1, 2].map(f => (
-                <button key={f} onClick={() => setSelectedFloor(f)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    selectedFloor === f ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}>
-                  Floor {f}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="p-6">
+        )}
+      </div>
         <div className="grid grid-cols-12 gap-6">
           {/* Floor Plan SVG */}
           <div className="col-span-9">
@@ -271,7 +261,6 @@ export function FloorPlanPage() {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }

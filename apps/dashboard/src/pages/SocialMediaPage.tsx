@@ -82,15 +82,7 @@ export function SocialMediaPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/" className="text-gray-400 hover:text-white transition-colors">&larr; Command Center</a>
-          <h1 className="text-xl font-bold">Social Media Monitoring</h1>
-        </div>
-      </header>
-
-      <div className="p-6">
+    <div className="p-6">
         {/* Dashboard Stats */}
         {dashboard && (
           <div className="grid grid-cols-4 gap-4 mb-6">
@@ -183,7 +175,6 @@ export function SocialMediaPage() {
             <div className="text-center text-gray-500 py-8">No social media alerts found.</div>
           )}
         </div>
-      </div>
     </div>
   );
 }

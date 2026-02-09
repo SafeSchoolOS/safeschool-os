@@ -24,6 +24,8 @@ export { TwilioSmsAdapter } from './adapters/twilio-sms.js';
 export { SendGridEmailAdapter } from './adapters/sendgrid-email.js';
 export { FcmPushAdapter } from './adapters/fcm-push.js';
 export { PaIntercomAdapter } from './adapters/pa-intercom.js';
+export { getTemplate } from './templates.js';
+export type { NotificationType, TemplateResult } from './templates.js';
 
 type Channel = 'SMS' | 'EMAIL' | 'PUSH' | 'PA';
 

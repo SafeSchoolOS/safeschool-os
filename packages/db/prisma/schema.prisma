@@ -8,23 +8,61 @@ datasource db {
 }
 
 // ============================================================================
+// Organization (Multi-District Support)
+// ============================================================================
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  type        OrgType  @default(DISTRICT)
+  parentId    String?  @map("parent_id")
+  address     String?
+  city        String?
+  state       String?
+  zip         String?
+  phone       String?
+  website     String?
+  logoUrl     String?  @map("logo_url")
+  settings    Json?    // district-wide settings (notification prefs, compliance rules)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parent   Organization?  @relation("OrgHierarchy", fields: [parentId], references: [id])
+  children Organization[] @relation("OrgHierarchy")
+  sites    Site[]
+
+  @@index([parentId])
+  @@map("organizations")
+}
+
+enum OrgType {
+  STATE_AGENCY
+  DISTRICT
+  CHARTER_NETWORK
+  PRIVATE_SYSTEM
+}
+
+// ============================================================================
 // Site Hierarchy
 // ============================================================================
 
 model Site {
-  id        String   @id @default(uuid())
-  name      String
-  district  String
-  address   String
-  city      String
-  state     String
-  zip       String
-  latitude  Float
-  longitude Float
-  timezone  String   @default("America/New_York")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  organizationId String?  @map("organization_id")
+  name           String
+  district       String
+  address        String
+  city           String
+  state          String
+  zip            String
+  latitude       Float
+  longitude      Float
+  timezone       String   @default("America/New_York")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
+  organization Organization? @relation(fields: [organizationId], references: [id])
   buildings Building[]
   users     UserSite[]
   alerts    Alert[]
@@ -44,6 +82,7 @@ model Site {
   socialMediaAlerts    SocialMediaAlert[]
   license              SiteLicense?
 
+  @@index([organizationId])
   @@map("sites")
 }
 

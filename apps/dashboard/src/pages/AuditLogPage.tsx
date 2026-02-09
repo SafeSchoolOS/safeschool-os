@@ -37,7 +37,7 @@ export function AuditLogPage() {
   const [page, setPage] = useState(0);
   const pageSize = 25;
 
-  const { data } = useQuery<{ entries: AuditEntry[]; total: number }>({
+  const { data, isLoading } = useQuery<{ entries: AuditEntry[]; total: number }>({
     queryKey: ['audit-log', filterAction, filterEntity, page],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -77,18 +77,10 @@ export function AuditLogPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/" className="text-gray-400 hover:text-white transition-colors">&larr; Command Center</a>
-          <h1 className="text-xl font-bold">Audit Log</h1>
-        </div>
-        <div className="text-sm text-gray-400">{total} entries</div>
-      </header>
-
-      <div className="p-6">
-        {/* Filters */}
-        <div className="mb-4 flex gap-2">
+    <div className="p-6">
+      {/* Filters */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-2">
           <select
             value={filterEntity}
             onChange={(e) => { setFilterEntity(e.target.value); setPage(0); }}
@@ -110,8 +102,18 @@ export function AuditLogPage() {
             ))}
           </select>
         </div>
+        <div className="text-sm text-gray-400">{total} entries</div>
+      </div>
 
-        {/* Log Table */}
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex justify-center py-12">
+          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Log Table */}
+      {!isLoading && (
         <div className="bg-gray-800 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -158,30 +160,30 @@ export function AuditLogPage() {
             </tbody>
           </table>
         </div>
+      )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="bg-gray-800 px-3 py-1.5 rounded text-sm disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-400">
-              Page {page + 1} of {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              className="bg-gray-800 px-3 py-1.5 rounded text-sm disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="bg-gray-800 px-3 py-1.5 rounded text-sm disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="text-sm text-gray-400">
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="bg-gray-800 px-3 py-1.5 rounded text-sm disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

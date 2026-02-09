@@ -6,7 +6,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   const authProvider = process.env.AUTH_PROVIDER || 'dev';
 
   // POST /api/v1/auth/login — email + password login
-  fastify.post<{ Body: { email: string; password?: string } }>('/login', async (request, reply) => {
+  // Route-specific rate limit: 10 attempts per minute to prevent brute-force
+  fastify.post<{ Body: { email: string; password?: string } }>('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     if (authProvider === 'clerk') {
       return reply.code(404).send({ error: 'Password login is not available. Use Clerk authentication.' });
     }
@@ -41,7 +49,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       email: user.email,
       role: user.role,
       siteIds: user.sites.map((s) => s.siteId),
-    });
+    }, { expiresIn: '24h' });
 
     return {
       token,
@@ -102,6 +110,22 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // Add raw body capture for webhook signature verification
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (req, body, done) => {
+      try {
+        const json = JSON.parse(body as string);
+        // Attach the raw body for HMAC verification
+        (req as any).rawBody = body;
+        done(null, json);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   // POST /api/v1/auth/clerk-webhook — Clerk webhook for user.created / user.updated
   fastify.post<{ Body: any }>('/clerk-webhook', async (request, reply) => {
     if (authProvider !== 'clerk') {
@@ -129,8 +153,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: 'Webhook timestamp too old' });
     }
 
-    // Verify HMAC signature
-    const rawBody = JSON.stringify(request.body);
+    // Use raw body for HMAC verification (not re-serialized JSON)
+    const rawBody = (request.raw as any).rawBody || JSON.stringify(request.body);
     const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
     const secretBytes = Buffer.from(webhookSecret.replace('whsec_', ''), 'base64');
     const expectedSignature = crypto

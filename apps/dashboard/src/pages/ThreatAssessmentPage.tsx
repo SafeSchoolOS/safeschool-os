@@ -76,21 +76,16 @@ export function ThreatAssessmentPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/" className="text-gray-400 hover:text-white transition-colors">&larr; Command Center</a>
-          <h1 className="text-xl font-bold">Threat Assessment</h1>
-        </div>
+    <div className="p-6">
+      {/* Top Actions */}
+      <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium"
+          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium transition-colors"
         >
           {showForm ? 'Cancel' : 'New Report'}
         </button>
-      </header>
-
-      <div className="p-6">
+      </div>
         {/* Dashboard Stats */}
         {dashboard && (
           <div className="grid grid-cols-4 gap-4 mb-6">
@@ -152,7 +147,6 @@ export function ThreatAssessmentPage() {
             <div className="text-center text-gray-500 py-8">No threat reports found.</div>
           )}
         </div>
-      </div>
     </div>
   );
 }

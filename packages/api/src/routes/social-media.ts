@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/social-media/alerts — List social media alerts
@@ -37,7 +38,12 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
       metadata?: Record<string, unknown>;
     };
   }>('/alerts', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
-    const { source, platform, contentType, flaggedContent, category, severity, studentName, studentGrade, externalId, metadata } = request.body;
+    const { source, contentType, severity, externalId, metadata } = request.body;
+    const platform = sanitizeText(request.body.platform);
+    const flaggedContent = sanitizeText(request.body.flaggedContent);
+    const category = sanitizeText(request.body.category);
+    const studentName = sanitizeText(request.body.studentName);
+    const studentGrade = sanitizeText(request.body.studentGrade);
 
     if (!source || !platform || !category) {
       return reply.code(400).send({ error: 'source, platform, and category are required' });
@@ -54,11 +60,11 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
         source: source as any,
         platform,
         contentType: contentType || 'text',
-        flaggedContent,
+        flaggedContent: flaggedContent || undefined,
         category: category as any,
         severity: (severity || 'LOW') as any,
-        studentName,
-        studentGrade,
+        studentName: studentName || undefined,
+        studentGrade: studentGrade || undefined,
         externalId,
         metadata: (metadata || undefined) as any,
       },
@@ -224,13 +230,13 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         siteId: defaultSiteId,
         source: 'BARK' as any,
-        platform: data.platform,
+        platform: sanitizeText(data.platform),
         contentType: data.content_type || 'text',
-        flaggedContent: data.content,
-        category: data.category as any,
+        flaggedContent: sanitizeText(data.content),
+        category: sanitizeText(data.category) as any,
         severity: (data.severity || 'LOW') as any,
-        studentName: data.student?.name,
-        studentGrade: data.student?.grade,
+        studentName: sanitizeText(data.student?.name),
+        studentGrade: sanitizeText(data.student?.grade),
         externalId: data.id,
       },
     });

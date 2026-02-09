@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 export default async function drillRoutes(app: FastifyInstance) {
   // All routes require authentication
@@ -47,7 +48,7 @@ export default async function drillRoutes(app: FastifyInstance) {
         scheduledAt: new Date(body.scheduledAt),
         initiatedById: user.id,
         buildingId: body.buildingId,
-        notes: body.notes,
+        notes: sanitizeText(body.notes),
       },
     });
 
@@ -92,7 +93,7 @@ export default async function drillRoutes(app: FastifyInstance) {
     if (body.headCount !== undefined) data.headCount = body.headCount;
     if (body.issues !== undefined) data.issues = body.issues;
     if (body.complianceMet !== undefined) data.complianceMet = body.complianceMet;
-    if (body.notes !== undefined) data.notes = body.notes;
+    if (body.notes !== undefined) data.notes = sanitizeText(body.notes);
 
     const updated = await app.prisma.drill.update({
       where: { id },
@@ -140,7 +141,7 @@ export default async function drillRoutes(app: FastifyInstance) {
     if (!drill) return reply.status(404).send({ error: 'Drill not found' });
 
     const participant = await app.prisma.drillParticipant.create({
-      data: { drillId: id, name: body.name, role: body.role },
+      data: { drillId: id, name: sanitizeText(body.name), role: sanitizeText(body.role) },
     });
 
     return reply.status(201).send(participant);

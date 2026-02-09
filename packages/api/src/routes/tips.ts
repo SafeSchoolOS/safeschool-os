@@ -1,10 +1,19 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createHash } from 'crypto';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 export default async function tipRoutes(app: FastifyInstance) {
   // POST /api/v1/tips — submit anonymous tip (NO auth required)
-  app.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
+  // Strict rate limit: 3 tips per minute per IP (unauthenticated endpoint)
+  app.post('/', {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as {
       siteId: string;
       category: string;
@@ -17,7 +26,11 @@ export default async function tipRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'siteId, category, and message are required' });
     }
 
-    if (body.message.length < 10) {
+    // Sanitize user inputs (unauthenticated endpoint — high XSS risk)
+    const message = sanitizeText(body.message);
+    const category = sanitizeText(body.category);
+
+    if (message.length < 10) {
       return reply.status(400).send({ error: 'Message must be at least 10 characters' });
     }
 
@@ -28,8 +41,8 @@ export default async function tipRoutes(app: FastifyInstance) {
     const tip = await app.prisma.anonymousTip.create({
       data: {
         siteId: body.siteId,
-        category: body.category as any,
-        message: body.message,
+        category: category as any,
+        message,
         severity: (body.severity as any) || 'LOW',
         contactInfo: body.contactInfo,
         ipHash,

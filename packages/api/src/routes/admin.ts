@@ -194,13 +194,70 @@ export default async function adminRoutes(app: FastifyInstance) {
     return { logs: getDockerLogs(service) };
   });
 
-  // POST /api/v1/admin/update — pull latest images and restart
+  // GET /api/v1/admin/version — current version info
+  app.get('/version', async () => {
+    try {
+      const installDir = process.env.EDGE_INSTALL_DIR || '/opt/safeschool';
+      const currentCommit = execSync('git rev-parse --short HEAD', { encoding: 'utf-8', cwd: installDir }).trim();
+      const currentMessage = execSync('git log --oneline -1', { encoding: 'utf-8', cwd: installDir }).trim();
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8', cwd: installDir }).trim();
+
+      // Check for available updates
+      let updateAvailable = false;
+      let remoteCommit = '';
+      try {
+        execSync('git fetch origin main --quiet', { encoding: 'utf-8', cwd: installDir, timeout: 10000 });
+        remoteCommit = execSync('git rev-parse --short origin/main', { encoding: 'utf-8', cwd: installDir }).trim();
+        updateAvailable = currentCommit !== remoteCommit;
+      } catch {
+        // Fetch failed — offline or network issue
+      }
+
+      return {
+        version: currentCommit,
+        message: currentMessage,
+        branch,
+        updateAvailable,
+        remoteVersion: remoteCommit || null,
+      };
+    } catch {
+      return { version: 'unknown', updateAvailable: false };
+    }
+  });
+
+  // POST /api/v1/admin/update — pull latest code, run migrations, rebuild containers
   app.post('/update', async () => {
     try {
+      const installDir = process.env.EDGE_INSTALL_DIR || '/opt/safeschool';
       const composeDir = process.env.EDGE_COMPOSE_DIR || '/app/deploy/edge';
-      execSync('docker compose pull', { encoding: 'utf-8', cwd: composeDir });
-      execSync('docker compose up -d', { encoding: 'utf-8', cwd: composeDir });
-      return { message: 'Update complete. Services are restarting with latest images.' };
+      const envFile = process.env.EDGE_ENV_FILE || '/app/deploy/edge/.env';
+
+      // Pull latest code
+      execSync('git pull --ff-only origin main', { encoding: 'utf-8', cwd: installDir, timeout: 60000 });
+      const newVersion = execSync('git log --oneline -1', { encoding: 'utf-8', cwd: installDir }).trim();
+
+      // Run migrations
+      try {
+        execSync(`docker compose -f ${installDir}/deploy/edge/docker-compose.yml --env-file ${envFile} run --rm migrate`, {
+          encoding: 'utf-8', timeout: 120000,
+        });
+      } catch (migErr: any) {
+        // Migrations may not be needed for every update
+        app.log.warn(`Migration step: ${migErr.message}`);
+      }
+
+      // Rebuild and restart
+      execSync('docker compose pull', { encoding: 'utf-8', cwd: composeDir, timeout: 300000 });
+      execSync('docker compose up -d --build', { encoding: 'utf-8', cwd: composeDir, timeout: 300000 });
+
+      // Cleanup
+      try {
+        execSync('docker image prune -f', { encoding: 'utf-8', timeout: 30000 });
+      } catch {
+        // Non-critical
+      }
+
+      return { message: 'Update complete. Services are restarting.', version: newVersion };
     } catch (err: any) {
       return { statusCode: 500, message: `Update failed: ${err.message}` };
     }

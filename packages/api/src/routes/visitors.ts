@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { VisitorService, ConsoleScreeningAdapter } from '@safeschool/visitor-mgmt';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText, isValidDateString } from '../utils/sanitize.js';
 
 const visitorRoutes: FastifyPluginAsync = async (fastify) => {
   const screeningAdapter = new ConsoleScreeningAdapter();
@@ -22,7 +23,13 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
     const siteId = request.jwtUser.siteIds[0];
     if (!siteId) return reply.code(403).send({ error: 'No site access' });
 
-    const { firstName, lastName, purpose, destination, hostUserId, idType, idNumberHash, photo } = request.body;
+    // Sanitize text inputs to prevent stored XSS
+    const firstName = sanitizeText(request.body.firstName);
+    const lastName = sanitizeText(request.body.lastName);
+    const purpose = sanitizeText(request.body.purpose);
+    const destination = sanitizeText(request.body.destination);
+    const { hostUserId, idType, idNumberHash, photo } = request.body;
+
     if (!firstName || !lastName || !purpose || !destination) {
       return reply.code(400).send({ error: 'firstName, lastName, purpose, and destination are required' });
     }
@@ -46,7 +53,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'VISITOR_PRE_REGISTERED',
         entity: 'Visitor',
         entityId: visitor.id,
-        details: { firstName, lastName, purpose },
+        details: { firstName, lastName, purpose, destination },
         ipAddress: request.ip,
       },
     });
@@ -97,6 +104,9 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
     else where.siteId = { in: request.jwtUser.siteIds };
     if (status) where.status = status;
     if (date) {
+      if (!isValidDateString(date)) {
+        return [];
+      }
       const start = new Date(date);
       const end = new Date(date);
       end.setDate(end.getDate() + 1);

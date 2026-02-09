@@ -33,6 +33,7 @@ import auditLogRoutes from './routes/audit-log.js';
 import licenseRoutes from './routes/licenses.js';
 import badgePrintingRoutes from './routes/badge-printing.js';
 import guardRoutes from './routes/guard.js';
+import organizationRoutes from './routes/organizations.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import wsHandler from './ws/handler.js';
 
@@ -65,20 +66,22 @@ export async function buildServer() {
     },
   });
 
-  // CORS — restrict to known origins in production
+  // CORS — restrict to known origins in production, allow all only in dev
+  const isProduction = process.env.NODE_ENV === 'production';
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
-    : true; // Allow all in dev
+    : isProduction
+      ? false // Block all cross-origin in production unless CORS_ORIGINS is set
+      : true; // Allow all in dev
   await app.register(cors, {
     origin: allowedOrigins,
-    credentials: true,
+    credentials: isProduction ? false : true,
   });
 
-  // Rate limiting
+  // Rate limiting — 100 req/min global, with stricter per-route overrides
   await app.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
-    allowList: ['127.0.0.1', '::1'],
   });
 
   await app.register(websocket);
@@ -143,19 +146,10 @@ export async function buildServer() {
   await app.register(wsManagerPlugin);
 
   // Health check endpoint (used by Railway and monitoring)
+  // Minimal response — no operational data exposed without auth
   app.get('/health', async () => {
-    let activeLockdowns = 0;
-    try {
-      activeLockdowns = await app.prisma.lockdownCommand.count({
-        where: { releasedAt: null },
-      });
-    } catch { /* ignore if DB not ready */ }
-
     return {
       status: 'ok',
-      mode: process.env.OPERATING_MODE || 'cloud',
-      siteId: process.env.SITE_ID || null,
-      activeLockdowns,
       timestamp: new Date().toISOString(),
     };
   });
@@ -172,12 +166,10 @@ export async function buildServer() {
     }
   });
 
-  // API info
+  // API root — minimal info, no version disclosure
   app.get('/', async () => {
     return {
-      name: 'SafeSchool OS API',
-      version: '0.5.0',
-      description: "Alyssa's Law compliant school safety platform",
+      status: 'ok',
       docs: '/docs',
     };
   });
@@ -204,6 +196,7 @@ export async function buildServer() {
   await app.register(licenseRoutes, { prefix: '/api/v1/licenses' });
   await app.register(badgePrintingRoutes, { prefix: '/api/v1/badges' });
   await app.register(guardRoutes, { prefix: '/api/v1/guard' });
+  await app.register(organizationRoutes, { prefix: '/api/v1/organizations' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });

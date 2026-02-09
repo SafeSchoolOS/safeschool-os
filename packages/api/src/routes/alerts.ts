@@ -1,11 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { AlertEngine } from '../services/alert-engine.js';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 const alertRoutes: FastifyPluginAsync = async (fastify) => {
   const engine = new AlertEngine(fastify);
 
   // POST /api/v1/alerts — Create a panic alert
+  // Route-specific rate limit: 5 alerts per minute per user to prevent 911 dispatch flooding
   fastify.post<{
     Body: {
       level: string;
@@ -15,8 +17,17 @@ const alertRoutes: FastifyPluginAsync = async (fastify) => {
       roomId?: string;
       message?: string;
     };
-  }>('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { level, source, buildingId, floor, roomId, message } = request.body;
+  }>('/', {
+    preHandler: [fastify.authenticate],
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const { level, source, buildingId, floor, roomId } = request.body;
+    const message = sanitizeText(request.body.message);
 
     if (!level || !buildingId) {
       return reply.code(400).send({ error: 'level and buildingId are required' });
