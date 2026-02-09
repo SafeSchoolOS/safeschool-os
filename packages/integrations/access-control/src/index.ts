@@ -13,6 +13,7 @@ export { MockAccessControlAdapter } from './adapters/mock.js';
 export { GenetecAdapter } from './adapters/genetec.js';
 export { BrivoAdapter } from './adapters/brivo.js';
 export { VerkadaAdapter } from './adapters/verkada.js';
+export { S2NetBoxAdapter } from './adapters/s2-netbox.js';
 
 import type { AccessControlAdapter } from '@safeschool/core';
 import { SicunetAdapter } from './adapters/sicunet.js';
@@ -20,6 +21,7 @@ import { MockAccessControlAdapter } from './adapters/mock.js';
 import { GenetecAdapter } from './adapters/genetec.js';
 import { BrivoAdapter } from './adapters/brivo.js';
 import { VerkadaAdapter } from './adapters/verkada.js';
+import { S2NetBoxAdapter } from './adapters/s2-netbox.js';
 
 const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
   sicunet: SicunetAdapter,
@@ -27,6 +29,9 @@ const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
   genetec: GenetecAdapter,
   brivo: BrivoAdapter,
   verkada: VerkadaAdapter,
+  's2-netbox': S2NetBoxAdapter,
+  's2netbox': S2NetBoxAdapter,
+  'netbox': S2NetBoxAdapter,
 };
 
 /**
