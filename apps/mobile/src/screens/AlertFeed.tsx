@@ -1,7 +1,13 @@
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, RefreshControl, TouchableOpacity, StyleSheet } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { useNetwork } from '../hooks/NetworkContext';
+import { cacheData, getCachedData } from '../utils/offline';
+
+const ALERTS_CACHE_KEY = 'alerts_feed';
+const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
 const LEVEL_COLORS: Record<string, string> = {
   ACTIVE_THREAT: '#dc2626',
@@ -22,13 +28,48 @@ const STATUS_BADGES: Record<string, { bg: string; text: string }> = {
 
 export function AlertFeed({ navigation }: any) {
   const { user } = useAuth();
+  const { isOnline } = useNetwork();
   const siteId = user?.siteIds[0];
+
+  const [cachedAlerts, setCachedAlerts] = useState<any[] | null>(null);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+
+  // Load cached alerts on mount (before any network request)
+  useEffect(() => {
+    (async () => {
+      const cached = await getCachedData<any[]>(ALERTS_CACHE_KEY, CACHE_MAX_AGE_MS);
+      if (cached) {
+        setCachedAlerts(cached.data);
+        setCachedAt(cached.cachedAt);
+      }
+    })();
+  }, []);
 
   const { data: alerts, isLoading, refetch } = useQuery({
     queryKey: ['alerts', siteId],
-    queryFn: () => api.get(`/alerts?limit=50${siteId ? `&siteId=${siteId}` : ''}`),
-    refetchInterval: 5000,
+    queryFn: async () => {
+      const result = await api.get(`/alerts?limit=50${siteId ? `&siteId=${siteId}` : ''}`);
+      // Cache successful responses for offline use
+      await cacheData(ALERTS_CACHE_KEY, result);
+      setCachedAlerts(result);
+      setCachedAt(Date.now());
+      return result;
+    },
+    refetchInterval: isOnline ? 5000 : false,
+    enabled: isOnline,
   });
+
+  // Use live data when available, fall back to cache
+  const displayAlerts = alerts || cachedAlerts || [];
+  const isShowingCached = !alerts && cachedAlerts !== null;
+
+  const formatCacheAge = useCallback(() => {
+    if (!cachedAt) return '';
+    const ageMin = Math.floor((Date.now() - cachedAt) / 60000);
+    if (ageMin < 1) return 'just now';
+    if (ageMin < 60) return `${ageMin}m ago`;
+    return `${Math.floor(ageMin / 60)}h ago`;
+  }, [cachedAt]);
 
   const getLevelColor = (level: string) => LEVEL_COLORS[level] || '#6b7280';
 
@@ -46,7 +87,7 @@ export function AlertFeed({ navigation }: any) {
     return date.toLocaleDateString();
   };
 
-  const activeCount = (alerts || []).filter(
+  const activeCount = displayAlerts.filter(
     (a: any) => a.status === 'TRIGGERED' || a.status === 'ACKNOWLEDGED'
   ).length;
 
@@ -55,16 +96,25 @@ export function AlertFeed({ navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Alerts</Text>
-        {activeCount > 0 && (
-          <View style={styles.activeCountBadge}>
-            <Text style={styles.activeCountText}>{activeCount} Active</Text>
-          </View>
-        )}
+        <View style={styles.headerRight}>
+          {isShowingCached && (
+            <View style={styles.cachedBadge}>
+              <Text style={styles.cachedBadgeText}>
+                Cached {formatCacheAge()}
+              </Text>
+            </View>
+          )}
+          {activeCount > 0 && (
+            <View style={styles.activeCountBadge}>
+              <Text style={styles.activeCountText}>{activeCount} Active</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Alert List */}
       <FlatList
-        data={alerts || []}
+        data={displayAlerts}
         keyExtractor={(item: any) => item.id}
         refreshControl={
           <RefreshControl
@@ -120,9 +170,13 @@ export function AlertFeed({ navigation }: any) {
         }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Alerts</Text>
+            <Text style={styles.emptyTitle}>
+              {!isOnline && !cachedAlerts ? 'Offline' : 'No Alerts'}
+            </Text>
             <Text style={styles.emptySubtitle}>
-              All clear. Pull down to refresh.
+              {!isOnline && !cachedAlerts
+                ? 'No cached alerts available. Connect to load alerts.'
+                : 'All clear. Pull down to refresh.'}
             </Text>
           </View>
         }
@@ -148,6 +202,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cachedBadge: {
+    backgroundColor: '#92400e',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  cachedBadgeText: {
+    color: '#fef3c7',
+    fontSize: 11,
+    fontWeight: '600',
   },
   activeCountBadge: {
     backgroundColor: '#dc2626',

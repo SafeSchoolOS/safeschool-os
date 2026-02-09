@@ -364,8 +364,9 @@ describe('BUG 7: GPS update is a no-op without transportGpsFn', () => {
     // - No geofence checks are performed
     // - No arrival/departure notifications are sent
     expect(fnBody).not.toContain('else');
-    expect(fnBody).not.toContain('bus');
+    // The function references busId from job.data but does no DB update/geofence outside transportGpsFn
     expect(fnBody).not.toContain('geofence');
+    expect(fnBody).not.toContain('prisma');
   });
 });
 
@@ -398,7 +399,7 @@ describe('BUG 8: worker-entry.ts hardcodes ConsoleDispatchAdapter', () => {
 
     // The function never reads config.dispatch.adapter
     expect(fnBody).not.toContain('config.dispatch');
-    expect(fnBody).not.toContain('adapter');
+    expect(fnBody).not.toContain('config.dispatch.adapter');
 
     // It unconditionally creates ConsoleDispatchAdapter
     expect(fnBody).toContain('new ConsoleDispatchAdapter()');

@@ -16,6 +16,7 @@ const alertRoutes: FastifyPluginAsync = async (fastify) => {
       floor?: number;
       roomId?: string;
       message?: string;
+      trainingMode?: boolean;
     };
   }>('/', {
     preHandler: [fastify.authenticate],
@@ -28,6 +29,7 @@ const alertRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const { level, source, buildingId, floor, roomId } = request.body;
     const message = sanitizeText(request.body.message);
+    const trainingMode = request.body.trainingMode === true || request.headers['x-training-mode'] === 'true';
 
     if (!level || !buildingId) {
       return reply.code(400).send({ error: 'level and buildingId are required' });
@@ -48,6 +50,7 @@ const alertRoutes: FastifyPluginAsync = async (fastify) => {
       roomId,
       message,
       ipAddress: request.ip,
+      trainingMode,
     });
 
     return reply.code(201).send(alert);

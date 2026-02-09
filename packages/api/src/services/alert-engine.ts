@@ -21,6 +21,7 @@ interface CreateAlertInput {
   roomId?: string;
   message?: string;
   ipAddress?: string;
+  trainingMode?: boolean;
 }
 
 export class AlertEngine {
@@ -44,6 +45,7 @@ export class AlertEngine {
     }
 
     // Create alert in DB with denormalized location including GPS
+    const isTraining = input.trainingMode === true;
     const alert = await this.app.prisma.alert.create({
       data: {
         siteId: input.siteId,
@@ -58,7 +60,8 @@ export class AlertEngine {
         roomName,
         latitude: site.latitude,
         longitude: site.longitude,
-        message: input.message,
+        message: isTraining ? `[TRAINING] ${input.message || ''}`.trim() : input.message,
+        metadata: isTraining ? { trainingMode: true } : undefined,
       },
     });
 
@@ -67,7 +70,7 @@ export class AlertEngine {
 
     // Enqueue processing jobs (non-blocking — queue failures must not prevent audit logging)
     try {
-      await this.enqueueJobs(alert);
+      await this.enqueueJobs(alert, isTraining);
     } catch (err) {
       this.app.log.error({ err, alertId: alert.id }, 'Failed to enqueue alert jobs');
     }
@@ -88,29 +91,34 @@ export class AlertEngine {
     return alert;
   }
 
-  private async enqueueJobs(alert: Alert): Promise<void> {
-    // Always dispatch 911 for threat-level alerts
-    const dispatchLevels = ['ACTIVE_THREAT', 'LOCKDOWN', 'FIRE'];
-    if (dispatchLevels.includes(alert.level)) {
-      // Fetch full site address for NENA i3 civic address
-      const site = await this.app.prisma.site.findUnique({ where: { id: alert.siteId } });
+  private async enqueueJobs(alert: Alert, trainingMode = false): Promise<void> {
+    // In training mode, skip 911 dispatch entirely — this is the critical safety gate
+    if (!trainingMode) {
+      // Always dispatch 911 for threat-level alerts
+      const dispatchLevels = ['ACTIVE_THREAT', 'LOCKDOWN', 'FIRE'];
+      if (dispatchLevels.includes(alert.level)) {
+        // Fetch full site address for NENA i3 civic address
+        const site = await this.app.prisma.site.findUnique({ where: { id: alert.siteId } });
 
-      await this.app.alertQueue.add('dispatch-911', {
-        alertId: alert.id,
-        siteId: alert.siteId,
-        level: alert.level,
-        buildingName: alert.buildingName,
-        roomName: alert.roomName,
-        floor: alert.floor,
-        // GPS coordinates for 911 PSAP (Alyssa's Law location data)
-        latitude: alert.latitude,
-        longitude: alert.longitude,
-        // Site civic address for NENA i3 dispatch
-        siteAddress: site?.address,
-        siteCity: site?.city,
-        siteState: site?.state,
-        siteZip: site?.zip,
-      });
+        await this.app.alertQueue.add('dispatch-911', {
+          alertId: alert.id,
+          siteId: alert.siteId,
+          level: alert.level,
+          buildingName: alert.buildingName,
+          roomName: alert.roomName,
+          floor: alert.floor,
+          // GPS coordinates for 911 PSAP (Alyssa's Law location data)
+          latitude: alert.latitude,
+          longitude: alert.longitude,
+          // Site civic address for NENA i3 dispatch
+          siteAddress: site?.address,
+          siteCity: site?.city,
+          siteState: site?.state,
+          siteZip: site?.zip,
+        });
+      }
+    } else {
+      this.app.log.info({ alertId: alert.id }, 'Training mode: skipping 911 dispatch');
     }
 
     // Auto-lockdown for active threat AND lockdown-level alerts
@@ -125,28 +133,35 @@ export class AlertEngine {
     }
 
     // Notify staff for all alert levels
+    const baseMessage = alert.message || `${alert.level} alert in ${alert.buildingName}${alert.roomName ? ` - ${alert.roomName}` : ''}`;
+    const notifyMessage = trainingMode && !baseMessage.startsWith('[TRAINING]')
+      ? `[TRAINING] ${baseMessage}`
+      : baseMessage;
     await this.app.alertQueue.add('notify-staff', {
       alertId: alert.id,
       siteId: alert.siteId,
       level: alert.level,
-      message: alert.message || `${alert.level} alert in ${alert.buildingName}${alert.roomName ? ` - ${alert.roomName}` : ''}`,
+      message: notifyMessage,
     });
 
-    // Auto-escalation: if alert isn't acknowledged within timeout, escalate
-    const nextLevel = ESCALATION_PATH[alert.level];
-    if (nextLevel) {
-      await this.app.alertQueue.add(
-        'auto-escalate',
-        {
-          alertId: alert.id,
-          siteId: alert.siteId,
-          currentLevel: alert.level,
-          nextLevel,
-          buildingId: alert.buildingId,
-          triggeredById: alert.triggeredById,
-        },
-        { delay: ESCALATION_TIMEOUT_MS },
-      );
+    // In training mode, skip auto-escalation — drills shouldn't cascade
+    if (!trainingMode) {
+      // Auto-escalation: if alert isn't acknowledged within timeout, escalate
+      const nextLevel = ESCALATION_PATH[alert.level];
+      if (nextLevel) {
+        await this.app.alertQueue.add(
+          'auto-escalate',
+          {
+            alertId: alert.id,
+            siteId: alert.siteId,
+            currentLevel: alert.level,
+            nextLevel,
+            buildingId: alert.buildingId,
+            triggeredById: alert.triggeredById,
+          },
+          { delay: ESCALATION_TIMEOUT_MS },
+        );
+      }
     }
   }
 

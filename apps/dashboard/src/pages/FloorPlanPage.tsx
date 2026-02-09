@@ -5,6 +5,8 @@ import { useDoors, useLockDoor, useUnlockDoor } from '../api/doors';
 import { useSites } from '../api/sites';
 import { useAuth } from '../hooks/useAuth';
 
+type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const statusColors: Record<string, { fill: string; label: string }> = {
@@ -50,7 +52,9 @@ export function FloorPlanPage() {
   const [selectedDoor, setSelectedDoor] = useState<any>(null);
   const [editMode, setEditMode] = useState(false);
   const [dragging, setDragging] = useState<{ type: 'room' | 'door'; id: string } | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const svgRef = useRef<SVGSVGElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch full site data with rooms
   const { data: siteData } = useQuery({
@@ -79,6 +83,44 @@ export function FloorPlanPage() {
     },
   });
 
+  // Upload floor plan background image
+  const handleUploadBackground = useCallback(async (file: File) => {
+    if (!siteId || !selectedBuilding) return;
+    setUploadStatus('uploading');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(
+        `${API_URL}/api/v1/sites/${siteId}/buildings/${selectedBuilding}/floor-plan-image`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Upload failed');
+      }
+      setUploadStatus('success');
+      queryClient.invalidateQueries({ queryKey: ['site-detail', siteId] });
+      // Reset status after a short delay
+      setTimeout(() => setUploadStatus('idle'), 2000);
+    } catch {
+      setUploadStatus('error');
+      setTimeout(() => setUploadStatus('idle'), 3000);
+    }
+  }, [siteId, selectedBuilding, token, queryClient]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleUploadBackground(file);
+    }
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }, [handleUploadBackground]);
+
   const site = sites?.[0];
   const buildings = siteData?.buildings || [];
   const activeAlerts = (alerts || []).filter((a: any) => !['RESOLVED', 'CANCELLED'].includes(a.status));
@@ -90,6 +132,9 @@ export function FloorPlanPage() {
   }
 
   const currentBuilding = buildings.find((b: any) => b.id === selectedBuilding);
+  const floorPlanImageUrl = currentBuilding?.floorPlanUrl
+    ? `${API_URL}/api/v1/sites/${siteId}/buildings/${currentBuilding.id}/floor-plan-image`
+    : null;
   const allRooms = autoLayoutRooms(currentBuilding?.rooms || []);
   const visibleRooms = allRooms.filter((r: any) => r.floor === selectedFloor);
 
@@ -199,6 +244,18 @@ export function FloorPlanPage() {
           <div className="flex gap-2">
             {editMode ? (
               <>
+                <button onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadStatus === 'uploading'}
+                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {uploadStatus === 'uploading' ? 'Uploading...' :
+                   uploadStatus === 'success' ? 'Uploaded!' :
+                   uploadStatus === 'error' ? 'Upload Failed' : 'Upload Background'}
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml"
+                  className="hidden" onChange={handleFileChange} />
                 <button onClick={handleSaveLayout}
                   className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-medium transition-colors">
                   {saveMutation.isPending ? 'Saving...' : 'Save Layout'}
@@ -240,6 +297,17 @@ export function FloorPlanPage() {
               </defs>
               <rect width="820" height="280" fill="#111827" rx="8"/>
               <rect width="820" height="280" fill="url(#grid)" rx="8"/>
+
+              {/* Floor plan background image */}
+              {floorPlanImageUrl && (
+                <image
+                  href={`${floorPlanImageUrl}?t=${currentBuilding?.updatedAt || ''}`}
+                  x="20" y="20" width="780" height="240"
+                  preserveAspectRatio="xMidYMid meet"
+                  opacity="0.6"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
 
               {/* Building outline */}
               <rect x="20" y="20" width="780" height="240"

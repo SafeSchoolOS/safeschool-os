@@ -28,9 +28,10 @@ export function AlertCard({ alert, onAcknowledge, onResolve, onCancel }: AlertCa
   const isActive = !['RESOLVED', 'CANCELLED'].includes(alert.status);
   const colorClass = levelColors[alert.level] || levelColors.CUSTOM;
   const elapsed = getElapsed(alert.triggeredAt);
+  const isTraining = alert.metadata?.trainingMode === true;
 
   return (
-    <div className={`rounded-lg border p-4 ${colorClass} ${isActive && alert.level === 'ACTIVE_THREAT' ? 'animate-pulse' : ''}`}>
+    <div className={`rounded-lg border p-4 ${colorClass} ${isActive && alert.level === 'ACTIVE_THREAT' && !isTraining ? 'animate-pulse' : ''}`}>
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -38,6 +39,11 @@ export function AlertCard({ alert, onAcknowledge, onResolve, onCancel }: AlertCa
             <span className={`px-2 py-0.5 text-xs rounded-full text-white ${statusBadge[alert.status] || 'bg-gray-600'}`}>
               {alert.status}
             </span>
+            {isTraining && (
+              <span className="px-2 py-0.5 text-xs rounded-full text-white bg-orange-500 font-semibold">
+                [TRAINING]
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-300 mt-1">
             {alert.buildingName}{alert.roomName ? ` / ${alert.roomName}` : ''}

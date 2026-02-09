@@ -8,17 +8,19 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
       scope: string;
       targetId: string;
       alertId?: string;
+      trainingMode?: boolean;
     };
   }>('/', { preHandler: [fastify.authenticate, requireMinRole('FIRST_RESPONDER')] }, async (request, reply) => {
 
     const { scope, targetId, alertId } = request.body;
+    const trainingMode = request.body.trainingMode === true || request.headers['x-training-mode'] === 'true';
     const siteId = request.jwtUser.siteIds[0];
 
     if (!scope || !targetId) {
       return reply.code(400).send({ error: 'scope and targetId are required' });
     }
 
-    // Update doors based on scope
+    // Update doors based on scope (doors still lock in training mode)
     const doorFilter: any = { siteId, isEmergencyExit: false };
     if (scope === 'BUILDING') doorFilter.buildingId = targetId;
     if (scope === 'FLOOR') {
@@ -39,10 +41,15 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
         initiatedById: request.jwtUser.id,
         alertId,
         doorsLocked: result.count,
+        metadata: trainingMode ? { trainingMode: true } : undefined,
       },
     });
 
     fastify.wsManager.broadcastToSite(siteId, 'lockdown:initiated', lockdown);
+
+    if (trainingMode) {
+      fastify.log.info({ lockdownId: lockdown.id }, 'Training mode: skipping dispatch for lockdown');
+    }
 
     await fastify.prisma.auditLog.create({
       data: {
@@ -51,7 +58,7 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'LOCKDOWN_INITIATED',
         entity: 'LockdownCommand',
         entityId: lockdown.id,
-        details: { scope, targetId, doorsLocked: result.count },
+        details: { scope, targetId, doorsLocked: result.count, trainingMode },
         ipAddress: request.ip,
       },
     });

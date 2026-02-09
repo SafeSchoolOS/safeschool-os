@@ -4,9 +4,10 @@ import { useCreateAlert } from '../../api/alerts';
 interface CreateAlertButtonProps {
   siteId: string;
   buildings: any[];
+  trainingMode?: boolean;
 }
 
-export function CreateAlertButton({ siteId, buildings }: CreateAlertButtonProps) {
+export function CreateAlertButton({ siteId, buildings, trainingMode }: CreateAlertButtonProps) {
   const [armed, setArmed] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(buildings[0]?.id || '');
   const createAlert = useCreateAlert();
@@ -23,6 +24,7 @@ export function CreateAlertButton({ siteId, buildings }: CreateAlertButtonProps)
       level: 'ACTIVE_THREAT',
       buildingId: selectedBuilding,
       source: 'DASHBOARD',
+      trainingMode,
     });
     setArmed(false);
   };
@@ -32,6 +34,7 @@ export function CreateAlertButton({ siteId, buildings }: CreateAlertButtonProps)
       level: 'MEDICAL',
       buildingId: selectedBuilding,
       source: 'DASHBOARD',
+      trainingMode,
     });
   };
 
@@ -40,6 +43,7 @@ export function CreateAlertButton({ siteId, buildings }: CreateAlertButtonProps)
       level: 'LOCKDOWN',
       buildingId: selectedBuilding,
       source: 'DASHBOARD',
+      trainingMode,
     });
   };
 

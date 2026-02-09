@@ -17,7 +17,7 @@ export function useActiveLockdowns() {
 export function useInitiateLockdown() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { scope: string; targetId: string; alertId?: string }) =>
+    mutationFn: (data: { scope: string; targetId: string; alertId?: string; trainingMode?: boolean }) =>
       apiClient.post('/api/v1/lockdown', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lockdowns'] });

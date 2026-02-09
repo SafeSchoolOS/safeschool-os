@@ -1,4 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { mkdir, writeFile, readFile } from 'fs/promises';
+import { existsSync } from 'fs';
+import path from 'path';
 import { requireMinRole } from '../middleware/rbac.js';
 
 const siteRoutes: FastifyPluginAsync = async (fastify) => {
@@ -72,6 +75,97 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       return { message: 'Floor plan positions updated' };
+    }
+  );
+
+  // POST /:id/buildings/:buildingId/floor-plan-image — upload background image (SITE_ADMIN)
+  const FLOOR_PLAN_DIR = process.env.FLOOR_PLAN_DIR || '/app/data/floor-plans';
+  const ALLOWED_MIMETYPES: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/svg+xml': 'svg',
+  };
+
+  fastify.post<{ Params: { id: string; buildingId: string } }>(
+    '/:id/buildings/:buildingId/floor-plan-image',
+    { preHandler: [fastify.authenticate, requireMinRole('SITE_ADMIN')] },
+    async (request, reply) => {
+      const { id, buildingId } = request.params;
+
+      // Verify the building belongs to this site
+      const building = await fastify.prisma.building.findFirst({
+        where: { id: buildingId, siteId: id },
+      });
+      if (!building) {
+        return reply.code(404).send({ error: 'Building not found' });
+      }
+
+      const file = await request.file();
+      if (!file) {
+        return reply.code(400).send({ error: 'No file uploaded' });
+      }
+
+      const ext = ALLOWED_MIMETYPES[file.mimetype];
+      if (!ext) {
+        return reply.code(400).send({
+          error: 'Invalid file type. Allowed: PNG, JPEG, SVG',
+        });
+      }
+
+      // Read file buffer and save to disk
+      const buffer = await file.toBuffer();
+
+      await mkdir(FLOOR_PLAN_DIR, { recursive: true });
+      const filename = `${buildingId}.${ext}`;
+      const filepath = path.join(FLOOR_PLAN_DIR, filename);
+      await writeFile(filepath, buffer);
+
+      // Update building record with the relative path
+      await fastify.prisma.building.update({
+        where: { id: buildingId },
+        data: { floorPlanUrl: filename },
+      });
+
+      return {
+        url: `/api/v1/sites/${id}/buildings/${buildingId}/floor-plan-image`,
+      };
+    }
+  );
+
+  // GET /:id/buildings/:buildingId/floor-plan-image — serve background image (TEACHER+)
+  fastify.get<{ Params: { id: string; buildingId: string } }>(
+    '/:id/buildings/:buildingId/floor-plan-image',
+    { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] },
+    async (request, reply) => {
+      const { id, buildingId } = request.params;
+
+      const building = await fastify.prisma.building.findFirst({
+        where: { id: buildingId, siteId: id },
+      });
+      if (!building || !building.floorPlanUrl) {
+        return reply.code(404).send({ error: 'Floor plan image not found' });
+      }
+
+      const filepath = path.join(FLOOR_PLAN_DIR, building.floorPlanUrl);
+      if (!existsSync(filepath)) {
+        return reply.code(404).send({ error: 'Floor plan image file not found' });
+      }
+
+      const fileBuffer = await readFile(filepath);
+
+      // Determine content type from extension
+      const ext = path.extname(building.floorPlanUrl).slice(1);
+      const contentTypeMap: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        svg: 'image/svg+xml',
+      };
+
+      return reply
+        .header('Content-Type', contentTypeMap[ext] || 'application/octet-stream')
+        .header('Cache-Control', 'public, max-age=3600')
+        .send(fileBuffer);
     }
   );
 };

@@ -20,7 +20,7 @@ export function useAlert(id: string) {
 export function useCreateAlert() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { level: string; buildingId: string; source?: string; floor?: number; roomId?: string; message?: string }) =>
+    mutationFn: (data: { level: string; buildingId: string; source?: string; floor?: number; roomId?: string; message?: string; trainingMode?: boolean }) =>
       apiClient.post('/api/v1/alerts', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   });

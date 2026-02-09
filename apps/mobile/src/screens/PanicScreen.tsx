@@ -6,17 +6,21 @@ import {
   StyleSheet,
   Vibration,
   Animated,
+  Linking,
 } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import { useCreateAlert } from '../api/alerts';
+import { useNetwork } from '../hooks/NetworkContext';
+import { queueAction } from '../utils/offline';
 
-type PanicState = 'idle' | 'holding' | 'confirming' | 'sent' | 'error';
+type PanicState = 'idle' | 'holding' | 'confirming' | 'sent' | 'queued' | 'error';
 
 const HOLD_DURATION_MS = 3000;
 const TICK_INTERVAL_MS = 50;
 
 export function PanicScreen() {
   const { user } = useAuth();
+  const { isOnline } = useNetwork();
   const createAlert = useCreateAlert();
 
   const [state, setState] = useState<PanicState>('idle');
@@ -91,20 +95,39 @@ export function PanicScreen() {
   const handleConfirm = useCallback(async () => {
     if (state !== 'confirming') return;
 
+    const alertPayload = {
+      level: 'ACTIVE_THREAT',
+      buildingId: '',
+      source: 'MOBILE_APP',
+      message: `Panic alert from ${user?.name || 'unknown user'}`,
+    };
+
+    if (!isOnline) {
+      // Queue the alert for later and prompt user to call 911 directly
+      await queueAction({
+        type: 'panic_alert',
+        url: '/alerts',
+        method: 'POST',
+        body: alertPayload,
+      });
+      Vibration.vibrate([0, 300, 100, 300]);
+      setState('queued');
+      return;
+    }
+
     try {
       setState('sent');
       Vibration.vibrate([0, 300, 100, 300]);
-      await createAlert.mutateAsync({
-        level: 'ACTIVE_THREAT',
-        buildingId: '',
-        source: 'MOBILE_APP',
-        message: `Panic alert from ${user?.name || 'unknown user'}`,
-      });
+      await createAlert.mutateAsync(alertPayload);
     } catch (err) {
       setState('error');
       setErrorMsg(err instanceof Error ? err.message : 'Failed to send alert');
     }
-  }, [state, createAlert, user?.name]);
+  }, [state, createAlert, user?.name, isOnline]);
+
+  const handleCall911 = useCallback(() => {
+    Linking.openURL('tel:911');
+  }, []);
 
   const handleCancel = useCallback(() => {
     clearTimer();
@@ -196,6 +219,44 @@ export function PanicScreen() {
             activeOpacity={0.7}
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // -- QUEUED state: offline, alert queued for later delivery --
+  if (state === 'queued') {
+    return (
+      <View style={[styles.container, styles.queuedContainer]}>
+        <View style={styles.queuedContent}>
+          <View style={styles.queuedIcon}>
+            <Text style={styles.queuedIconText}>!</Text>
+          </View>
+          <Text style={styles.queuedTitle}>Alert Queued</Text>
+          <Text style={styles.queuedMessage}>
+            You are offline. Your alert has been queued and will be sent
+            automatically when connectivity is restored.
+          </Text>
+          <Text style={styles.queuedWarning}>
+            IMPORTANT: The system cannot dispatch emergency services while
+            offline. If this is a real emergency, call 911 directly.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.call911Button}
+            onPress={handleCall911}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.call911ButtonText}>CALL 911 NOW</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleReset}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cancelButtonText}>Return</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -472,6 +533,67 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // Queued (offline)
+  queuedContainer: {
+    backgroundColor: '#78350f',
+  },
+  queuedContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  queuedIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#b45309',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  queuedIconText: {
+    color: '#fff',
+    fontSize: 40,
+    fontWeight: 'bold',
+  },
+  queuedTitle: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  queuedMessage: {
+    color: '#fef3c7',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  queuedWarning: {
+    color: '#fbbf24',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    fontWeight: '700',
+  },
+  call911Button: {
+    backgroundColor: '#dc2626',
+    paddingVertical: 18,
+    paddingHorizontal: 48,
+    borderRadius: 16,
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  call911ButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
 
   // Error

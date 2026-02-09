@@ -81,6 +81,8 @@ model Site {
   threatReports        ThreatReport[]
   socialMediaAlerts    SocialMediaAlert[]
   license              SiteLicense?
+  escalationRules      EscalationRule[]
+  notificationPreferences NotificationPreference[]
 
   @@index([organizationId])
   @@map("sites")
@@ -305,6 +307,7 @@ model LockdownCommand {
   alertId      String?       @map("alert_id")
   doorsLocked  Int           @default(0) @map("doors_locked")
   doorsFailed  Json?         @map("doors_failed")
+  metadata     Json?
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
@@ -986,14 +989,14 @@ model SiteLicense {
 // ============================================================================
 
 model NotificationPreference {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  siteId    String   @map("site_id")
-  channel   String   // SMS, EMAIL, PUSH, PA
-  alertLevel String  @map("alert_level") // MEDICAL, LOCKDOWN, ACTIVE_THREAT, FIRE, WEATHER, ALL_CLEAR, ALL
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  siteId     String   @map("site_id")
+  channel    String   // SMS, EMAIL, PUSH
+  alertLevel String   @map("alert_level") // MEDICAL, LOCKDOWN, ACTIVE_THREAT, FIRE, WEATHER, ALL_CLEAR
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
@@ -1020,4 +1023,27 @@ model DemoRequest {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("demo_requests")
+}
+
+// ============================================================================
+// Escalation Rules (Configurable Alert Escalation)
+// ============================================================================
+
+model EscalationRule {
+  id           String   @id @default(uuid())
+  siteId       String   @map("site_id")
+  name         String
+  alertLevel   String   @map("alert_level")
+  delayMinutes Int      @map("delay_minutes")
+  action       String   // NOTIFY_ROLES, AUTO_LOCKDOWN, AUTO_DISPATCH, ESCALATE_LEVEL
+  targetRoles  String[] @map("target_roles")
+  targetLevel  String?  @map("target_level")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, alertLevel])
+  @@map("escalation_rules")
 }

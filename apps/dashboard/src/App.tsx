@@ -16,6 +16,10 @@ import { BadgeKioskPage } from './pages/BadgeKioskPage';
 import { FloorPlanPage } from './pages/FloorPlanPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { CompliancePage } from './pages/CompliancePage';
+import { ParentPortalPage } from './pages/ParentPortalPage';
+import { EscalationPage } from './pages/EscalationPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 export function App() {
   const { user, loading } = useAuth();
@@ -40,11 +44,14 @@ export function App() {
     );
   }
 
+  const isParent = user.role === 'PARENT';
+
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/" />} />
+      <Route path="/login" element={<Navigate to={isParent ? '/parent' : '/'} />} />
       <Route element={<DashboardLayout />}>
-        <Route path="/" element={<ErrorBoundary><CommandCenter /></ErrorBoundary>} />
+        <Route path="/" element={isParent ? <Navigate to="/parent" replace /> : <ErrorBoundary><CommandCenter /></ErrorBoundary>} />
+        <Route path="/parent" element={<ErrorBoundary><ParentPortalPage /></ErrorBoundary>} />
         <Route path="/visitors" element={<ErrorBoundary><VisitorsPage /></ErrorBoundary>} />
         <Route path="/transportation" element={<ErrorBoundary><TransportationPage /></ErrorBoundary>} />
         <Route path="/threat-assessment" element={<ErrorBoundary><ThreatAssessmentPage /></ErrorBoundary>} />
@@ -56,7 +63,10 @@ export function App() {
         <Route path="/badgekiosk" element={<ErrorBoundary><BadgeKioskPage /></ErrorBoundary>} />
         <Route path="/floor-plan" element={<ErrorBoundary><FloorPlanPage /></ErrorBoundary>} />
         <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
+        <Route path="/compliance" element={<ErrorBoundary><CompliancePage /></ErrorBoundary>} />
+        <Route path="/escalation" element={<ErrorBoundary><EscalationPage /></ErrorBoundary>} />
         <Route path="/onboarding" element={<ErrorBoundary><OnboardingPage /></ErrorBoundary>} />
+        <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
       </Route>
     </Routes>
   );

@@ -46,6 +46,20 @@ class ApiClient {
     return res.json();
   }
 
+  async put(url: string, body: any, token?: string | null): Promise<any> {
+    const authToken = token ?? await this.getToken();
+    const res = await fetch(`${API_BASE}${url}`, {
+      method: 'PUT',
+      headers: this.getHeaders(authToken),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `PUT ${url}: ${res.status}`);
+    }
+    return res.json();
+  }
+
   async patch(url: string, body: any, token?: string | null): Promise<any> {
     const authToken = token ?? await this.getToken();
     const res = await fetch(`${API_BASE}${url}`, {

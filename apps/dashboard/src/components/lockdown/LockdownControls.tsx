@@ -3,9 +3,10 @@ import { useActiveLockdowns, useInitiateLockdown, useReleaseLockdown } from '../
 interface LockdownControlsProps {
   siteId?: string;
   buildings: any[];
+  trainingMode?: boolean;
 }
 
-export function LockdownControls({ siteId, buildings }: LockdownControlsProps) {
+export function LockdownControls({ siteId, buildings, trainingMode }: LockdownControlsProps) {
   const { data } = useActiveLockdowns();
   const initiate = useInitiateLockdown();
   const release = useReleaseLockdown();
@@ -65,7 +66,7 @@ export function LockdownControls({ siteId, buildings }: LockdownControlsProps) {
       <div className="space-y-2">
         {siteId && (
           <button
-            onClick={() => initiate.mutate({ scope: 'FULL_SITE', targetId: siteId })}
+            onClick={() => initiate.mutate({ scope: 'FULL_SITE', targetId: siteId, trainingMode })}
             disabled={initiate.isPending}
             className="w-full py-2 bg-red-700 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors"
           >
@@ -75,7 +76,7 @@ export function LockdownControls({ siteId, buildings }: LockdownControlsProps) {
         {buildings.map((b: any) => (
           <button
             key={b.id}
-            onClick={() => initiate.mutate({ scope: 'BUILDING', targetId: b.id })}
+            onClick={() => initiate.mutate({ scope: 'BUILDING', targetId: b.id, trainingMode })}
             disabled={initiate.isPending}
             className="w-full py-2 bg-orange-700 hover:bg-orange-600 text-white text-sm rounded-lg transition-colors"
           >
