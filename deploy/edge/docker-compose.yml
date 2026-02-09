@@ -1,0 +1,194 @@
+# SafeSchool OS — Production Edge Deployment
+# Deploy on the on-site mini PC. Configure via .env file.
+
+services:
+  # Database migration init container
+  migrate:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile
+    command: npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
+    environment:
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - safeschool
+
+  api:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - CLOUD_SYNC_URL=${CLOUD_SYNC_URL}
+      - CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}
+      - SITE_ID=${SITE_ID}
+      - SITE_NAME=${SITE_NAME}
+      - OPERATING_MODE=edge
+      - AUTH_PROVIDER=${AUTH_PROVIDER:-dev}
+      - DISPATCH_ADAPTER=${DISPATCH_ADAPTER:-console}
+      - RAPIDSOS_CLIENT_ID=${RAPIDSOS_CLIENT_ID}
+      - RAPIDSOS_CLIENT_SECRET=${RAPIDSOS_CLIENT_SECRET}
+      - RAVE_API_KEY=${RAVE_API_KEY}
+      - RAVE_ORGANIZATION_ID=${RAVE_ORGANIZATION_ID}
+      - SIP_TRUNK_HOST=${SIP_TRUNK_HOST}
+      - SIP_LOCAL_DOMAIN=${SIP_LOCAL_DOMAIN}
+      - CELLULAR_DEVICE_PATH=${CELLULAR_DEVICE_PATH}
+      - ACCESS_CONTROL_ADAPTER=${ACCESS_CONTROL_ADAPTER:-mock}
+      - AC_API_URL=${AC_API_URL}
+      - AC_API_KEY=${AC_API_KEY}
+      - NOTIFICATION_ADAPTER=${NOTIFICATION_ADAPTER:-console}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
+      - VISITOR_SCREENING_ADAPTER=console
+      - TRANSPORT_TRACKING_ENABLED=${TRANSPORT_TRACKING_ENABLED:-false}
+    volumes:
+      - edge_data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - safeschool
+
+  worker:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile
+    command: ["node", "packages/api/dist/worker-entry.js"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - DISPATCH_ADAPTER=${DISPATCH_ADAPTER:-console}
+      - ACCESS_CONTROL_ADAPTER=${ACCESS_CONTROL_ADAPTER:-mock}
+      - NOTIFICATION_ADAPTER=${NOTIFICATION_ADAPTER:-console}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
+      - TRANSPORT_TRACKING_ENABLED=${TRANSPORT_TRACKING_ENABLED:-false}
+    volumes:
+      - edge_data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  dashboard:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile.dashboard
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  kiosk:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile.kiosk
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  admin:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile.admin
+    ports:
+      - "9090:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=safeschool
+      - POSTGRES_USER=safeschool
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safeschool"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+volumes:
+  postgres_data:
+  redis_data:
+  edge_data:
+
+networks:
+  safeschool:
+    driver: bridge

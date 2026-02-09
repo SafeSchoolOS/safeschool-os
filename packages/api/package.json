@@ -21,6 +21,8 @@
     "@safeschool/grants": "*",
     "@safeschool/visitor-mgmt": "*",
     "@safeschool/transportation": "*",
+    "@safeschool/threat-assessment": "*",
+    "@safeschool/social-media": "*",
     "@clerk/backend": "^1.20.0",
     "fastify": "^5.0.0",
     "@fastify/websocket": "^11.0.0",

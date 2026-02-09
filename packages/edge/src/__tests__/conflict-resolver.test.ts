@@ -39,6 +39,10 @@ describe('ConflictResolver', () => {
       expect(getStrategy('visitor')).toBe('edge-wins');
     });
 
+    it('returns edge-wins for lockdown_command', () => {
+      expect(getStrategy('lockdown_command')).toBe('edge-wins');
+    });
+
     it('returns last-write-wins for unknown entity types', () => {
       expect(getStrategy('unknown_entity')).toBe('last-write-wins');
       expect(getStrategy('audit_log')).toBe('last-write-wins');
@@ -142,6 +146,25 @@ describe('ConflictResolver', () => {
       const resolved = resolveConflict('visitor', local, remote);
       expect(resolved.status).toBe('CHECKED_IN');
       expect(resolved.checkedInAt).toBe('2026-02-07T08:30:00Z');
+    });
+
+    it('always returns the local version for lockdown_command (edge is authoritative)', () => {
+      const local: SyncRecord = {
+        id: 'lc1',
+        updatedAt: '2026-02-07T10:00:00Z',
+        releasedAt: null,
+        doorsLocked: 8,
+      };
+      const remote: SyncRecord = {
+        id: 'lc1',
+        updatedAt: '2026-02-07T10:05:00Z',
+        releasedAt: '2026-02-07T10:05:00Z', // cloud says released, but edge wins
+        doorsLocked: 8,
+      };
+
+      const resolved = resolveConflict('lockdown_command', local, remote);
+      expect(resolved.releasedAt).toBeNull();
+      expect(resolved.doorsLocked).toBe(8);
     });
 
     it('returns a copy (not the same reference) of the local object', () => {

@@ -108,8 +108,13 @@ export async function createTestAlert(
     },
   });
 
-  return {
-    response,
-    body: JSON.parse(response.body),
-  };
+  const body = JSON.parse(response.body);
+
+  if (response.statusCode !== 201) {
+    throw new Error(
+      `createTestAlert failed: HTTP ${response.statusCode} — ${JSON.stringify(body)}`,
+    );
+  }
+
+  return { response, body };
 }

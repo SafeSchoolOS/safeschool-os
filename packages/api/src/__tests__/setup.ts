@@ -15,26 +15,35 @@ export async function buildTestServer(): Promise<FastifyInstance> {
 /**
  * Clean up test data created during tests (not seed data).
  * Deletes records that don't match seed UUID prefix.
+ * Order matters: child tables before parent tables (FK constraints).
  */
 export async function cleanupTestData(app: FastifyInstance): Promise<void> {
   const prisma = app.prisma;
-  // Delete non-seed audit logs, dispatch records, notification logs, lockdown commands, alerts
-  // Seed UUIDs start with 00000000-0000-4000-a000-
   const seedPrefix = '00000000-0000-4000-a000-';
+  const nonSeed = { id: { not: { startsWith: seedPrefix } } };
 
-  await prisma.dispatchRecord.deleteMany({
-    where: { id: { not: { startsWith: seedPrefix } } },
-  });
-  await prisma.notificationLog.deleteMany({
-    where: { id: { not: { startsWith: seedPrefix } } },
-  });
-  await prisma.lockdownCommand.deleteMany({
-    where: { id: { not: { startsWith: seedPrefix } } },
-  });
-  await prisma.auditLog.deleteMany({
-    where: { id: { not: { startsWith: seedPrefix } } },
-  });
-  await prisma.alert.deleteMany({
-    where: { id: { not: { startsWith: seedPrefix } } },
-  });
+  // Drain BullMQ queue to prevent job accumulation across tests
+  try {
+    await app.alertQueue.drain();
+  } catch {
+    // Queue may already be empty or closing
+  }
+
+  // Phase 4 tables (no FK to core tables, safe to delete first)
+  await prisma.drillParticipant.deleteMany({ where: nonSeed });
+  await prisma.drill.deleteMany({ where: nonSeed });
+  await prisma.reunificationEntry.deleteMany({ where: nonSeed });
+  await prisma.reunificationEvent.deleteMany({ where: nonSeed });
+  await prisma.environmentalReading.deleteMany({ where: nonSeed });
+  await prisma.environmentalSensor.deleteMany({ where: nonSeed });
+  await prisma.anonymousTip.deleteMany({ where: nonSeed });
+  await prisma.threatReport.deleteMany({ where: nonSeed });
+  await prisma.socialMediaAlert.deleteMany({ where: nonSeed });
+
+  // Core tables (child → parent order for FK constraints)
+  await prisma.dispatchRecord.deleteMany({ where: nonSeed });
+  await prisma.notificationLog.deleteMany({ where: nonSeed });
+  await prisma.lockdownCommand.deleteMany({ where: nonSeed });
+  await prisma.auditLog.deleteMany({ where: nonSeed });
+  await prisma.alert.deleteMany({ where: nonSeed });
 }

@@ -1,16 +1,66 @@
 import type { FastifyPluginAsync } from 'fastify';
+import crypto from 'node:crypto';
 
 /**
  * Cloud-side sync endpoints for edge devices.
  * Only registered when OPERATING_MODE=cloud.
  */
+
+/** Max age for signed requests (5 minutes) */
+const MAX_REQUEST_AGE_MS = 5 * 60 * 1000;
+// Allowed entity types for sync push
+const ALLOWED_ENTITY_TYPES = new Set([
+  'alert', 'visitor', 'door', 'audit_log', 'lockdown_command',
+]);
+const ALLOWED_ACTIONS = new Set(['create', 'update', 'delete']);
+const MAX_BATCH_SIZE = 100;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const syncRoutes: FastifyPluginAsync = async (fastify) => {
-  // Verify sync key middleware
+  // Verify sync key + HMAC signature middleware
   const verifySyncKey = async (request: any, reply: any) => {
     const syncKey = request.headers['x-sync-key'];
     const expectedKey = process.env.CLOUD_SYNC_KEY;
     if (!expectedKey || syncKey !== expectedKey) {
       return reply.code(401).send({ error: 'Invalid sync key' });
+    }
+
+    // Verify HMAC signature if present (required for production, optional during migration)
+    const timestamp = request.headers['x-sync-timestamp'] as string | undefined;
+    const signature = request.headers['x-sync-signature'] as string | undefined;
+
+    if (timestamp && signature) {
+      // Reject stale requests (replay protection)
+      const requestAge = Date.now() - new Date(timestamp).getTime();
+      if (isNaN(requestAge) || Math.abs(requestAge) > MAX_REQUEST_AGE_MS) {
+        return reply.code(401).send({
+          error: 'Request timestamp expired or invalid',
+          code: 'REPLAY_REJECTED',
+        });
+      }
+
+      // Reconstruct the signing payload
+      const method = request.method;
+      const path = request.url;
+      const bodyStr = request.method === 'POST'
+        ? JSON.stringify(request.body)
+        : '';
+
+      const expectedSig = crypto
+        .createHmac('sha256', expectedKey)
+        .update(`${timestamp}.${method}.${path}.${bodyStr}`)
+        .digest('hex');
+
+      // Timing-safe comparison to prevent timing attacks
+      const sigBuffer = Buffer.from(signature, 'hex');
+      const expectedBuffer = Buffer.from(expectedSig, 'hex');
+      if (sigBuffer.length !== expectedBuffer.length ||
+          !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        return reply.code(401).send({
+          error: 'Invalid request signature',
+          code: 'SIGNATURE_INVALID',
+        });
+      }
     }
   };
 
@@ -28,10 +78,45 @@ const syncRoutes: FastifyPluginAsync = async (fastify) => {
   }>('/push', { preHandler: [verifySyncKey] }, async (request, reply) => {
     const { siteId, entities } = request.body;
 
+    // Validate top-level fields
+    if (!siteId || typeof siteId !== 'string') {
+      return reply.code(400).send({ error: 'siteId is required and must be a string' });
+    }
+    if (!Array.isArray(entities)) {
+      return reply.code(400).send({ error: 'entities must be an array' });
+    }
+    if (entities.length > MAX_BATCH_SIZE) {
+      return reply.code(400).send({
+        error: `Batch too large: ${entities.length} entities exceeds max of ${MAX_BATCH_SIZE}`,
+      });
+    }
+
     let synced = 0;
     let errors = 0;
 
     for (const entity of entities) {
+      // Validate each entity
+      if (!ALLOWED_ENTITY_TYPES.has(entity.type)) {
+        fastify.log.warn({ type: entity.type }, 'Sync push: unknown entity type, skipping');
+        errors++;
+        continue;
+      }
+      if (!ALLOWED_ACTIONS.has(entity.action)) {
+        fastify.log.warn({ action: entity.action }, 'Sync push: invalid action, skipping');
+        errors++;
+        continue;
+      }
+      if (!entity.data || typeof entity.data !== 'object' || !entity.data.id) {
+        fastify.log.warn({ entity }, 'Sync push: entity.data missing or has no id, skipping');
+        errors++;
+        continue;
+      }
+      if (typeof entity.data.id !== 'string' || !UUID_RE.test(entity.data.id)) {
+        fastify.log.warn({ id: entity.data.id }, 'Sync push: entity.data.id is not a valid UUID, skipping');
+        errors++;
+        continue;
+      }
+
       try {
         switch (entity.type) {
           case 'alert':
@@ -62,6 +147,17 @@ const syncRoutes: FastifyPluginAsync = async (fastify) => {
             break;
           case 'audit_log':
             await fastify.prisma.auditLog.create({ data: entity.data });
+            break;
+          case 'lockdown_command':
+            await fastify.prisma.lockdownCommand.upsert({
+              where: { id: entity.data.id },
+              update: {
+                releasedAt: entity.data.releasedAt,
+                doorsLocked: entity.data.doorsLocked,
+                updatedAt: entity.data.updatedAt,
+              },
+              create: entity.data,
+            });
             break;
         }
         synced++;

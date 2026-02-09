@@ -10,12 +10,16 @@ import { buildTestServer, cleanupTestData } from '../setup.js';
 import { SEED, authenticateAs } from '../helpers.js';
 
 let app: FastifyInstance;
+const originalMode = process.env.OPERATING_MODE;
 
 beforeAll(async () => {
+  // Set edge mode so release tests can proceed past the edge-only guard
+  process.env.OPERATING_MODE = 'edge';
   app = await buildTestServer();
 });
 
 afterAll(async () => {
+  process.env.OPERATING_MODE = originalMode;
   await cleanupTestData(app);
   await app.close();
 });
@@ -172,17 +176,13 @@ describe('BUG: Lockdown release unlocks manually-locked emergency exit doors', (
   });
 });
 
-describe('BUG: No role check on lockdown initiate', () => {
+describe('FIXED: Role check on lockdown initiate', () => {
   /**
-   * Bug location: lockdown.ts line 11
-   *
-   * The route uses `preHandler: [fastify.authenticate]` which only checks
-   * that the user has a valid JWT. There is NO role-based access control.
-   * Any authenticated user (TEACHER, FIRST_RESPONDER, PARENT) can initiate
-   * a FULL_SITE lockdown. In a school safety system, this should be restricted
-   * to SITE_ADMIN and OPERATOR roles at minimum.
+   * Previously a bug: no role check on lockdown initiation.
+   * Now FIXED: only SUPER_ADMIN, SITE_ADMIN, OPERATOR, and FIRST_RESPONDER can initiate.
+   * TEACHER and PARENT roles are rejected with 403.
    */
-  it('should reject lockdown initiation from a TEACHER role', async () => {
+  it('rejects lockdown initiation from a TEACHER role', async () => {
     const teacherToken = await authenticateAs(app, 'teacher1');
 
     const res = await app.inject({
@@ -195,13 +195,12 @@ describe('BUG: No role check on lockdown initiate', () => {
       },
     });
 
-    // BUG: This FAILS -- a teacher CAN initiate a site-wide lockdown.
-    // Expected: 403 Forbidden (only ADMIN/OPERATOR should be able to do this)
-    // Actual: 201 Created (lockdown is initiated by the teacher)
     expect(res.statusCode).toBe(403);
+    const body = JSON.parse(res.body);
+    expect(body.code).toBe('ROLE_REQUIRED');
   });
 
-  it('should reject lockdown initiation from a FIRST_RESPONDER role', async () => {
+  it('allows lockdown initiation from a FIRST_RESPONDER role', async () => {
     const responderToken = await authenticateAs(app, 'responder');
 
     const res = await app.inject({
@@ -214,10 +213,8 @@ describe('BUG: No role check on lockdown initiate', () => {
       },
     });
 
-    // BUG: This FAILS -- a first responder CAN initiate a building lockdown.
-    // Expected: 403 Forbidden
-    // Actual: 201 Created
-    expect(res.statusCode).toBe(403);
+    // FIRST_RESPONDER is now an allowed role for lockdown initiation
+    expect(res.statusCode).toBe(201);
   });
 });
 

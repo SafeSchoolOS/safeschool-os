@@ -2,7 +2,7 @@
   "name": "safeschool",
   "version": "0.1.0",
   "private": true,
-  "description": "Comprehensive school safety platform - Alyssa's Law compliant",
+  "description": "SafeSchool OS — Comprehensive school safety platform - Alyssa's Law compliant",
   "author": "bwattendorf",
   "license": "MIT",
   "workspaces": [

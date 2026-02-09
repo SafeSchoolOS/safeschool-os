@@ -91,6 +91,7 @@ export class OfflineQueue {
              last_error AS lastError, status
       FROM sync_queue
       WHERE status IN ('pending', 'failed')
+        AND retry_count < ${MAX_RETRIES}
         AND (next_retry_at IS NULL OR next_retry_at <= datetime('now'))
       ORDER BY created_at ASC
       LIMIT ?
@@ -102,10 +103,10 @@ export class OfflineQueue {
 
     this.stmtMarkFailed = this.db.prepare(`
       UPDATE sync_queue
-      SET status = CASE WHEN retry_count >= ? THEN 'failed' ELSE 'pending' END,
+      SET status = CASE WHEN retry_count + 1 >= ? THEN 'failed' ELSE 'pending' END,
           retry_count = retry_count + 1,
           last_error = ?,
-          next_retry_at = ?
+          next_retry_at = CASE WHEN retry_count + 1 >= ? THEN NULL ELSE ? END
       WHERE id = ?
     `);
 
@@ -179,7 +180,7 @@ export class OfflineQueue {
         const backoffMs = calculateBackoffMs(currentRetry);
         const nextRetry = new Date(Date.now() + backoffMs).toISOString();
 
-        this.stmtMarkFailed.run(MAX_RETRIES, error, nextRetry, id);
+        this.stmtMarkFailed.run(MAX_RETRIES, error, MAX_RETRIES, nextRetry, id);
       }
     });
     transaction(ids);

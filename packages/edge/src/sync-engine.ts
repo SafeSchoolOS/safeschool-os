@@ -45,6 +45,12 @@ export interface SyncEngineConfig {
   checkDatabaseFn?: () => Promise<boolean>;
   /** Custom Redis check function */
   checkRedisFn?: () => Promise<boolean>;
+  /**
+   * Lookup a local record by entity type and ID for conflict resolution.
+   * Returns the local record if it exists, or null if not found.
+   * Required for proper conflict resolution during pull sync.
+   */
+  localLookupFn?: (entityType: string, id: string) => Promise<SyncRecord | null>;
 }
 
 // ============================================================================
@@ -58,6 +64,7 @@ export class SyncEngine {
   private readonly healthMonitor: HealthMonitor;
   private readonly syncIntervalMs: number;
   private readonly pushBatchSize: number;
+  private readonly localLookupFn?: (entityType: string, id: string) => Promise<SyncRecord | null>;
 
   private syncIntervalHandle: ReturnType<typeof setInterval> | null = null;
   private currentStatus: SyncStatus = 'idle';
@@ -70,6 +77,7 @@ export class SyncEngine {
     this.siteId = config.siteId;
     this.syncIntervalMs = config.syncIntervalMs ?? 30000;
     this.pushBatchSize = config.pushBatchSize ?? 50;
+    this.localLookupFn = config.localLookupFn;
 
     this.syncClient = new SyncClient({
       baseUrl: config.cloudSyncUrl,
@@ -288,12 +296,22 @@ export class SyncEngine {
         const remote = remoteRecord as SyncRecord;
         if (!remote.id) continue;
 
-        // In a production system, we would look up the local version
-        // from the edge database. For now, we resolve with the remote
-        // version treating it as the authoritative pull.
-        // Conflict resolution is applied when a local version exists.
         const singularType = entityType.replace(/s$/, '');
-        const resolved = resolveConflict(singularType, remote, remote);
+
+        // Look up the local version for conflict resolution
+        let resolved: SyncRecord;
+        if (this.localLookupFn) {
+          const local = await this.localLookupFn(singularType, remote.id);
+          if (local) {
+            resolved = resolveConflict(singularType, local, remote);
+          } else {
+            // No local record — accept remote as-is (new record)
+            resolved = { ...remote };
+          }
+        } else {
+          // No lookup function configured — accept remote as-is
+          resolved = { ...remote };
+        }
 
         // The resolved entity would be applied to the local database
         // In production: await localDb.upsert(singularType, resolved);

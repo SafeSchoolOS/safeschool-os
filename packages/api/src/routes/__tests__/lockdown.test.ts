@@ -6,8 +6,11 @@ import { authenticateAs, SEED } from '../../__tests__/helpers.js';
 describe('Lockdown Routes', () => {
   let app: FastifyInstance;
   let token: string;
+  const originalMode = process.env.OPERATING_MODE;
 
   beforeAll(async () => {
+    // Set edge mode so release tests work
+    process.env.OPERATING_MODE = 'edge';
     app = await buildTestServer();
     token = await authenticateAs(app, 'admin');
   });
@@ -22,6 +25,7 @@ describe('Lockdown Routes', () => {
   });
 
   afterAll(async () => {
+    process.env.OPERATING_MODE = originalMode;
     await app.close();
   });
 
@@ -92,22 +96,26 @@ describe('Lockdown Routes', () => {
     });
 
     it('returns 400 when already released', async () => {
-      // Create and release lockdown
+      // Create lockdown
       const createRes = await app.inject({
         method: 'POST',
         url: '/api/v1/lockdown',
         headers: { authorization: `Bearer ${token}` },
         payload: { scope: 'BUILDING', targetId: SEED.buildings.mainId },
       });
+      expect(createRes.statusCode).toBe(201);
       const lockdown = JSON.parse(createRes.body);
+      expect(lockdown.id).toBeTruthy();
 
-      await app.inject({
+      // Release it
+      const releaseRes = await app.inject({
         method: 'DELETE',
         url: `/api/v1/lockdown/${lockdown.id}`,
         headers: { authorization: `Bearer ${token}` },
       });
+      expect(releaseRes.statusCode).toBe(200);
 
-      // Try to release again
+      // Try to release again — should get 400
       const res = await app.inject({
         method: 'DELETE',
         url: `/api/v1/lockdown/${lockdown.id}`,
@@ -146,8 +154,9 @@ describe('Lockdown Routes', () => {
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.length).toBeGreaterThanOrEqual(1);
-      for (const lockdown of body) {
+      expect(body.operatingMode).toBeDefined();
+      expect(body.lockdowns.length).toBeGreaterThanOrEqual(1);
+      for (const lockdown of body.lockdowns) {
         expect(lockdown.releasedAt).toBeNull();
       }
     });

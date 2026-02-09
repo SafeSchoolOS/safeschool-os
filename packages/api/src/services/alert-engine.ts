@@ -65,8 +65,12 @@ export class AlertEngine {
     // Broadcast via WebSocket
     this.app.wsManager.broadcastToSite(input.siteId, 'alert:created', alert);
 
-    // Enqueue processing jobs
-    await this.enqueueJobs(alert);
+    // Enqueue processing jobs (non-blocking — queue failures must not prevent audit logging)
+    try {
+      await this.enqueueJobs(alert);
+    } catch (err) {
+      this.app.log.error({ err, alertId: alert.id }, 'Failed to enqueue alert jobs');
+    }
 
     // Audit log
     await this.app.prisma.auditLog.create({

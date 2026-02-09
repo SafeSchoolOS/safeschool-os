@@ -20,6 +20,12 @@ import transportationRoutes from './routes/transportation.js';
 import notificationRoutes from './routes/notifications.js';
 import demoRequestRoutes from './routes/demo-requests.js';
 import cameraRoutes from './routes/cameras.js';
+import drillRoutes from './routes/drills.js';
+import tipRoutes from './routes/tips.js';
+import reunificationRoutes from './routes/reunification.js';
+import environmentalRoutes from './routes/environmental.js';
+import threatAssessmentRoutes from './routes/threat-assessments.js';
+import socialMediaRoutes from './routes/social-media.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import wsHandler from './ws/handler.js';
 
@@ -50,10 +56,18 @@ export async function buildServer() {
 
   // Health check endpoint (used by Railway and monitoring)
   app.get('/health', async () => {
+    let activeLockdowns = 0;
+    try {
+      activeLockdowns = await app.prisma.lockdownCommand.count({
+        where: { releasedAt: null },
+      });
+    } catch { /* ignore if DB not ready */ }
+
     return {
       status: 'ok',
       mode: process.env.OPERATING_MODE || 'cloud',
       siteId: process.env.SITE_ID || null,
+      activeLockdowns,
       timestamp: new Date().toISOString(),
     };
   });
@@ -73,7 +87,7 @@ export async function buildServer() {
   // API info
   app.get('/', async () => {
     return {
-      name: 'SafeSchool API',
+      name: 'SafeSchool OS API',
       version: '0.3.0',
       description: "Alyssa's Law compliant school safety platform",
     };
@@ -91,6 +105,12 @@ export async function buildServer() {
   await app.register(notificationRoutes, { prefix: '/api/v1/notifications' });
   await app.register(demoRequestRoutes, { prefix: '/api/v1/demo-requests' });
   await app.register(cameraRoutes, { prefix: '/api/v1/cameras' });
+  await app.register(drillRoutes, { prefix: '/api/v1/drills' });
+  await app.register(tipRoutes, { prefix: '/api/v1/tips' });
+  await app.register(reunificationRoutes, { prefix: '/api/v1/reunification' });
+  await app.register(environmentalRoutes, { prefix: '/api/v1/environmental' });
+  await app.register(threatAssessmentRoutes, { prefix: '/api/v1/threat-assessments' });
+  await app.register(socialMediaRoutes, { prefix: '/api/v1/social-media' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });
@@ -101,6 +121,12 @@ export async function buildServer() {
     await app.register(syncModule.default as any, { prefix: '/api/v1/sync' });
   }
 
+  // Admin routes (edge mode only)
+  if (process.env.OPERATING_MODE === 'edge') {
+    const adminModule = await import('./routes/admin.js');
+    await app.register(adminModule.default as any, { prefix: '/api/v1/admin' });
+  }
+
   // WebSocket handler
   await app.register(wsHandler);
 
@@ -108,7 +134,7 @@ export async function buildServer() {
 }
 
 async function start() {
-  console.log('=== SafeSchool API Starting ===');
+  console.log('=== SafeSchool OS API Starting ===');
   console.log(`PORT=${PORT}, HOST=${HOST}`);
   console.log(`NODE_ENV=${process.env.NODE_ENV}`);
   console.log(`OPERATING_MODE=${process.env.OPERATING_MODE || 'cloud'}`);
@@ -119,7 +145,7 @@ async function start() {
   try {
     const app = await buildServer();
     await app.listen({ port: PORT, host: HOST });
-    app.log.info(`SafeSchool API running on ${HOST}:${PORT}`);
+    app.log.info(`SafeSchool OS API running on ${HOST}:${PORT}`);
     app.log.info(`Operating mode: ${process.env.OPERATING_MODE || 'cloud'}`);
     app.log.info(`Auth provider: ${process.env.AUTH_PROVIDER || 'dev'}`);
   } catch (err) {
@@ -129,4 +155,6 @@ async function start() {
   }
 }
 
-start();
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}

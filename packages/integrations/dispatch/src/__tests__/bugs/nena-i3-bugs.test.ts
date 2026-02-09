@@ -358,11 +358,11 @@ describe('BUG 10: Altitude and uncertainty silently dropped', () => {
 
   it('does not include uncertainty in the XML even when provided', () => {
     const xml = makeXml({
-      geo: { latitude: 40.7357, longitude: -74.1724, uncertainty: 10 },
+      geo: { latitude: 40.7357, longitude: -74.1724, uncertainty: 77 },
     });
     // BUG: uncertainty is accepted in the interface but never rendered.
     // NENA i3 supports <gml:CircleByCenterPoint> for uncertainty radius.
-    expect(xml).not.toContain('10');
+    expect(xml).not.toContain('77');
     expect(xml).not.toContain('uncertainty');
     expect(xml).not.toContain('CircleByCenterPoint');
   });

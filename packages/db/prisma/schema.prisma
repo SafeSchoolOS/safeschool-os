@@ -36,6 +36,12 @@ model Site {
   busRoutes BusRoute[]
   studentCards StudentCard[]
   notificationLogs NotificationLog[]
+  drills               Drill[]
+  reunificationEvents  ReunificationEvent[]
+  environmentalSensors EnvironmentalSensor[]
+  anonymousTips        AnonymousTip[]
+  threatReports        ThreatReport[]
+  socialMediaAlerts    SocialMediaAlert[]
 
   @@map("sites")
 }
@@ -569,6 +575,339 @@ model NotificationLog {
 
   @@index([siteId, sentAt])
   @@map("notification_logs")
+}
+
+// ============================================================================
+// Drill Management (Phase 4)
+// ============================================================================
+
+model Drill {
+  id              String      @id @default(uuid())
+  siteId          String      @map("site_id")
+  type            DrillType
+  status          DrillStatus @default(SCHEDULED)
+  scheduledAt     DateTime    @map("scheduled_at")
+  startedAt       DateTime?   @map("started_at")
+  completedAt     DateTime?   @map("completed_at")
+  initiatedById   String      @map("initiated_by_id")
+  buildingId      String?     @map("building_id")
+  notes           String?
+  evacuationTimeS Int?        @map("evacuation_time_s")
+  headCount       Int?        @map("head_count")
+  issues          Json?
+  complianceMet   Boolean?    @map("compliance_met")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  site         Site              @relation(fields: [siteId], references: [id])
+  participants DrillParticipant[]
+
+  @@index([siteId, scheduledAt])
+  @@map("drills")
+}
+
+model DrillParticipant {
+  id        String   @id @default(uuid())
+  drillId   String   @map("drill_id")
+  name      String
+  role      String
+  checkedIn Boolean  @default(false) @map("checked_in")
+  checkedAt DateTime? @map("checked_at")
+  notes     String?
+
+  drill Drill @relation(fields: [drillId], references: [id], onDelete: Cascade)
+
+  @@index([drillId])
+  @@map("drill_participants")
+}
+
+enum DrillType {
+  LOCKDOWN
+  FIRE
+  EVACUATION
+  SHELTER_IN_PLACE
+  ACTIVE_THREAT
+  REUNIFICATION
+  CUSTOM
+}
+
+enum DrillStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================================
+// Reunification (Phase 4)
+// ============================================================================
+
+model ReunificationEvent {
+  id             String              @id @default(uuid())
+  siteId         String              @map("site_id")
+  alertId        String?             @map("alert_id")
+  status         ReunificationStatus @default(ACTIVE)
+  location       String
+  startedAt      DateTime            @default(now()) @map("started_at")
+  completedAt    DateTime?           @map("completed_at")
+  totalStudents  Int                 @default(0) @map("total_students")
+  reunifiedCount Int                 @default(0) @map("reunified_count")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  site    Site                 @relation(fields: [siteId], references: [id])
+  entries ReunificationEntry[]
+
+  @@index([siteId, status])
+  @@map("reunification_events")
+}
+
+model ReunificationEntry {
+  id              String    @id @default(uuid())
+  eventId         String    @map("event_id")
+  studentName     String    @map("student_name")
+  studentGrade    String?   @map("student_grade")
+  guardianName    String?   @map("guardian_name")
+  guardianIdType  String?   @map("guardian_id_type")
+  guardianIdCheck Boolean   @default(false) @map("guardian_id_check")
+  releasedAt      DateTime? @map("released_at")
+  releasedById    String?   @map("released_by_id")
+  status          String    @default("WAITING")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  event ReunificationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, status])
+  @@map("reunification_entries")
+}
+
+enum ReunificationStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================================
+// Environmental Monitoring (Phase 4)
+// ============================================================================
+
+model EnvironmentalSensor {
+  id          String       @id @default(uuid())
+  siteId      String       @map("site_id")
+  buildingId  String?      @map("building_id")
+  name        String
+  type        SensorType
+  location    String
+  isOnline    Boolean      @default(true) @map("is_online")
+  lastReading DateTime?    @map("last_reading")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  site     Site                   @relation(fields: [siteId], references: [id])
+  readings EnvironmentalReading[]
+
+  @@index([siteId, type])
+  @@map("environmental_sensors")
+}
+
+model EnvironmentalReading {
+  id        String   @id @default(uuid())
+  sensorId  String   @map("sensor_id")
+  value     Float
+  unit      String
+  isAlert   Boolean  @default(false) @map("is_alert")
+  readAt    DateTime @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  sensor EnvironmentalSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@index([sensorId, readAt])
+  @@map("environmental_readings")
+}
+
+enum SensorType {
+  FIRE_ALARM
+  SMOKE_DETECTOR
+  CO_DETECTOR
+  AIR_QUALITY
+  TEMPERATURE
+  HUMIDITY
+  WEATHER_STATION
+  WATER_LEAK
+}
+
+// ============================================================================
+// Anonymous Tips (Phase 3 backfill)
+// ============================================================================
+
+model AnonymousTip {
+  id          String    @id @default(uuid())
+  siteId      String    @map("site_id")
+  category    TipCategory
+  message     String
+  severity    TipSeverity @default(LOW)
+  status      TipStatus   @default(NEW)
+  contactInfo String?   @map("contact_info")
+  reviewedById String?  @map("reviewed_by_id")
+  reviewedAt  DateTime? @map("reviewed_at")
+  notes       String?
+  ipHash      String?   @map("ip_hash")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, status])
+  @@index([siteId, createdAt])
+  @@map("anonymous_tips")
+}
+
+enum TipCategory {
+  BULLYING
+  WEAPONS
+  THREATS
+  DRUGS
+  SELF_HARM
+  ABUSE
+  SUSPICIOUS_ACTIVITY
+  OTHER
+}
+
+enum TipSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TipStatus {
+  NEW
+  UNDER_REVIEW
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================================================
+// Behavioral Threat Assessment (Phase 3 backfill)
+// ============================================================================
+
+model ThreatReport {
+  id              String               @id @default(uuid())
+  siteId          String               @map("site_id")
+  reportedById    String?              @map("reported_by_id")
+  subjectName     String               @map("subject_name")
+  subjectGrade    String?              @map("subject_grade")
+  subjectRole     String?              @map("subject_role") // student, staff, visitor
+  category        ThreatCategory
+  description     String
+  evidence        Json?
+  riskLevel       RiskLevel            @default(LOW)
+  status          ThreatReportStatus   @default(REPORTED)
+  assignedToId    String?              @map("assigned_to_id")
+  actionTaken     String?              @map("action_taken")
+  escalatedAt     DateTime?            @map("escalated_at")
+  resolvedAt      DateTime?            @map("resolved_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, status])
+  @@index([siteId, riskLevel])
+  @@map("threat_reports")
+}
+
+enum ThreatCategory {
+  VERBAL_THREAT
+  WRITTEN_THREAT
+  SOCIAL_MEDIA
+  BEHAVIORAL_CHANGE
+  WEAPON_POSSESSION
+  SELF_HARM
+  BULLYING
+  DOMESTIC
+  SUBSTANCE_ABUSE
+  OTHER_CONCERN
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  IMMINENT
+}
+
+enum ThreatReportStatus {
+  REPORTED
+  UNDER_ASSESSMENT
+  INTERVENTION_PLANNED
+  INTERVENTION_ACTIVE
+  MONITORING
+  RESOLVED
+  ESCALATED_TO_LE   // Escalated to Law Enforcement
+  CLOSED
+}
+
+// ============================================================================
+// Social Media Monitoring (Phase 3 backfill)
+// ============================================================================
+
+model SocialMediaAlert {
+  id             String                @id @default(uuid())
+  siteId         String                @map("site_id")
+  source         SocialMediaSource
+  platform       String                // instagram, tiktok, snapchat, twitter, etc.
+  contentType    String                @map("content_type") // text, image, video
+  flaggedContent String?               @map("flagged_content")
+  category       SocialMediaCategory
+  severity       TipSeverity           @default(LOW)
+  status         SocialMediaAlertStatus @default(NEW)
+  studentName    String?               @map("student_name")
+  studentGrade   String?               @map("student_grade")
+  reviewedById   String?               @map("reviewed_by_id")
+  reviewedAt     DateTime?             @map("reviewed_at")
+  actionTaken    String?               @map("action_taken")
+  externalId     String?               @map("external_id") // ID from monitoring service
+  metadata       Json?
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, status])
+  @@index([siteId, severity])
+  @@map("social_media_alerts")
+}
+
+enum SocialMediaSource {
+  BARK
+  NAVIGATE360
+  GAGGLE
+  SECURLY
+  MANUAL
+}
+
+enum SocialMediaCategory {
+  VIOLENCE_THREAT
+  SELF_HARM_RISK
+  BULLYING_CYBER
+  DRUG_REFERENCE
+  SEXUAL_CONTENT
+  HATE_SPEECH
+  SCHOOL_THREAT
+  WEAPON_REFERENCE
+  OTHER
+}
+
+enum SocialMediaAlertStatus {
+  NEW
+  REVIEWING
+  CONFIRMED
+  FALSE_POSITIVE
+  ESCALATED
+  RESOLVED
 }
 
 // ============================================================================

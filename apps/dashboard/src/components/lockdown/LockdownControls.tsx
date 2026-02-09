@@ -6,11 +6,13 @@ interface LockdownControlsProps {
 }
 
 export function LockdownControls({ siteId, buildings }: LockdownControlsProps) {
-  const { data: lockdowns } = useActiveLockdowns();
+  const { data } = useActiveLockdowns();
   const initiate = useInitiateLockdown();
   const release = useReleaseLockdown();
 
-  const activeLockdowns = lockdowns || [];
+  const activeLockdowns = data?.lockdowns || [];
+  const operatingMode = data?.operatingMode || 'cloud';
+  const isEdge = operatingMode === 'edge';
 
   return (
     <div className="bg-gray-800 rounded-lg p-6">
@@ -23,6 +25,15 @@ export function LockdownControls({ siteId, buildings }: LockdownControlsProps) {
         )}
       </h2>
 
+      {/* Cloud mode info banner */}
+      {!isEdge && activeLockdowns.length > 0 && (
+        <div className="mb-4 px-3 py-2 bg-yellow-900/50 border border-yellow-600 rounded-lg">
+          <p className="text-sm text-yellow-200">
+            Lockdown release requires physical presence at the on-site edge device.
+          </p>
+        </div>
+      )}
+
       {/* Active lockdowns */}
       {activeLockdowns.length > 0 && (
         <div className="space-y-2 mb-4">
@@ -32,13 +43,19 @@ export function LockdownControls({ siteId, buildings }: LockdownControlsProps) {
                 <span className="text-sm font-medium text-red-200">{ld.scope} lockdown</span>
                 <p className="text-xs text-red-400">{ld.doorsLocked} doors locked</p>
               </div>
-              <button
-                onClick={() => release.mutate(ld.id)}
-                disabled={release.isPending}
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
-              >
-                Release
-              </button>
+              {isEdge ? (
+                <button
+                  onClick={() => release.mutate(ld.id)}
+                  disabled={release.isPending}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+                >
+                  Release
+                </button>
+              ) : (
+                <span className="px-3 py-1.5 bg-red-800 text-red-200 text-xs font-medium rounded-lg">
+                  LOCKED — Release from on-site device only
+                </span>
+              )}
             </div>
           ))}
         </div>

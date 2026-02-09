@@ -1,8 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
+interface ActiveLockdownsResponse {
+  lockdowns: any[];
+  operatingMode: string;
+}
+
 export function useActiveLockdowns() {
-  return useQuery({
+  return useQuery<ActiveLockdownsResponse>({
     queryKey: ['lockdowns', 'active'],
     queryFn: () => apiClient.get('/api/v1/lockdown/active'),
     refetchInterval: 5000,

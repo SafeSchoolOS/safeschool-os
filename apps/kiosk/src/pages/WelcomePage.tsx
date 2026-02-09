@@ -26,7 +26,7 @@ export function WelcomePage() {
         </button>
       </div>
 
-      <p className="mt-16 text-sm text-gray-500">SafeSchool Visitor Management System</p>
+      <p className="mt-16 text-sm text-gray-500">SafeSchool OS Visitor Management</p>
     </div>
   );
 }

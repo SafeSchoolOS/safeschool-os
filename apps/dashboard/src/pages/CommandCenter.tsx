@@ -27,12 +27,14 @@ export function CommandCenter() {
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold">SafeSchool</h1>
+          <h1 className="text-xl font-bold">SafeSchool OS</h1>
           {site && <span className="text-gray-400 text-sm">{site.name}</span>}
         </div>
         <div className="flex items-center gap-4">
           <a href="/visitors" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Visitors</a>
           <a href="/transportation" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Transportation</a>
+          <a href="/threat-assessment" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Threats</a>
+          <a href="/social-media" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Social Media</a>
           <span className="text-sm text-gray-400">{user?.name} ({user?.role})</span>
           <button onClick={logout} className="text-sm text-gray-400 hover:text-white transition-colors">
             Sign Out

@@ -1,5 +1,5 @@
-# SafeSchool — Local Development & On-Site Mini PC Deployment
-# This runs the full SafeSchool stack locally
+# SafeSchool OS — Local Development & On-Site Mini PC Deployment
+# This runs the full SafeSchool OS stack locally
 
 services:
   # Database migration init container

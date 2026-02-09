@@ -2,8 +2,10 @@
  * SafeSchool Edge Sync Client
  *
  * HTTP client for communicating with the cloud sync API.
- * Authenticates via X-Sync-Key header and provides push/pull/heartbeat operations.
+ * Authenticates via HMAC-SHA256 signed requests with X-Sync-Key header.
  */
+
+import crypto from 'node:crypto';
 
 export interface SyncClientConfig {
   baseUrl: string;
@@ -63,7 +65,18 @@ export class SyncClient {
   private readonly timeoutMs: number;
 
   constructor(config: SyncClientConfig) {
-    this.baseUrl = config.baseUrl.replace(/\/+$/, '');
+    const url = config.baseUrl.replace(/\/+$/, '');
+
+    // Enforce HTTPS — allow localhost/127.0.0.1 for dev only
+    const parsed = new URL(url);
+    const isLocalDev = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    if (parsed.protocol !== 'https:' && !isLocalDev) {
+      throw new SyncClientError(
+        `SyncClient requires HTTPS for non-local URLs. Got: ${parsed.protocol}//${parsed.hostname}`,
+      );
+    }
+
+    this.baseUrl = url;
     this.syncKey = config.syncKey;
     this.timeoutMs = config.timeoutMs ?? 10000;
   }
@@ -132,15 +145,29 @@ export class SyncClient {
     }
   }
 
+  /**
+   * Compute HMAC-SHA256 signature for request authentication.
+   * Signs: timestamp + method + path + body
+   */
+  private sign(timestamp: string, method: string, path: string, bodyStr: string): string {
+    const payload = `${timestamp}.${method}.${path}.${bodyStr}`;
+    return crypto.createHmac('sha256', this.syncKey).update(payload).digest('hex');
+  }
+
   private async request<T>(
     method: 'GET' | 'POST',
     path: string,
     body?: unknown,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
+    const bodyStr = body && method === 'POST' ? JSON.stringify(body) : '';
+    const timestamp = new Date().toISOString();
+    const signature = this.sign(timestamp, method, path, bodyStr);
 
     const headers: Record<string, string> = {
       'X-Sync-Key': this.syncKey,
+      'X-Sync-Timestamp': timestamp,
+      'X-Sync-Signature': signature,
       'Content-Type': 'application/json',
     };
 
@@ -150,8 +177,8 @@ export class SyncClient {
       signal: AbortSignal.timeout(this.timeoutMs),
     };
 
-    if (body && method === 'POST') {
-      init.body = JSON.stringify(body);
+    if (bodyStr) {
+      init.body = bodyStr;
     }
 
     let response: Response;

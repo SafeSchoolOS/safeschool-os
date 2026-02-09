@@ -30,6 +30,7 @@ const ENTITY_STRATEGIES: Record<string, ConflictStrategy> = {
   room: 'cloud-wins',
   door: 'edge-wins',
   visitor: 'edge-wins',
+  lockdown_command: 'edge-wins',
 };
 
 /**
