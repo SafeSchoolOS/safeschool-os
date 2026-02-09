@@ -6,6 +6,11 @@ import { VisitorsPage } from './pages/VisitorsPage';
 import { TransportationPage } from './pages/TransportationPage';
 import { ThreatAssessmentPage } from './pages/ThreatAssessmentPage';
 import { SocialMediaPage } from './pages/SocialMediaPage';
+import { AuditLogPage } from './pages/AuditLogPage';
+import { DrillsPage } from './pages/DrillsPage';
+import { ReunificationPage } from './pages/ReunificationPage';
+import { GrantsPage } from './pages/GrantsPage';
+import { BadgeKioskPage } from './pages/BadgeKioskPage';
 
 export function App() {
   const { user, loading } = useAuth();
@@ -26,6 +31,11 @@ export function App() {
       <Route path="/transportation" element={user ? <TransportationPage /> : <Navigate to="/login" />} />
       <Route path="/threat-assessment" element={user ? <ThreatAssessmentPage /> : <Navigate to="/login" />} />
       <Route path="/social-media" element={user ? <SocialMediaPage /> : <Navigate to="/login" />} />
+      <Route path="/drills" element={user ? <DrillsPage /> : <Navigate to="/login" />} />
+      <Route path="/reunification" element={user ? <ReunificationPage /> : <Navigate to="/login" />} />
+      <Route path="/grants" element={user ? <GrantsPage /> : <Navigate to="/login" />} />
+      <Route path="/audit-log" element={user ? <AuditLogPage /> : <Navigate to="/login" />} />
+      <Route path="/badgekiosk" element={user ? <BadgeKioskPage /> : <Navigate to="/login" />} />
     </Routes>
   );
 }

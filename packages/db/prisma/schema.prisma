@@ -42,6 +42,7 @@ model Site {
   anonymousTips        AnonymousTip[]
   threatReports        ThreatReport[]
   socialMediaAlerts    SocialMediaAlert[]
+  license              SiteLicense?
 
   @@map("sites")
 }
@@ -909,6 +910,29 @@ enum SocialMediaAlertStatus {
   FALSE_POSITIVE
   ESCALATED
   RESOLVED
+}
+
+// ============================================================================
+// Site Licensing (BadgeKiosk feature gating)
+// ============================================================================
+
+model SiteLicense {
+  id                String   @id @default(uuid())
+  siteId            String   @unique @map("site_id")
+  // Free features: visitor check-in/out, screening, visitor logs (always enabled)
+  // Paid features:
+  badgePrinting     Boolean  @default(false) @map("badge_printing")
+  guardConsole      Boolean  @default(false) @map("guard_console")
+  // License metadata
+  licenseKey        String?  @map("license_key")
+  expiresAt         DateTime? @map("expires_at")
+  maxKiosks         Int      @default(1) @map("max_kiosks")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("site_licenses")
 }
 
 // ============================================================================

@@ -14,6 +14,8 @@ export { GenetecAdapter } from './adapters/genetec.js';
 export { BrivoAdapter } from './adapters/brivo.js';
 export { VerkadaAdapter } from './adapters/verkada.js';
 export { S2NetBoxAdapter } from './adapters/s2-netbox.js';
+export { AllegionAdapter } from './adapters/allegion.js';
+export { AssaAbloyAdapter } from './adapters/assa-abloy.js';
 
 import type { AccessControlAdapter } from '@safeschool/core';
 import { SicunetAdapter } from './adapters/sicunet.js';
@@ -22,6 +24,8 @@ import { GenetecAdapter } from './adapters/genetec.js';
 import { BrivoAdapter } from './adapters/brivo.js';
 import { VerkadaAdapter } from './adapters/verkada.js';
 import { S2NetBoxAdapter } from './adapters/s2-netbox.js';
+import { AllegionAdapter } from './adapters/allegion.js';
+import { AssaAbloyAdapter } from './adapters/assa-abloy.js';
 
 const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
   sicunet: SicunetAdapter,
@@ -32,6 +36,10 @@ const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
   's2-netbox': S2NetBoxAdapter,
   's2netbox': S2NetBoxAdapter,
   'netbox': S2NetBoxAdapter,
+  allegion: AllegionAdapter,
+  schlage: AllegionAdapter,
+  'assa-abloy': AssaAbloyAdapter,
+  assaabloy: AssaAbloyAdapter,
 };
 
 /**

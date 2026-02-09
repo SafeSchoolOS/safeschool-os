@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import websocket from '@fastify/websocket';
 
 // Plugins
@@ -27,6 +29,10 @@ import reunificationRoutes from './routes/reunification.js';
 import environmentalRoutes from './routes/environmental.js';
 import threatAssessmentRoutes from './routes/threat-assessments.js';
 import socialMediaRoutes from './routes/social-media.js';
+import auditLogRoutes from './routes/audit-log.js';
+import licenseRoutes from './routes/licenses.js';
+import badgePrintingRoutes from './routes/badge-printing.js';
+import guardRoutes from './routes/guard.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import wsHandler from './ws/handler.js';
 
@@ -38,7 +44,25 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 export async function buildServer() {
   const app = Fastify({
-    logger: true,
+    logger: {
+      level: process.env.LOG_LEVEL || 'info',
+      ...(process.env.NODE_ENV !== 'production' && {
+        transport: {
+          target: 'pino-pretty',
+          options: { colorize: true, translateTime: 'HH:MM:ss' },
+        },
+      }),
+      serializers: {
+        req(req: any) {
+          return {
+            method: req.method,
+            url: req.url,
+            remoteAddress: req.ip,
+          };
+        },
+      },
+      redact: ['req.headers.authorization', 'req.headers.cookie'],
+    },
   });
 
   // CORS — restrict to known origins in production
@@ -58,6 +82,32 @@ export async function buildServer() {
   });
 
   await app.register(websocket);
+
+  // OpenAPI documentation
+  await app.register(swagger, {
+    openapi: {
+      info: {
+        title: 'SafeSchool OS API',
+        description: "Alyssa's Law compliant school safety platform API",
+        version: '0.5.0',
+      },
+      servers: [
+        { url: process.env.API_BASE_URL || `http://localhost:${PORT}` },
+      ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+          },
+        },
+      },
+    },
+  });
+  await app.register(swaggerUi, {
+    routePrefix: '/docs',
+  });
 
   // Global error handler
   app.setErrorHandler((error: any, request, reply) => {
@@ -126,8 +176,9 @@ export async function buildServer() {
   app.get('/', async () => {
     return {
       name: 'SafeSchool OS API',
-      version: '0.3.0',
+      version: '0.5.0',
       description: "Alyssa's Law compliant school safety platform",
+      docs: '/docs',
     };
   });
 
@@ -149,6 +200,10 @@ export async function buildServer() {
   await app.register(environmentalRoutes, { prefix: '/api/v1/environmental' });
   await app.register(threatAssessmentRoutes, { prefix: '/api/v1/threat-assessments' });
   await app.register(socialMediaRoutes, { prefix: '/api/v1/social-media' });
+  await app.register(auditLogRoutes, { prefix: '/api/v1/audit-log' });
+  await app.register(licenseRoutes, { prefix: '/api/v1/licenses' });
+  await app.register(badgePrintingRoutes, { prefix: '/api/v1/badges' });
+  await app.register(guardRoutes, { prefix: '/api/v1/guard' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });

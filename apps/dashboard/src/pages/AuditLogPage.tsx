@@ -1,0 +1,187 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../hooks/useAuth';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  entity: string;
+  entityId?: string;
+  details?: Record<string, any>;
+  ipAddress?: string;
+  createdAt: string;
+  user?: { id: string; name: string; email: string; role: string };
+}
+
+const ACTION_COLORS: Record<string, string> = {
+  LOCKDOWN: 'text-red-400',
+  ALERT: 'text-orange-400',
+  DRILL: 'text-blue-400',
+  REUNIFICATION: 'text-purple-400',
+  LOGIN: 'text-green-400',
+};
+
+function getActionColor(action: string): string {
+  for (const [key, color] of Object.entries(ACTION_COLORS)) {
+    if (action.includes(key)) return color;
+  }
+  return 'text-gray-300';
+}
+
+export function AuditLogPage() {
+  const { token } = useAuth();
+  const [filterAction, setFilterAction] = useState('');
+  const [filterEntity, setFilterEntity] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 25;
+
+  const { data } = useQuery<{ entries: AuditEntry[]; total: number }>({
+    queryKey: ['audit-log', filterAction, filterEntity, page],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filterAction) params.set('action', filterAction);
+      if (filterEntity) params.set('entity', filterEntity);
+      params.set('limit', String(pageSize));
+      params.set('offset', String(page * pageSize));
+      const res = await fetch(`${API_URL}/api/v1/audit-log?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.json();
+    },
+  });
+
+  const { data: entities = [] } = useQuery<string[]>({
+    queryKey: ['audit-log-entities'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/v1/audit-log/entities`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.json();
+    },
+  });
+
+  const { data: actions = [] } = useQuery<string[]>({
+    queryKey: ['audit-log-actions'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/v1/audit-log/actions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.json();
+    },
+  });
+
+  const entries = data?.entries || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / pageSize);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <a href="/" className="text-gray-400 hover:text-white transition-colors">&larr; Command Center</a>
+          <h1 className="text-xl font-bold">Audit Log</h1>
+        </div>
+        <div className="text-sm text-gray-400">{total} entries</div>
+      </header>
+
+      <div className="p-6">
+        {/* Filters */}
+        <div className="mb-4 flex gap-2">
+          <select
+            value={filterEntity}
+            onChange={(e) => { setFilterEntity(e.target.value); setPage(0); }}
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm"
+          >
+            <option value="">All Entities</option>
+            {entities.map((e) => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </select>
+          <select
+            value={filterAction}
+            onChange={(e) => { setFilterAction(e.target.value); setPage(0); }}
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm"
+          >
+            <option value="">All Actions</option>
+            {actions.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Log Table */}
+        <div className="bg-gray-800 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700 text-gray-400">
+                <th className="text-left px-4 py-2">Timestamp</th>
+                <th className="text-left px-4 py-2">Action</th>
+                <th className="text-left px-4 py-2">Entity</th>
+                <th className="text-left px-4 py-2">User</th>
+                <th className="text-left px-4 py-2">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr key={entry.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <td className="px-4 py-2 text-gray-400 whitespace-nowrap">
+                    {new Date(entry.createdAt).toLocaleString()}
+                  </td>
+                  <td className={`px-4 py-2 font-medium ${getActionColor(entry.action)}`}>
+                    {entry.action}
+                  </td>
+                  <td className="px-4 py-2">
+                    {entry.entity}
+                    {entry.entityId && (
+                      <span className="text-gray-500 text-xs ml-1">#{entry.entityId.slice(0, 8)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {entry.user ? (
+                      <span>{entry.user.name} <span className="text-gray-500 text-xs">({entry.user.role})</span></span>
+                    ) : (
+                      <span className="text-gray-500">System</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-gray-400 text-xs max-w-xs truncate">
+                    {entry.details ? JSON.stringify(entry.details) : '-'}
+                  </td>
+                </tr>
+              ))}
+              {entries.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center text-gray-500 py-8">No audit log entries found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="bg-gray-800 px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-400">
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="bg-gray-800 px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

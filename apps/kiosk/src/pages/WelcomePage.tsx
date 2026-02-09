@@ -1,11 +1,27 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const SITE_NAME = import.meta.env.VITE_SITE_NAME || 'Lincoln Elementary';
 
 export function WelcomePage() {
   const navigate = useNavigate();
+  const [guardTaps, setGuardTaps] = useState(0);
+
+  // Triple-tap the logo to access guard console
+  const handleLogoTap = () => {
+    const next = guardTaps + 1;
+    if (next >= 3) {
+      setGuardTaps(0);
+      navigate('/guard-login');
+    } else {
+      setGuardTaps(next);
+      setTimeout(() => setGuardTaps(0), 2000);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-white p-8">
-      <h1 className="text-5xl font-bold mb-4">Welcome to Lincoln Elementary</h1>
+      <h1 className="text-5xl font-bold mb-4">Welcome to {SITE_NAME}</h1>
       <p className="text-xl text-gray-400 mb-16">All visitors must sign in</p>
 
       <div className="flex gap-8">
@@ -26,7 +42,9 @@ export function WelcomePage() {
         </button>
       </div>
 
-      <p className="mt-16 text-sm text-gray-500">SafeSchool OS Visitor Management</p>
+      <button onClick={handleLogoTap} className="mt-16 text-sm text-gray-500 cursor-default select-none">
+        BadgeKiosk by SafeSchool
+      </button>
     </div>
   );
 }

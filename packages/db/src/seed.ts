@@ -78,6 +78,7 @@ const IDS = {
   visitors: {
     preregistered: '00000000-0000-4000-a000-000000006001',
   },
+  license: '00000000-0000-4000-a000-000000007001',
 } as const;
 
 async function main() {
@@ -336,6 +337,22 @@ async function main() {
     },
   });
   console.log('  Visitor: 1 pre-registered');
+
+  // ---- BadgeKiosk License (Enterprise for dev) ----
+
+  await prisma.siteLicense.upsert({
+    where: { id: IDS.license },
+    update: {},
+    create: {
+      id: IDS.license,
+      siteId: IDS.site,
+      badgePrinting: true,
+      guardConsole: true,
+      maxKiosks: 10,
+      licenseKey: 'DEV-ENTERPRISE-2026',
+    },
+  });
+  console.log('  BadgeKiosk: Enterprise license (dev)');
 
   console.log('✅ Seed complete!');
 }

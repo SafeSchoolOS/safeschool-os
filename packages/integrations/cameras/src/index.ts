@@ -83,6 +83,8 @@ export interface CameraAdapter {
 
 export { OnvifAdapter } from './adapters/onvif.js';
 export { GenetecVmsAdapter } from './adapters/genetec-vms.js';
+export { MilestoneAdapter } from './adapters/milestone.js';
+export { AvigilonAdapter } from './adapters/avigilon.js';
 export { discoverOnvifDevices, type DiscoveredDevice } from './onvif-discovery.js';
 
 // ---------------------------------------------------------------------------
@@ -91,10 +93,14 @@ export { discoverOnvifDevices, type DiscoveredDevice } from './onvif-discovery.j
 
 import { OnvifAdapter } from './adapters/onvif.js';
 import { GenetecVmsAdapter } from './adapters/genetec-vms.js';
+import { MilestoneAdapter } from './adapters/milestone.js';
+import { AvigilonAdapter } from './adapters/avigilon.js';
 
 const adapterRegistry: Record<string, new (config: CameraConfig) => CameraAdapter> = {
   onvif: OnvifAdapter,
   genetec: GenetecVmsAdapter,
+  milestone: MilestoneAdapter,
+  avigilon: AvigilonAdapter,
 };
 
 /**
