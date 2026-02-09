@@ -1,0 +1,229 @@
+# ==============================================================================
+# SafeSchool OS -- Ubuntu Autoinstall Configuration
+# ==============================================================================
+# Copyright (c) 2026 SafeSchool. All rights reserved.
+# Licensed under the SafeSchool Platform License.
+#
+# Ubuntu Server 24.04 LTS autoinstall v1 schema for unattended provisioning
+# of SafeSchool edge mini PCs.
+#
+# Reference: https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html
+# ==============================================================================
+
+version: 1
+
+# -- Locale and Keyboard ------------------------------------------------------
+locale: en_US.UTF-8
+keyboard:
+  layout: us
+  variant: ""
+
+# -- Timezone ------------------------------------------------------------------
+timezone: UTC
+
+# -- Network -------------------------------------------------------------------
+# DHCP on first available NIC (auto-detected)
+network:
+  version: 2
+  ethernets:
+    id0:
+      match:
+        name: en*
+      dhcp4: true
+      dhcp6: false
+
+# -- Storage -------------------------------------------------------------------
+# Use the entire disk with LVM and ext4
+storage:
+  layout:
+    name: lvm
+    sizing-policy: all
+    match:
+      size: largest
+
+# -- Disable Swap (better for Docker/Redis) -----------------------------------
+swap:
+  size: 0
+
+# -- Identity ------------------------------------------------------------------
+identity:
+  hostname: safeschool-edge
+  username: safeschool
+  # Password: SafeSchool2026! (SHA-512 hash)
+  # Generated with: openssl passwd -6 'SafeSchool2026!'
+  password: "$6$rounds=4096$sZxRz0Kqm5FhGxkL$vvBM5lYJJBKeCQXPtJ5zOqVN5rXUoNxKbV3aGdJQ0qzX7KfKbC7m3wKF3FN8vJN5cZkZV7xPOqMxRJmQe0mK01"
+
+# -- SSH -----------------------------------------------------------------------
+ssh:
+  install-server: true
+  allow-pw: true
+  authorized-keys: []
+
+# -- APT Mirror (default) -----------------------------------------------------
+apt:
+  preserve_sources_list: false
+  geoip: true
+
+# -- Packages ------------------------------------------------------------------
+packages:
+  - docker.io
+  - docker-compose-plugin
+  - curl
+  - wget
+  - git
+  - htop
+  - ufw
+  - unattended-upgrades
+  - jq
+  - net-tools
+  - openssh-server
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - sqlite3
+  - logrotate
+  - fail2ban
+  - ntp
+
+# -- Automatic Security Updates ------------------------------------------------
+updates: security
+
+# -- Codecs / Drivers ----------------------------------------------------------
+drivers:
+  install: true
+
+# -- User Data (for cloud-init post-install) -----------------------------------
+user-data:
+  disable_root: true
+  package_update: true
+  package_upgrade: true
+
+# -- Late Commands (run in the installed system chroot) ------------------------
+late-commands:
+  # --- Add safeschool user to docker group ---
+  - curtin in-target --target=/target -- usermod -aG docker safeschool
+
+  # --- Force password change on first login ---
+  - curtin in-target --target=/target -- chage -d 0 safeschool
+
+  # --- Set hostname ---
+  - echo "safeschool-edge" > /target/etc/hostname
+  - |
+    cat > /target/etc/hosts <<'HOSTS'
+    127.0.0.1 localhost
+    127.0.1.1 safeschool-edge
+    ::1       localhost ip6-localhost ip6-loopback
+    ff02::1   ip6-allnodes
+    ff02::2   ip6-allrouters
+    HOSTS
+
+  # --- Create SafeSchool directories ---
+  - curtin in-target --target=/target -- mkdir -p /opt/safeschool
+  - curtin in-target --target=/target -- mkdir -p /etc/safeschool
+  - curtin in-target --target=/target -- mkdir -p /var/log/safeschool
+  - curtin in-target --target=/target -- mkdir -p /opt/safeschool/backups/daily
+  - curtin in-target --target=/target -- mkdir -p /opt/safeschool/backups/weekly
+
+  # --- Create site configuration placeholder ---
+  - |
+    cat > /target/etc/safeschool/site.conf <<'SITECONF'
+    # SafeSchool Edge -- Site Configuration
+    # This file is read by the SafeSchool stack on startup.
+    #
+    # Configure these values after installation:
+    #   SITE_ID       - UUID assigned by SafeSchool cloud
+    #   SITE_NAME     - Human-readable school name
+    #   CLOUD_SYNC_URL - URL of the SafeSchool cloud API
+    #   CLOUD_SYNC_KEY - API key for cloud synchronization
+    #
+    # Run 'sudo safeschool config' to edit the .env file interactively.
+
+    SITE_ID=
+    SITE_NAME=
+    CLOUD_SYNC_URL=https://api-production-5f06.up.railway.app
+    CLOUD_SYNC_KEY=
+    SITECONF
+  - curtin in-target --target=/target -- chmod 600 /etc/safeschool/site.conf
+
+  # --- Configure UFW firewall ---
+  - curtin in-target --target=/target -- bash -c "ufw default deny incoming"
+  - curtin in-target --target=/target -- bash -c "ufw default allow outgoing"
+  - curtin in-target --target=/target -- bash -c "ufw allow 22/tcp comment 'SSH'"
+  - curtin in-target --target=/target -- bash -c "ufw allow 80/tcp comment 'HTTP'"
+  - curtin in-target --target=/target -- bash -c "ufw allow 443/tcp comment 'HTTPS - Dashboard'"
+  - curtin in-target --target=/target -- bash -c "ufw allow 3443/tcp comment 'HTTPS - API'"
+  - curtin in-target --target=/target -- bash -c "ufw allow 8443/tcp comment 'HTTPS - Kiosk'"
+  - curtin in-target --target=/target -- bash -c "echo 'y' | ufw enable"
+
+  # --- Configure unattended-upgrades for security patches ---
+  - |
+    cat > /target/etc/apt/apt.conf.d/50unattended-upgrades <<'UPGRADES'
+    Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}";
+        "${distro_id}:${distro_codename}-security";
+        "${distro_id}ESMApps:${distro_codename}-apps-security";
+        "${distro_id}ESM:${distro_codename}-infra-security";
+    };
+    Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+    Unattended-Upgrade::MinimalSteps "true";
+    Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+    Unattended-Upgrade::Remove-Unused-Dependencies "true";
+    Unattended-Upgrade::Automatic-Reboot "false";
+    UPGRADES
+
+  # --- Copy first-boot script from installer media ---
+  - |
+    if [ -f /cdrom/autoinstall/first-boot.sh ]; then
+      cp /cdrom/autoinstall/first-boot.sh /target/opt/safeschool/first-boot.sh
+      chmod +x /target/opt/safeschool/first-boot.sh
+    fi
+
+  # --- Copy MOTD script from installer media ---
+  - |
+    if [ -f /cdrom/autoinstall/safeschool-motd.sh ]; then
+      cp /cdrom/autoinstall/safeschool-motd.sh /target/opt/safeschool/safeschool-motd.sh
+      chmod +x /target/opt/safeschool/safeschool-motd.sh
+    fi
+
+  # --- Create first-boot systemd service ---
+  - |
+    cat > /target/etc/systemd/system/safeschool-first-boot.service <<'FBSVC'
+    [Unit]
+    Description=SafeSchool Edge First Boot Provisioning
+    After=network-online.target docker.service
+    Wants=network-online.target
+    ConditionPathExists=/opt/safeschool/first-boot.sh
+
+    [Service]
+    Type=oneshot
+    ExecStart=/bin/bash /opt/safeschool/first-boot.sh
+    RemainAfterExit=false
+    StandardOutput=journal+console
+    StandardError=journal+console
+
+    [Install]
+    WantedBy=multi-user.target
+    FBSVC
+  - curtin in-target --target=/target -- systemctl enable safeschool-first-boot.service
+
+  # --- Enable Docker to start on boot ---
+  - curtin in-target --target=/target -- systemctl enable docker
+
+  # --- Set ownership of SafeSchool directories ---
+  - curtin in-target --target=/target -- chown -R safeschool:safeschool /opt/safeschool
+  - curtin in-target --target=/target -- chown -R safeschool:safeschool /etc/safeschool
+  - curtin in-target --target=/target -- chown -R safeschool:safeschool /var/log/safeschool
+
+  # --- Set up MOTD banner placeholder ---
+  - |
+    cat > /target/etc/update-motd.d/99-safeschool <<'MOTD'
+    #!/bin/bash
+    echo ""
+    echo "  SafeSchool Edge -- first boot provisioning pending..."
+    echo "  The system will configure itself on next login."
+    echo ""
+    MOTD
+  - chmod +x /target/etc/update-motd.d/99-safeschool
+  # Disable default Ubuntu MOTD components that add noise
+  - chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
+  - chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true
