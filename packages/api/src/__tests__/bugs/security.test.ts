@@ -185,7 +185,8 @@ describe('Security Tests', () => {
   // ---------------------------------------------------------------------------
   describe('#5: Input sanitization on visitor names', () => {
     it('should sanitize HTML in visitor firstName', async () => {
-      const xssName = '<img src=x onerror=alert(1)>';
+      // Use a name with embedded XSS that still has text content after sanitization
+      const xssName = 'John<img src=x onerror=alert(1)>';
 
       const res = await app.inject({
         method: 'POST',
@@ -204,6 +205,7 @@ describe('Security Tests', () => {
 
       expect(body.firstName).not.toContain('<img');
       expect(body.firstName).not.toContain('onerror');
+      expect(body.firstName).toBe('John');
     });
 
     it('should sanitize script tags in visitor lastName', async () => {

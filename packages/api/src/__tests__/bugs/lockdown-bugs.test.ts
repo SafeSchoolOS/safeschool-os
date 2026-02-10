@@ -197,7 +197,7 @@ describe('FIXED: Role check on lockdown initiate', () => {
 
     expect(res.statusCode).toBe(403);
     const body = JSON.parse(res.body);
-    expect(body.code).toBe('ROLE_REQUIRED');
+    expect(body.code).toBe('ROLE_LEVEL_REQUIRED');
   });
 
   it('allows lockdown initiation from a FIRST_RESPONDER role', async () => {
