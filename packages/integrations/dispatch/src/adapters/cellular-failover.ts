@@ -46,6 +46,7 @@ export class NodeSerialPort implements SerialPortInterface {
     } catch (err) {
       throw new Error(
         `Failed to open serial port ${devicePath}: ${err instanceof Error ? err.message : err}`,
+        { cause: err },
       );
     }
   }

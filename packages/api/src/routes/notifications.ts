@@ -21,7 +21,7 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Resolve recipients
-    let recipientCount = 0;
+    let recipientCount: number;
     if (recipientScope === 'all-staff') {
       const count = await fastify.prisma.user.count({
         where: {

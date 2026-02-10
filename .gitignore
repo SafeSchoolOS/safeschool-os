@@ -9,6 +9,26 @@ build/
 .next/
 out/
 
+# TypeScript compiled output (source is .ts/.tsx, these are artifacts)
+apps/**/*.js
+apps/**/*.js.map
+apps/**/*.d.ts
+apps/**/*.d.ts.map
+packages/**/*.js
+packages/**/*.js.map
+packages/**/*.d.ts
+packages/**/*.d.ts.map
+scripts/**/*.js
+scripts/**/*.js.map
+scripts/**/*.d.ts
+scripts/**/*.d.ts.map
+# Keep config files that are intentionally .js
+!eslint.config.mjs
+*.tsbuildinfo
+
+# Edge installer output (large binary)
+deploy/edge/image/output/
+
 # Environment
 .env
 .env.local
