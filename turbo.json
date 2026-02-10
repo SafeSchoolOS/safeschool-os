@@ -11,7 +11,9 @@
       "cache": false,
       "persistent": true
     },
-    "test": {},
+    "test": {
+      "dependsOn": ["^build"]
+    },
     "lint": {},
     "db:migrate": {},
     "db:seed": {
