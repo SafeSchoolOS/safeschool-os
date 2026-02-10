@@ -297,7 +297,7 @@ describe('Transportation Bugs', () => {
   // and there's no check that the user is the actual parent.
   // ---------------------------------------------------------------------------
   describe('Bug: Parent preferences endpoint has no site authorization', () => {
-    it.fails('Teacher can modify any parent contact preferences (no authorization check)', async () => {
+    it('(FIXED) Teacher can modify any parent contact preferences (no authorization check)', async () => {
       const teacherToken = await authenticateAs(app, 'teacher1');
 
       // Teacher modifying a parent's notification preferences
@@ -323,7 +323,7 @@ describe('Transportation Bugs', () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it.fails('First responder can disable parent alerts for a student they have no relation to', async () => {
+    it('(FIXED) First responder can disable parent alerts for a student they have no relation to', async () => {
       const responderToken = await authenticateAs(app, 'responder');
 
       const res = await app.inject({

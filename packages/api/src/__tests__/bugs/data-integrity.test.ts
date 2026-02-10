@@ -337,7 +337,7 @@ describe('Data Integrity Bugs', () => {
   // when Prisma tries to create the alert.
   // ---------------------------------------------------------------------------
   describe('Bug: ZeroEyes webhook uses triggeredById: \'SYSTEM\' (FK violation)', () => {
-    it.fails('Alert schema requires triggeredById to reference a real User (FK constraint)', async () => {
+    it('(FIXED) Alert schema requires triggeredById to reference a real User (FK constraint)', async () => {
       // Attempt to create an alert with triggeredById: 'SYSTEM' directly,
       // simulating what the ZeroEyes webhook does.
       // This should fail with a FK constraint violation.

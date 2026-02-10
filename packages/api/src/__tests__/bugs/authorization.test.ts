@@ -142,7 +142,7 @@ describe('Authorization Bypass Bugs', () => {
   // BUG #3: DELETE /api/v1/lockdown/:id - No site authorization check
   // ---------------------------------------------------------------------------
   describe('BUG #3: DELETE /api/v1/lockdown/:id - cross-site lockdown release', () => {
-    it.fails('should return 403 when a user from a different site releases a lockdown, but allows it (BUG)', async () => {
+    it('should return 403 when a user from a different site releases a lockdown (FIXED)', async () => {
       // Step 1: Admin initiates a lockdown at Lincoln Elementary
       const createRes = await app.inject({
         method: 'POST',
@@ -383,7 +383,7 @@ describe('Authorization Bypass Bugs', () => {
   // BUG #12: No role-based access control (RBAC)
   // ---------------------------------------------------------------------------
   describe('BUG #12: Missing role-based access control', () => {
-    it.fails('should prevent a TEACHER from initiating a lockdown, but allows it (BUG)', async () => {
+    it('should prevent a TEACHER from initiating a lockdown (FIXED)', async () => {
       // Teachers should NOT be able to initiate lockdowns -- that is an
       // ADMIN or OPERATOR action. In Alyssa's Law compliance, lockdown
       // initiation should be restricted to trained personnel.
@@ -404,7 +404,7 @@ describe('Authorization Bypass Bugs', () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it.fails('should prevent a TEACHER from locking/unlocking doors, but allows it (BUG)', async () => {
+    it('should prevent a TEACHER from locking/unlocking doors (FIXED)', async () => {
       // Door control should be limited to ADMIN, OPERATOR, or FIRST_RESPONDER roles.
       // A teacher should not be able to remotely lock/unlock exterior doors.
       const teacherToken = await authenticateAs(app, 'teacher1');
