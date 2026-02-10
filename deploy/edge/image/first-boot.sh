@@ -328,6 +328,10 @@ AllowTcpForwarding no
 
 # Log level for audit trail
 LogLevel VERBOSE
+
+# NOTE: PasswordAuthentication is left enabled for initial setup.
+# After adding SSH keys, run: safeschool harden-ssh
+# This will disable password authentication entirely.
 SSHCONF
 
 # Restart SSH to apply changes
@@ -414,6 +418,13 @@ echo ""
 echo "  Run 'safeschool status' for service info."
 echo "  ======================================"
 echo ""
+# SSH hardening reminder
+if grep -q "PasswordAuthentication yes" /etc/ssh/sshd_config.d/99-safeschool.conf 2>/dev/null || \
+   ! grep -q "PasswordAuthentication no" /etc/ssh/sshd_config.d/99-safeschool.conf 2>/dev/null; then
+  echo "  WARNING: SSH password auth is still enabled."
+  echo "  Add SSH keys, then run: safeschool harden-ssh"
+  echo ""
+fi
 MOTD_FALLBACK
     chmod +x "$MOTD_TARGET"
 fi
@@ -467,6 +478,7 @@ usage() {
     echo -e "  ${BOLD}ps${NC}                Show running containers"
     echo -e "  ${BOLD}version${NC}           Show version information"
     echo -e "  ${BOLD}health${NC}            Check API health endpoint"
+    echo -e "  ${BOLD}harden-ssh${NC}        Disable SSH password auth (after adding keys)"
     echo -e "  ${BOLD}help${NC}              Show this help message"
     echo ""
 }
@@ -631,6 +643,65 @@ cmd_health() {
     fi
 }
 
+cmd_harden_ssh() {
+    echo -e "${BOLD}SSH Hardening — Disable Password Authentication${NC}"
+    echo ""
+
+    # Check if SSH keys are installed for the safeschool user
+    local auth_keys="/home/safeschool/.ssh/authorized_keys"
+    if [ ! -f "$auth_keys" ] || [ ! -s "$auth_keys" ]; then
+        echo -e "${RED}ERROR: No SSH keys found for the safeschool user.${NC}"
+        echo ""
+        echo "You must add at least one SSH key before disabling password auth."
+        echo "Add your key with:"
+        echo "  ssh-copy-id safeschool@$(hostname -I 2>/dev/null | awk '{print $1}')"
+        echo ""
+        echo "Then run this command again."
+        exit 1
+    fi
+
+    local key_count
+    key_count=$(grep -cE '^ssh-' "$auth_keys" 2>/dev/null || echo "0")
+    echo -e "Found ${GREEN}${key_count}${NC} SSH key(s) in ${auth_keys}"
+    echo ""
+
+    # Confirm
+    echo -e "${YELLOW}WARNING: After this change, you can ONLY log in via SSH key.${NC}"
+    echo -e "${YELLOW}Make sure you have tested your SSH key login before proceeding.${NC}"
+    echo ""
+    read -rp "Disable password authentication? (yes/no): " confirm
+    if [ "$confirm" != "yes" ]; then
+        echo "Aborted."
+        exit 0
+    fi
+
+    # Add PasswordAuthentication no to the SafeSchool SSH config
+    local ssh_conf="/etc/ssh/sshd_config.d/99-safeschool.conf"
+    if grep -q "PasswordAuthentication" "$ssh_conf" 2>/dev/null; then
+        sudo sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication no/' "$ssh_conf"
+    else
+        echo "PasswordAuthentication no" | sudo tee -a "$ssh_conf" > /dev/null
+    fi
+
+    # Also disable challenge-response auth
+    if ! grep -q "ChallengeResponseAuthentication" "$ssh_conf" 2>/dev/null; then
+        echo "ChallengeResponseAuthentication no" | sudo tee -a "$ssh_conf" > /dev/null
+    fi
+
+    # Disable keyboard-interactive
+    if ! grep -q "KbdInteractiveAuthentication" "$ssh_conf" 2>/dev/null; then
+        echo "KbdInteractiveAuthentication no" | sudo tee -a "$ssh_conf" > /dev/null
+    fi
+
+    sudo systemctl restart sshd 2>/dev/null || sudo systemctl restart ssh 2>/dev/null || true
+
+    echo ""
+    echo -e "${GREEN}SSH password authentication disabled.${NC}"
+    echo "Only SSH key authentication is now allowed."
+    echo ""
+    echo -e "${YELLOW}IMPORTANT: Keep this terminal open and test SSH key login in another window before closing.${NC}"
+}
+
 # -- Main dispatch ---
 case "${1:-help}" in
     status)    cmd_status ;;
@@ -645,6 +716,7 @@ case "${1:-help}" in
     ps)        cmd_ps ;;
     version)   cmd_version ;;
     health)    cmd_health ;;
+    harden-ssh) cmd_harden_ssh ;;
     help|--help|-h) usage ;;
     *)
         echo -e "${RED}Unknown command: $1${NC}"
@@ -676,7 +748,7 @@ log ""
 log "  Dashboard:  https://${IP}"
 log "  Kiosk:      https://${IP}:8443"
 log "  API:        https://${IP}:3443"
-log "  Admin:      http://${IP}:9090"
+log "  Admin:      http://localhost:9090 (local access only)"
 log ""
 log "  Username:   safeschool"
 log "  CLI:        safeschool status"
@@ -684,7 +756,11 @@ log ""
 log "  IMPORTANT: Run 'sudo safeschool config' to set:"
 log "    - SITE_ID (from SafeSchool cloud)"
 log "    - SITE_NAME (your school name)"
+log "    - CLOUD_TLS_FINGERPRINT (for cert pinning)"
 log "    - Integration API keys"
+log ""
+log "  SECURITY: After adding SSH keys, run:"
+log "    safeschool harden-ssh"
 log ""
 log "  Then run: safeschool restart"
 log ""

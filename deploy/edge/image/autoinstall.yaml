@@ -49,8 +49,8 @@ swap:
 identity:
   hostname: safeschool-edge
   username: safeschool
-  # Password: SafeSchool2026! (SHA-512 hash)
-  # Generated with: openssl passwd -6 'SafeSchool2026!'
+  # SHA-512 hash — password MUST be changed on first login (enforced by chage -d 0)
+  # Generate a new hash with: openssl passwd -6
   password: "$6$rounds=4096$sZxRz0Kqm5FhGxkL$vvBM5lYJJBKeCQXPtJ5zOqVN5rXUoNxKbV3aGdJQ0qzX7KfKbC7m3wKF3FN8vJN5cZkZV7xPOqMxRJmQe0mK01"
 
 # -- SSH -----------------------------------------------------------------------

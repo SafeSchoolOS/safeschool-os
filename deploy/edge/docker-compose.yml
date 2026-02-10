@@ -51,6 +51,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CLOUD_SYNC_URL=${CLOUD_SYNC_URL}
       - CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}
+      - CLOUD_TLS_FINGERPRINT=${CLOUD_TLS_FINGERPRINT:-}
       - SITE_ID=${SITE_ID}
       - SITE_NAME=${SITE_NAME}
       - OPERATING_MODE=edge
@@ -163,7 +164,7 @@ services:
       context: ../../
       dockerfile: deploy/docker/Dockerfile.admin
     ports:
-      - "9090:80"
+      - "127.0.0.1:9090:80"
     depends_on:
       - api
     restart: unless-stopped

@@ -51,6 +51,8 @@ export interface SyncEngineConfig {
    * Required for proper conflict resolution during pull sync.
    */
   localLookupFn?: (entityType: string, id: string) => Promise<SyncRecord | null>;
+  /** SHA-256 fingerprint of the cloud TLS certificate for pinning. */
+  cloudTlsFingerprint?: string;
 }
 
 // ============================================================================
@@ -82,6 +84,7 @@ export class SyncEngine {
     this.syncClient = new SyncClient({
       baseUrl: config.cloudSyncUrl,
       syncKey: config.cloudSyncKey,
+      tlsFingerprint: config.cloudTlsFingerprint,
     });
 
     this.offlineQueue = new OfflineQueue(config.queueDbPath ?? ':memory:');

@@ -6,11 +6,14 @@
  */
 
 import crypto from 'node:crypto';
+import tls from 'node:tls';
 
 export interface SyncClientConfig {
   baseUrl: string;
   syncKey: string;
   timeoutMs?: number;
+  /** SHA-256 fingerprint of the cloud TLS certificate for pinning (hex, colon-separated). */
+  tlsFingerprint?: string;
 }
 
 export interface SyncEntity {
@@ -63,6 +66,7 @@ export class SyncClient {
   private readonly baseUrl: string;
   private readonly syncKey: string;
   private readonly timeoutMs: number;
+  private readonly tlsFingerprint?: string;
 
   constructor(config: SyncClientConfig) {
     const url = config.baseUrl.replace(/\/+$/, '');
@@ -79,12 +83,68 @@ export class SyncClient {
     this.baseUrl = url;
     this.syncKey = config.syncKey;
     this.timeoutMs = config.timeoutMs ?? 10000;
+
+    // TLS certificate pinning — verify cloud server identity
+    if (config.tlsFingerprint) {
+      this.tlsFingerprint = config.tlsFingerprint.toUpperCase().replace(/[^A-F0-9]/g, '');
+    }
+  }
+
+  /**
+   * Verify the TLS certificate fingerprint of the cloud server.
+   * Called before each sync operation when tlsFingerprint is configured.
+   */
+  async verifyTlsCertificate(): Promise<void> {
+    if (!this.tlsFingerprint) return;
+
+    const parsed = new URL(this.baseUrl);
+    const port = parsed.port ? parseInt(parsed.port, 10) : 443;
+
+    return new Promise((resolve, reject) => {
+      const socket = tls.connect(
+        { host: parsed.hostname, port, servername: parsed.hostname, rejectUnauthorized: true },
+        () => {
+          const cert = socket.getPeerCertificate();
+          socket.destroy();
+
+          if (!cert || !cert.fingerprint256) {
+            reject(new SyncClientError('Unable to retrieve TLS certificate from cloud server'));
+            return;
+          }
+
+          // cert.fingerprint256 is "XX:XX:XX:..." format — normalize for comparison
+          const actual = cert.fingerprint256.replace(/:/g, '').toUpperCase();
+          if (actual !== this.tlsFingerprint) {
+            reject(
+              new SyncClientError(
+                `TLS certificate fingerprint mismatch! Expected: ${this.tlsFingerprint}, Got: ${actual}. ` +
+                  'Possible MITM attack. Sync aborted.',
+              ),
+            );
+            return;
+          }
+
+          resolve();
+        },
+      );
+
+      socket.on('error', (err) => {
+        socket.destroy();
+        reject(new SyncClientError(`TLS verification failed: ${err.message}`));
+      });
+
+      socket.setTimeout(5000, () => {
+        socket.destroy();
+        reject(new SyncClientError('TLS verification timed out'));
+      });
+    });
   }
 
   /**
    * Push local entity changes to the cloud.
    */
   async push(siteId: string, entities: SyncEntity[]): Promise<PushResponse> {
+    await this.verifyTlsCertificate();
     const body: PushRequest = { siteId, entities };
     const response = await this.request<PushResponse>(
       'POST',
@@ -102,6 +162,7 @@ export class SyncClient {
     since: Date,
     entityTypes?: string[],
   ): Promise<PullResponse> {
+    await this.verifyTlsCertificate();
     const params = new URLSearchParams({
       siteId,
       since: since.toISOString(),
@@ -124,6 +185,7 @@ export class SyncClient {
     mode: string,
     pendingChanges: number,
   ): Promise<HeartbeatResponse> {
+    await this.verifyTlsCertificate();
     const body: HeartbeatRequest = { siteId, mode, pendingChanges };
     const response = await this.request<HeartbeatResponse>(
       'POST',
