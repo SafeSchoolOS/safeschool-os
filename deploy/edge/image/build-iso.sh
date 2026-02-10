@@ -149,31 +149,57 @@ ok "Autoinstall injection complete."
 # ============================================================================
 log "${BOLD}Step 4/5: Rebuilding bootable ISO with xorriso...${NC}"
 
-# Check for required boot files
-MBR_IMG="${EXTRACT}/boot/grub/i386-pc/boot_hybrid.img"
-EFI_IMG="${EXTRACT}/boot/grub/efi.img"
-ELTORITO="${EXTRACT}/boot/grub/i386-pc/eltorito.img"
+SOURCE_ISO="${WORK}/${UBUNTU_ISO_FILE}"
 
-if [ ! -f "$MBR_IMG" ]; then
-    warn "MBR boot image not found at expected path."
-    MBR_IMG=$(find "$EXTRACT" -name "boot_hybrid.img" 2>/dev/null | head -1)
-    [ -z "$MBR_IMG" ] && fail "Cannot find boot_hybrid.img -- cannot build bootable ISO."
+# Extract MBR and EFI partition directly from the source ISO.
+# This is the reliable method for Ubuntu 24.04+ which may not have
+# boot_hybrid.img / eltorito.img in the extracted filesystem.
+log "Extracting boot data from source ISO..."
+
+MBR_IMG="${WORK}/mbr.img"
+EFI_IMG="${WORK}/efi.img"
+
+# Extract the first 432 bytes (MBR boot code) from the source ISO
+dd if="$SOURCE_ISO" bs=1 count=432 of="$MBR_IMG" 2>/dev/null
+ok "MBR boot code extracted ($(stat -c%s "$MBR_IMG") bytes)"
+
+# Extract the EFI System Partition from the source ISO using xorriso
+# First, find the EFI partition offset and size
+EFI_START=$(xorriso -indev "$SOURCE_ISO" -report_el_torito as_mkisofs 2>/dev/null | grep -oP '(?<=--interval:appended_partition_2:all::)\d+' || true)
+
+if [ -z "$EFI_START" ]; then
+    # Fallback: look for efi.img in the extracted filesystem
+    log "Trying fallback EFI image detection..."
+    EFI_IMG=$(find "$EXTRACT" -name "efi.img" -o -name "boot*.img" 2>/dev/null | head -1)
+    if [ -z "$EFI_IMG" ]; then
+        # Extract EFI partition using fdisk to find it
+        EFI_INFO=$(fdisk -l "$SOURCE_ISO" 2>/dev/null | grep "EFI" || true)
+        if [ -n "$EFI_INFO" ]; then
+            EFI_SECTOR_START=$(echo "$EFI_INFO" | awk '{print $2}')
+            EFI_SECTOR_END=$(echo "$EFI_INFO" | awk '{print $3}')
+            EFI_SECTORS=$((EFI_SECTOR_END - EFI_SECTOR_START + 1))
+            dd if="$SOURCE_ISO" bs=512 skip="$EFI_SECTOR_START" count="$EFI_SECTORS" of="${WORK}/efi.img" 2>/dev/null
+            EFI_IMG="${WORK}/efi.img"
+            ok "EFI partition extracted via fdisk (sectors ${EFI_SECTOR_START}-${EFI_SECTOR_END})"
+        else
+            fail "Cannot locate EFI partition in source ISO."
+        fi
+    else
+        ok "Found EFI image at: ${EFI_IMG}"
+    fi
+else
+    ok "EFI partition info found via xorriso"
 fi
 
-if [ ! -f "$EFI_IMG" ]; then
-    warn "EFI boot image not found at expected path."
-    EFI_IMG=$(find "$EXTRACT" -name "efi.img" 2>/dev/null | head -1)
-    [ -z "$EFI_IMG" ] && fail "Cannot find efi.img -- cannot build UEFI-bootable ISO."
-fi
-
-if [ ! -f "$ELTORITO" ]; then
-    warn "El Torito image not found at expected path."
-    ELTORITO=$(find "$EXTRACT" -name "eltorito.img" 2>/dev/null | head -1)
-    [ -z "$ELTORITO" ] && fail "Cannot find eltorito.img -- cannot build BIOS-bootable ISO."
-fi
+# Get the xorriso reproduction command from the source ISO
+# This tells us exactly how to rebuild it with the same boot setup
+log "Querying source ISO boot configuration..."
+MKISOFS_OPTS=$(xorriso -indev "$SOURCE_ISO" -report_el_torito as_mkisofs 2>/dev/null || true)
+log "Source boot config detected."
 
 log "Building ISO (this takes a moment)..."
 
+# Rebuild using the extracted boot data
 xorriso -as mkisofs \
     -r \
     -V "SafeSchool Edge Installer" \
@@ -194,7 +220,23 @@ xorriso -as mkisofs \
     -e '--interval:appended_partition_2:::' \
     -no-emul-boot \
     "$EXTRACT" \
-    2>&1 | tail -10
+    2>&1 | tail -10 || {
+    # If the above fails (missing eltorito.img), try UEFI-only build
+    warn "Hybrid BIOS+UEFI build failed. Trying UEFI-only build..."
+    xorriso -as mkisofs \
+        -r \
+        -V "SafeSchool Edge Installer" \
+        -o "$OUTPUT_ISO" \
+        --grub2-mbr "$MBR_IMG" \
+        --mbr-force-bootable \
+        -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$EFI_IMG" \
+        -appended_part_as_gpt \
+        -eltorito-alt-boot \
+        -e '--interval:appended_partition_2:::' \
+        -no-emul-boot \
+        "$EXTRACT" \
+        2>&1 | tail -10
+}
 
 if [ ! -f "$OUTPUT_ISO" ]; then
     fail "ISO build failed -- output file not created."
@@ -237,6 +279,6 @@ echo -e "  ${BOLD}Next steps:${NC}"
 echo -e "    1. Flash to USB with Rufus (Windows) or dd (Linux/Mac)"
 echo -e "    2. Boot the mini PC from USB"
 echo -e "    3. Installation is fully automated (~15-20 min)"
-echo -e "    4. SSH in: ssh safeschool@<IP>  (password: SafeSchool2026!)"
+echo -e "    4. SSH in: ssh safeschool@<IP>  (password set during install)"
 echo -e "    5. Configure: sudo safeschool config"
 echo ""

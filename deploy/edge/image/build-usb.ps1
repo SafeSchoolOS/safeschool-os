@@ -457,7 +457,7 @@ function Main {
     Write-Host "    1. Insert the USB drive into the target mini PC" -ForegroundColor Gray
     Write-Host "    2. Boot from USB (change BIOS boot order if needed)" -ForegroundColor Gray
     Write-Host "    3. Installation is fully automated -- hands off" -ForegroundColor Gray
-    Write-Host "    4. After reboot, log in as: safeschool / SafeSchool2026!" -ForegroundColor Gray
+    Write-Host "    4. After reboot, log in as: safeschool (password set during install)" -ForegroundColor Gray
     Write-Host "    5. Run: sudo safeschool config  (to set SITE_ID)" -ForegroundColor Gray
     Write-Host ""
 }
