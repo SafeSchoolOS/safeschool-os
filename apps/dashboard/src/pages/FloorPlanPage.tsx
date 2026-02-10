@@ -64,6 +64,7 @@ export function FloorPlanPage() {
       const res = await fetch(`${API_URL}/api/v1/sites/${siteId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load site data (${res.status})`);
       return res.json();
     },
   });

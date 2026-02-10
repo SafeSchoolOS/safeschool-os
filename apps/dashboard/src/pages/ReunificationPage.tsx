@@ -48,6 +48,7 @@ export function ReunificationPage() {
       const res = await fetch(`${API_URL}/api/v1/reunification`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load reunification events (${res.status})`);
       return res.json();
     },
   });
@@ -59,6 +60,7 @@ export function ReunificationPage() {
       const res = await fetch(`${API_URL}/api/v1/reunification/${selectedEvent}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load event details (${res.status})`);
       return res.json();
     },
   });

@@ -51,6 +51,7 @@ export function SocialMediaPage() {
       const res = await fetch(`${API_URL}/api/v1/social-media/alerts?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load social media alerts (${res.status})`);
       return res.json();
     },
   });
@@ -61,6 +62,7 @@ export function SocialMediaPage() {
       const res = await fetch(`${API_URL}/api/v1/social-media/dashboard`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load dashboard (${res.status})`);
       return res.json();
     },
   });

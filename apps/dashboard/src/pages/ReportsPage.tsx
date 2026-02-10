@@ -50,6 +50,7 @@ export function ReportsPage() {
         `${API_URL}/api/v1/alerts?limit=500`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      if (!res.ok) throw new Error(`Failed to load alerts (${res.status})`);
       const alerts = await res.json();
       const filtered = (alerts || []).filter((a: any) => {
         const d = new Date(a.createdAt);
@@ -82,6 +83,7 @@ export function ReportsPage() {
       const res = await fetch(`${API_URL}/api/v1/drills/compliance/report`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load compliance data (${res.status})`);
       return res.json();
     },
   });
@@ -93,6 +95,7 @@ export function ReportsPage() {
       const res = await fetch(`${API_URL}/api/v1/visitors?date=${dateRange.end}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load visitors (${res.status})`);
       const visitors = await res.json();
       const total = (visitors || []).length;
       const checkedOut = (visitors || []).filter((v: any) => v.checkOutTime).length;

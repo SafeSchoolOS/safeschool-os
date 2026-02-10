@@ -49,6 +49,7 @@ export function AuditLogPage() {
       const res = await fetch(`${API_URL}/api/v1/audit-log?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load audit log (${res.status})`);
       return res.json();
     },
   });
@@ -59,6 +60,7 @@ export function AuditLogPage() {
       const res = await fetch(`${API_URL}/api/v1/audit-log/entities`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load entities (${res.status})`);
       return res.json();
     },
   });
@@ -69,6 +71,7 @@ export function AuditLogPage() {
       const res = await fetch(`${API_URL}/api/v1/audit-log/actions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load actions (${res.status})`);
       return res.json();
     },
   });

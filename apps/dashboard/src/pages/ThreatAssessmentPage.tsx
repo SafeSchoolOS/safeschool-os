@@ -61,6 +61,7 @@ export function ThreatAssessmentPage() {
       const res = await fetch(`${API_URL}/api/v1/threat-assessments?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load threat reports (${res.status})`);
       return res.json();
     },
   });
@@ -71,6 +72,7 @@ export function ThreatAssessmentPage() {
       const res = await fetch(`${API_URL}/api/v1/threat-assessments/dashboard`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load dashboard (${res.status})`);
       return res.json();
     },
   });

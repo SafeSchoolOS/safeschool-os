@@ -61,6 +61,7 @@ export function GrantsPage() {
       const res = await fetch(`${API_URL}/api/v1/grants/search?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to search grants (${res.status})`);
       return res.json();
     },
   });
@@ -72,6 +73,7 @@ export function GrantsPage() {
       const res = await fetch(`${API_URL}/api/v1/grants/estimate?modules=${modulesParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to estimate funding (${res.status})`);
       return res.json();
     },
   });
@@ -83,6 +85,7 @@ export function GrantsPage() {
       const res = await fetch(`${API_URL}/api/v1/grants/budget-template?modules=${modulesParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load budget template (${res.status})`);
       return res.json();
     },
   });

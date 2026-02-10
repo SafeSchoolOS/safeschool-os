@@ -61,6 +61,7 @@ export function DrillsPage() {
       const res = await fetch(`${API_URL}/api/v1/drills?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load drills (${res.status})`);
       return res.json();
     },
   });
@@ -71,6 +72,7 @@ export function DrillsPage() {
       const res = await fetch(`${API_URL}/api/v1/drills/compliance/report`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(`Failed to load compliance report (${res.status})`);
       return res.json();
     },
   });
