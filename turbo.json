@@ -1,6 +1,15 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["**/.env.*local"],
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "REDIS_URL",
+    "JWT_SECRET",
+    "AUTH_PROVIDER",
+    "NODE_ENV",
+    "CLERK_SECRET_KEY",
+    "CLERK_PUBLISHABLE_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -12,7 +21,8 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "cache": false
     },
     "lint": {},
     "db:migrate": {},
