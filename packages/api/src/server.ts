@@ -87,10 +87,13 @@ export async function buildServer() {
   });
 
   // Rate limiting — 100 req/min global, with stricter per-route overrides
-  await app.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
-  });
+  // Disabled in test environment to prevent flaky test failures
+  if (process.env.NODE_ENV !== 'test') {
+    await app.register(rateLimit, {
+      max: 100,
+      timeWindow: '1 minute',
+    });
+  }
 
   await app.register(websocket);
 

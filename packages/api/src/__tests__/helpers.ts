@@ -58,7 +58,7 @@ export async function authenticateAs(
     email: user.email,
     role: user.role,
     siteIds: user.siteIds,
-  });
+  }, { expiresIn: '24h' });
   return token;
 }
 

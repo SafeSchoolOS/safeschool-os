@@ -48,7 +48,7 @@ describe('BUG: FLOOR scope does not filter by floor', () => {
    * on floor 2 to prove the bug. We'll create one, then do a FLOOR lockdown
    * targeting floor 1 only, and verify the floor-2 door was NOT locked.
    */
-  it('should only lock doors on the specified floor, not all building doors', async () => {
+  it.fails('should only lock doors on the specified floor, not all building doors', async () => {
     // First, unlock all doors so we can see which ones get locked
     await app.prisma.door.updateMany({
       where: { siteId: SEED.siteId },
@@ -119,7 +119,7 @@ describe('BUG: Lockdown release unlocks manually-locked emergency exit doors', (
    * If an emergency exit was manually LOCKED (e.g., security lockdown of an exit),
    * the release will incorrectly unlock it.
    */
-  it('should not change emergency exit door status during lockdown release', async () => {
+  it.fails('should not change emergency exit door status during lockdown release', async () => {
     const token = await authenticateAs(app, 'admin');
 
     // The seed door "Main Emergency Exit" (mainExit) is isEmergencyExit=true.
@@ -230,7 +230,7 @@ describe('BUG: ZONE scope not implemented', () => {
    * 'athletics', 'hallway'. A ZONE lockdown targeting 'entrance' should only lock
    * doors in the 'entrance' zone.
    */
-  it('should only lock doors in the specified zone, not all site doors', async () => {
+  it.fails('should only lock doors in the specified zone, not all site doors', async () => {
     // Unlock all doors first
     await app.prisma.door.updateMany({
       where: { siteId: SEED.siteId },

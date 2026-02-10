@@ -19,7 +19,7 @@ describe('Auth Routes', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/auth/login',
-        payload: { email: 'admin@lincoln.edu' },
+        payload: { email: 'admin@lincoln.edu', password: 'safeschool123' },
       });
 
       expect(res.statusCode).toBe(200);
@@ -34,7 +34,7 @@ describe('Auth Routes', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/auth/login',
-        payload: { email: 'unknown@example.com' },
+        payload: { email: 'unknown@example.com', password: 'safeschool123' },
       });
 
       expect(res.statusCode).toBe(401);
