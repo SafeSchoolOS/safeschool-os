@@ -50,7 +50,7 @@ log "Kernel: $(uname -r)"
 # ==============================================================================
 # Step 1: Wait for network connectivity
 # ==============================================================================
-log_section "Step 1/17: Waiting for network connectivity"
+log_section "Step 1/19: Waiting for network connectivity"
 
 MAX_WAIT=120
 WAITED=0
@@ -75,7 +75,7 @@ fi
 # ==============================================================================
 # Step 2: Clone SafeSchool repository
 # ==============================================================================
-log_section "Step 2/17: Cloning SafeSchool repository"
+log_section "Step 2/19: Cloning SafeSchool repository"
 
 if [ -d "${INSTALL_DIR}/.git" ]; then
     log "Repository already exists at ${INSTALL_DIR}. Pulling latest..."
@@ -106,7 +106,7 @@ log "Repository cloned. Current commit: $(git log --oneline -1)"
 # ==============================================================================
 # Step 3: Generate .env with secure random values
 # ==============================================================================
-log_section "Step 3/17: Generating environment configuration"
+log_section "Step 3/19: Generating environment configuration"
 
 if [ -f "$ENV_FILE" ]; then
     log ".env already exists. Skipping generation."
@@ -134,7 +134,7 @@ fi
 # ==============================================================================
 # Step 4: Set OPERATING_MODE=edge
 # ==============================================================================
-log_section "Step 4/17: Setting operating mode"
+log_section "Step 4/19: Setting operating mode"
 
 if grep -q "^OPERATING_MODE=" "$ENV_FILE"; then
     sed -i "s|^OPERATING_MODE=.*|OPERATING_MODE=edge|" "$ENV_FILE"
@@ -146,7 +146,7 @@ log "OPERATING_MODE set to 'edge'."
 # ==============================================================================
 # Step 5: Set SITE_ID placeholder
 # ==============================================================================
-log_section "Step 5/17: Setting SITE_ID placeholder"
+log_section "Step 5/19: Setting SITE_ID placeholder"
 
 # Load site.conf if it has values
 SITE_CONF="/etc/safeschool/site.conf"
@@ -172,7 +172,7 @@ chmod 600 "$ENV_FILE"
 # ==============================================================================
 # Step 6: Docker compose pull + build
 # ==============================================================================
-log_section "Step 6/17: Pulling and building Docker images"
+log_section "Step 6/19: Pulling and building Docker images"
 
 cd "$INSTALL_DIR"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull --ignore-pull-failures 2>&1 || true
@@ -184,7 +184,7 @@ log "Docker build complete."
 # ==============================================================================
 # Step 7: Docker compose up
 # ==============================================================================
-log_section "Step 7/17: Starting SafeSchool services"
+log_section "Step 7/19: Starting SafeSchool services"
 
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d 2>&1
 log "Docker Compose up complete."
@@ -211,7 +211,7 @@ fi
 # ==============================================================================
 # Step 8: Create systemd service
 # ==============================================================================
-log_section "Step 8/17: Creating systemd service"
+log_section "Step 8/19: Creating systemd service"
 
 cat > /etc/systemd/system/safeschool.service <<SVCEOF
 [Unit]
@@ -241,7 +241,7 @@ log "Systemd service file created."
 # ==============================================================================
 # Step 9: Enable the systemd service
 # ==============================================================================
-log_section "Step 9/17: Enabling systemd service"
+log_section "Step 9/19: Enabling systemd service"
 
 systemctl enable safeschool.service
 log "safeschool.service enabled -- will start on boot."
@@ -249,7 +249,7 @@ log "safeschool.service enabled -- will start on boot."
 # ==============================================================================
 # Step 10: Set up daily backup cron job (2 AM UTC)
 # ==============================================================================
-log_section "Step 10/17: Setting up daily backup cron"
+log_section "Step 10/19: Setting up daily backup cron"
 
 BACKUP_SCRIPT="${EDGE_DIR}/backup.sh"
 if [ -f "$BACKUP_SCRIPT" ]; then
@@ -273,7 +273,7 @@ log "Backup directories created at ${BACKUP_DIR}."
 # ==============================================================================
 # Step 11: Set up logrotate
 # ==============================================================================
-log_section "Step 11/17: Configuring logrotate"
+log_section "Step 11/19: Configuring logrotate"
 
 cat > /etc/logrotate.d/safeschool <<'LOGROTATE'
 /var/log/safeschool/*.log {
@@ -297,7 +297,7 @@ log "Logrotate configured for /var/log/safeschool/*.log (14 days, compressed)."
 # ==============================================================================
 # Step 12: Harden SSH
 # ==============================================================================
-log_section "Step 12/17: Hardening SSH configuration"
+log_section "Step 12/19: Hardening SSH configuration"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
@@ -341,7 +341,7 @@ log "SSH hardened: root login disabled, MaxAuthTries 3, idle timeout 15min."
 # ==============================================================================
 # Step 13: Configure UFW firewall
 # ==============================================================================
-log_section "Step 13/17: Verifying UFW firewall rules"
+log_section "Step 13/19: Verifying UFW firewall rules"
 
 # UFW should already be configured by autoinstall late-commands, but verify
 if command -v ufw &>/dev/null; then
@@ -352,6 +352,7 @@ if command -v ufw &>/dev/null; then
     ufw allow 443/tcp comment 'HTTPS - Dashboard' 2>/dev/null || true
     ufw allow 3443/tcp comment 'HTTPS - API' 2>/dev/null || true
     ufw allow 8443/tcp comment 'HTTPS - Kiosk' 2>/dev/null || true
+    ufw allow 9090/tcp comment 'Network Admin UI' 2>/dev/null || true
     echo "y" | ufw enable 2>/dev/null || true
     log "UFW firewall rules verified."
 else
@@ -361,7 +362,7 @@ fi
 # ==============================================================================
 # Step 14: Configure fail2ban
 # ==============================================================================
-log_section "Step 14/17: Configuring fail2ban"
+log_section "Step 14/19: Configuring fail2ban"
 
 if command -v fail2ban-client &>/dev/null; then
     cat > /etc/fail2ban/jail.local <<'FAIL2BAN'
@@ -387,9 +388,70 @@ else
 fi
 
 # ==============================================================================
-# Step 15: Set the MOTD with status info
+# Step 15/19: Generate admin token for Network Admin web UI
 # ==============================================================================
-log_section "Step 15/17: Installing MOTD"
+log_section "Step 15/19: Generating admin token"
+
+ADMIN_TOKEN_FILE="/etc/safeschool/admin-token"
+if [ ! -f "$ADMIN_TOKEN_FILE" ]; then
+    ADMIN_TOKEN=$(openssl rand -hex 8)
+    mkdir -p /etc/safeschool
+    echo "$ADMIN_TOKEN" > "$ADMIN_TOKEN_FILE"
+    chmod 600 "$ADMIN_TOKEN_FILE"
+    chown root:root "$ADMIN_TOKEN_FILE"
+    log "Admin token generated and saved to ${ADMIN_TOKEN_FILE}"
+    log "Token: ${ADMIN_TOKEN} (also shown in MOTD and via 'safeschool admin-token')"
+else
+    ADMIN_TOKEN=$(cat "$ADMIN_TOKEN_FILE")
+    log "Admin token already exists: ${ADMIN_TOKEN_FILE}"
+fi
+
+# ==============================================================================
+# Step 16/19: Install Network Admin web UI service
+# ==============================================================================
+log_section "Step 16/19: Installing Network Admin web UI"
+
+NETWORK_ADMIN_SCRIPT="/opt/safeschool/network-admin.py"
+if [ -f "$NETWORK_ADMIN_SCRIPT" ]; then
+    chmod +x "$NETWORK_ADMIN_SCRIPT"
+
+    cat > /etc/systemd/system/safeschool-network-admin.service <<'NASVC'
+[Unit]
+Description=SafeSchool Network Admin Web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/safeschool/network-admin.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+NASVC
+
+    systemctl daemon-reload
+    systemctl enable safeschool-network-admin.service
+    systemctl start safeschool-network-admin.service
+
+    # Verify it started
+    sleep 2
+    if curl -sf http://localhost:9090/ &>/dev/null; then
+        log "Network Admin web UI is running on port 9090."
+    else
+        log "WARNING: Network Admin web UI may not have started yet."
+    fi
+else
+    log "WARNING: network-admin.py not found at ${NETWORK_ADMIN_SCRIPT}."
+fi
+
+# ==============================================================================
+# Step 17/19: Set the MOTD with status info
+# ==============================================================================
+log_section "Step 17/19: Installing MOTD"
 
 MOTD_SCRIPT="/opt/safeschool/safeschool-motd.sh"
 MOTD_TARGET="/etc/update-motd.d/99-safeschool"
@@ -430,9 +492,9 @@ MOTD_FALLBACK
 fi
 
 # ==============================================================================
-# Step 16: Create /usr/local/bin/safeschool CLI helper
+# Step 18/19: Create /usr/local/bin/safeschool CLI helper
 # ==============================================================================
-log_section "Step 16/17: Installing safeschool CLI helper"
+log_section "Step 18/19: Installing safeschool CLI helper"
 
 cat > /usr/local/bin/safeschool <<'CLIMAIN'
 #!/usr/bin/env bash
@@ -478,6 +540,8 @@ usage() {
     echo -e "  ${BOLD}ps${NC}                Show running containers"
     echo -e "  ${BOLD}version${NC}           Show version information"
     echo -e "  ${BOLD}health${NC}            Check API health endpoint"
+    echo -e "  ${BOLD}network${NC} [cmd]     Network config (show, set, dhcp, test)"
+    echo -e "  ${BOLD}admin-token${NC}       Display the admin token for web UI"
     echo -e "  ${BOLD}harden-ssh${NC}        Disable SSH password auth (after adding keys)"
     echo -e "  ${BOLD}help${NC}              Show this help message"
     echo ""
@@ -702,21 +766,179 @@ cmd_harden_ssh() {
     echo -e "${YELLOW}IMPORTANT: Keep this terminal open and test SSH key login in another window before closing.${NC}"
 }
 
+cmd_admin_token() {
+    local token_file="/etc/safeschool/admin-token"
+    if [ -f "$token_file" ]; then
+        local token
+        token=$(sudo cat "$token_file" 2>/dev/null)
+        if [ -n "$token" ]; then
+            echo ""
+            echo -e "${CYAN}${BOLD}SafeSchool Edge -- Admin Token${NC}"
+            echo ""
+            echo -e "  Token:  ${BOLD}${token}${NC}"
+            echo ""
+            echo -e "  Use this token to log in to the Network Admin web UI:"
+            local ip
+            ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "192.168.0.250")
+            echo -e "  ${BOLD}http://${ip}:9090${NC}"
+            echo ""
+        else
+            echo -e "${RED}Cannot read admin token. Try with sudo.${NC}"
+        fi
+    else
+        echo -e "${RED}Admin token not found at ${token_file}${NC}"
+        echo "The token is generated during first boot."
+    fi
+}
+
+cmd_network() {
+    local subcmd="${1:-show}"
+    local ip
+    ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+
+    case "$subcmd" in
+        show)
+            echo ""
+            echo -e "${CYAN}${BOLD}SafeSchool Edge -- Network Configuration${NC}"
+            echo ""
+            echo -e "${BOLD}Interface:${NC}"
+            ip -br addr show 2>/dev/null | grep -v "^lo" || ip addr show
+            echo ""
+            echo -e "${BOLD}Default Route:${NC}"
+            ip route show default 2>/dev/null || echo "  (none)"
+            echo ""
+            echo -e "${BOLD}DNS:${NC}"
+            grep "^nameserver" /etc/resolv.conf 2>/dev/null || echo "  (none)"
+            echo ""
+            echo -e "${BOLD}Netplan Config:${NC}"
+            for f in /etc/netplan/*.yaml /etc/netplan/*.yml; do
+                if [ -f "$f" ]; then
+                    echo "  --- $f ---"
+                    sudo cat "$f" 2>/dev/null
+                    echo ""
+                fi
+            done
+            echo -e "${BOLD}Network Admin UI:${NC}  http://${ip}:9090"
+            echo ""
+            ;;
+        set)
+            echo ""
+            echo -e "${CYAN}${BOLD}SafeSchool Edge -- Set Static IP${NC}"
+            echo ""
+            # Detect default interface
+            local iface
+            iface=$(ip -j route show default 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['dev'])" 2>/dev/null || echo "")
+            if [ -z "$iface" ]; then
+                iface=$(ip -br link show | grep -v "^lo" | head -1 | awk '{print $1}')
+            fi
+            echo "Detected interface: ${iface}"
+            echo ""
+
+            read -rp "IP Address [${ip}]: " new_ip
+            new_ip="${new_ip:-$ip}"
+            read -rp "CIDR prefix [24]: " new_cidr
+            new_cidr="${new_cidr:-24}"
+            read -rp "Gateway [$(ip route show default 2>/dev/null | awk '{print $3}' | head -1)]: " new_gw
+            new_gw="${new_gw:-$(ip route show default 2>/dev/null | awk '{print $3}' | head -1)}"
+            read -rp "DNS Primary [8.8.8.8]: " new_dns1
+            new_dns1="${new_dns1:-8.8.8.8}"
+            read -rp "DNS Secondary [1.1.1.1]: " new_dns2
+            new_dns2="${new_dns2:-1.1.1.1}"
+
+            echo ""
+            echo "New configuration:"
+            echo "  IP:      ${new_ip}/${new_cidr}"
+            echo "  Gateway: ${new_gw}"
+            echo "  DNS:     ${new_dns1}, ${new_dns2}"
+            echo "  Iface:   ${iface}"
+            echo ""
+            read -rp "Apply this configuration? (yes/no): " confirm
+            if [ "$confirm" != "yes" ]; then
+                echo "Aborted."
+                return 0
+            fi
+
+            # Write netplan
+            sudo bash -c "cat > /etc/netplan/99-safeschool-static.yaml" <<NETPLAN_EOF
+# SafeSchool Edge -- Static IP (set via CLI)
+network:
+  version: 2
+  ethernets:
+    ${iface}:
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - ${new_ip}/${new_cidr}
+      routes:
+        - to: default
+          via: ${new_gw}
+      nameservers:
+        addresses: [${new_dns1}, ${new_dns2}]
+NETPLAN_EOF
+
+            # Remove old configs
+            for f in /etc/netplan/00-installer-config.yaml /etc/netplan/50-cloud-init.yaml; do
+                sudo rm -f "$f" 2>/dev/null
+            done
+
+            sudo netplan apply
+            echo -e "${GREEN}Network configuration applied.${NC}"
+            echo "New IP: $(hostname -I 2>/dev/null | awk '{print $1}')"
+            ;;
+        dhcp)
+            echo "Switching to DHCP..."
+            local iface
+            iface=$(ip -j route show default 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['dev'])" 2>/dev/null || echo "")
+            if [ -z "$iface" ]; then
+                iface=$(ip -br link show | grep -v "^lo" | head -1 | awk '{print $1}')
+            fi
+
+            sudo bash -c "cat > /etc/netplan/99-safeschool-static.yaml" <<DHCP_EOF
+# SafeSchool Edge -- DHCP (set via CLI)
+network:
+  version: 2
+  ethernets:
+    ${iface}:
+      dhcp4: true
+      dhcp6: false
+DHCP_EOF
+
+            for f in /etc/netplan/00-installer-config.yaml /etc/netplan/50-cloud-init.yaml; do
+                sudo rm -f "$f" 2>/dev/null
+            done
+
+            sudo netplan apply
+            echo -e "${GREEN}Switched to DHCP.${NC}"
+            sleep 3
+            echo "New IP: $(hostname -I 2>/dev/null | awk '{print $1}')"
+            ;;
+        test)
+            echo "Running netplan try (auto-reverts in 120s if not confirmed)..."
+            sudo netplan try
+            ;;
+        *)
+            echo "Usage: safeschool network {show|set|dhcp|test}"
+            ;;
+    esac
+}
+
 # -- Main dispatch ---
 case "${1:-help}" in
-    status)    cmd_status ;;
-    logs)      cmd_logs "${2:-}" ;;
-    update)    cmd_update ;;
-    backup)    cmd_backup ;;
-    restore)   cmd_restore "${2:-}" ;;
-    config)    cmd_config ;;
-    restart)   cmd_restart ;;
-    stop)      cmd_stop ;;
-    start)     cmd_start ;;
-    ps)        cmd_ps ;;
-    version)   cmd_version ;;
-    health)    cmd_health ;;
-    harden-ssh) cmd_harden_ssh ;;
+    status)       cmd_status ;;
+    logs)         cmd_logs "${2:-}" ;;
+    update)       cmd_update ;;
+    backup)       cmd_backup ;;
+    restore)      cmd_restore "${2:-}" ;;
+    config)       cmd_config ;;
+    restart)      cmd_restart ;;
+    stop)         cmd_stop ;;
+    start)        cmd_start ;;
+    ps)           cmd_ps ;;
+    version)      cmd_version ;;
+    health)       cmd_health ;;
+    network)      cmd_network "${2:-}" ;;
+    admin-token)  cmd_admin_token ;;
+    harden-ssh)   cmd_harden_ssh ;;
     help|--help|-h) usage ;;
     *)
         echo -e "${RED}Unknown command: $1${NC}"
@@ -730,9 +952,9 @@ chmod +x /usr/local/bin/safeschool
 log "safeschool CLI installed at /usr/local/bin/safeschool."
 
 # ==============================================================================
-# Step 17: Disable first-boot service (self-removal)
+# Step 19/19: Disable first-boot service (self-removal)
 # ==============================================================================
-log_section "Step 17/17: Disabling first-boot service"
+log_section "Step 19/19: Disabling first-boot service"
 
 systemctl disable safeschool-first-boot.service 2>/dev/null || true
 rm -f /opt/safeschool/first-boot.sh
@@ -743,15 +965,20 @@ log "First-boot service disabled. It will not run again."
 # ==============================================================================
 IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
 
+ADMIN_TOKEN_DISPLAY=$(cat /etc/safeschool/admin-token 2>/dev/null || echo "unknown")
+
 log_section "SafeSchool Edge -- First Boot Complete"
 log ""
-log "  Dashboard:  https://${IP}"
-log "  Kiosk:      https://${IP}:8443"
-log "  API:        https://${IP}:3443"
-log "  Admin:      http://localhost:9090 (local access only)"
+log "  Dashboard:     https://${IP}"
+log "  Kiosk:         https://${IP}:8443"
+log "  API:           https://${IP}:3443"
+log "  Network Admin: http://${IP}:9090"
 log ""
-log "  Username:   safeschool"
-log "  CLI:        safeschool status"
+log "  Admin Token:   ${ADMIN_TOKEN_DISPLAY}"
+log "  (use this token to log in to the Network Admin web UI)"
+log ""
+log "  Username:      safeschool"
+log "  CLI:           safeschool status"
 log ""
 log "  IMPORTANT: Run 'sudo safeschool config' to set:"
 log "    - SITE_ID (from SafeSchool cloud)"

@@ -25,15 +25,23 @@ autoinstall:
   timezone: UTC
 
   # -- Network -----------------------------------------------------------------
-  # DHCP on first available NIC (auto-detected)
+  # DHCP during install for package downloads; static IP applied post-install
+  # via late-commands (192.168.0.250/24 default)
   network:
     version: 2
     ethernets:
       id0:
         match:
-          name: en*
+          name: "en*"
         dhcp4: true
         dhcp6: false
+      # Fallback: match any remaining wired NIC (some NUCs use unexpected names)
+      id1:
+        match:
+          driver: "e1000e igc i225* r8169 atlantic"
+        dhcp4: true
+        dhcp6: false
+        optional: true
 
   # -- Storage -----------------------------------------------------------------
   # Use the entire disk with LVM and ext4
@@ -156,6 +164,7 @@ autoinstall:
     - curtin in-target --target=/target -- bash -c "ufw allow 443/tcp comment 'HTTPS - Dashboard'"
     - curtin in-target --target=/target -- bash -c "ufw allow 3443/tcp comment 'HTTPS - API'"
     - curtin in-target --target=/target -- bash -c "ufw allow 8443/tcp comment 'HTTPS - Kiosk'"
+    - curtin in-target --target=/target -- bash -c "ufw allow 9090/tcp comment 'Network Admin UI'"
     - curtin in-target --target=/target -- bash -c "echo 'y' | ufw enable"
 
     # --- Configure unattended-upgrades for security patches ---
@@ -187,6 +196,37 @@ autoinstall:
         cp /cdrom/autoinstall/safeschool-motd.sh /target/opt/safeschool/safeschool-motd.sh
         chmod +x /target/opt/safeschool/safeschool-motd.sh
       fi
+
+    # --- Copy Network Admin web UI from installer media ---
+    - |
+      if [ -f /cdrom/autoinstall/network-admin.py ]; then
+        cp /cdrom/autoinstall/network-admin.py /target/opt/safeschool/network-admin.py
+        chmod +x /target/opt/safeschool/network-admin.py
+      fi
+
+    # --- Write static IP netplan for post-install (replaces installer DHCP) ---
+    - |
+      cat > /target/etc/netplan/99-safeschool-static.yaml <<'NETPLAN'
+      network:
+        version: 2
+        ethernets:
+          id0:
+            match:
+              name: "e*"
+            dhcp4: false
+            dhcp6: false
+            addresses:
+              - 192.168.0.250/24
+            routes:
+              - to: default
+                via: 192.168.0.1
+            nameservers:
+              addresses: [8.8.8.8, 1.1.1.1]
+      NETPLAN
+    - chmod 600 /target/etc/netplan/99-safeschool-static.yaml
+
+    # --- Remove installer-generated DHCP config (static takes over) ---
+    - rm -f /target/etc/netplan/00-installer-config.yaml
 
     # --- Create first-boot systemd service ---
     - |

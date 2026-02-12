@@ -99,8 +99,10 @@ cp /build/meta-data "$AUTOINSTALL_DIR/meta-data"
 # Copy provisioning scripts so late-commands can access them from /cdrom/
 cp /build/first-boot.sh "$AUTOINSTALL_DIR/first-boot.sh"
 cp /build/safeschool-motd.sh "$AUTOINSTALL_DIR/safeschool-motd.sh"
+cp /build/network-admin.py "$AUTOINSTALL_DIR/network-admin.py"
 chmod +x "$AUTOINSTALL_DIR/first-boot.sh"
 chmod +x "$AUTOINSTALL_DIR/safeschool-motd.sh"
+chmod +x "$AUTOINSTALL_DIR/network-admin.py"
 
 # Also place user-data/meta-data in server/ directory (some installers look here)
 if [ -d "${EXTRACT}/server" ]; then
@@ -279,6 +281,7 @@ echo -e "  ${BOLD}Next steps:${NC}"
 echo -e "    1. Flash to USB with Rufus (Windows) or dd (Linux/Mac)"
 echo -e "    2. Boot the mini PC from USB"
 echo -e "    3. Installation is fully automated (~15-20 min)"
-echo -e "    4. SSH in: ssh safeschool@<IP>  (password set during install)"
-echo -e "    5. Configure: sudo safeschool config"
+echo -e "    4. NUC comes up at 192.168.0.250 (static)"
+echo -e "    5. Open http://192.168.0.250:9090 to configure network"
+echo -e "    6. Configure: sudo safeschool config"
 echo ""

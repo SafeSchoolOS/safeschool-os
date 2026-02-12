@@ -178,9 +178,29 @@ The installation is fully unattended. The mini PC will:
 Total time: approximately **15-20 minutes** depending on hardware and network
 speed.
 
-### Step 3: Initial Login
+### Step 3: Configure Network via Web UI
 
-After the reboot completes, SSH into the mini PC:
+After the reboot, the NUC comes up at a **known static IP: 192.168.0.250**.
+
+1. Connect the NUC to your network via Ethernet.
+2. Open a browser on any device on the same network and navigate to:
+   ```
+   http://192.168.0.250:9090
+   ```
+3. Enter the **admin token** shown on the NUC's console/MOTD (or retrieve it via
+   `safeschool admin-token` after SSH login).
+4. Use the web form to configure the correct IP address, gateway, DNS, and hostname
+   for your school's network.
+5. Click **Apply** -- the NUC will switch to the new IP and the browser will
+   redirect automatically.
+
+> **Note**: If your network does not use the 192.168.0.x range, you may need to
+> temporarily connect a laptop directly to the NUC via Ethernet and set the laptop's
+> IP to 192.168.0.x to reach the web UI.
+
+### Step 4: SSH Login (Optional)
+
+You can also SSH into the mini PC:
 
 ```bash
 ssh safeschool@<IP-ADDRESS>
@@ -190,10 +210,7 @@ ssh safeschool@<IP-ADDRESS>
 - **Default password**: `SafeSchool2026!`
 - You will be prompted to change the password on first login.
 
-To find the IP address, check your DHCP server/router, or connect a monitor
-temporarily -- the IP is displayed on the login screen.
-
-### Step 4: Configure the Edge Node
+### Step 5: Configure the Edge Node
 
 Run the interactive configuration wizard:
 
@@ -214,7 +231,7 @@ You will be prompted to set the following values:
 | `AC_API_KEY`               | Access control system API key                        | AC vendor portal                  |
 | `DISPATCH_ADAPTER`         | 911 dispatch integration (rapidsos, rave-911, etc.)  | Based on district contract        |
 
-### Step 5: Apply Configuration
+### Step 6: Apply Configuration
 
 After configuring, restart all services:
 
@@ -252,7 +269,7 @@ Open the following ports on the local network:
 | 443   | TCP      | HTTPS (Dashboard)           |
 | 3443  | TCP      | HTTPS (API / WebSocket)     |
 | 8443  | TCP      | HTTPS (Kiosk)               |
-| 9090  | TCP      | HTTP (Admin panel)          |
+| 9090  | TCP      | HTTP (Network Admin web UI) |
 
 The UFW firewall is pre-configured to allow only these ports.
 
@@ -284,7 +301,7 @@ on the local network:
 | Dashboard   | `https://<IP>/`                | Admin login, alert management, monitoring|
 | Kiosk       | `https://<IP>:8443/`           | Visitor check-in (lobby tablet)          |
 | API         | `https://<IP>:3443/`           | REST API + WebSocket endpoint            |
-| Admin       | `http://<IP>:9090/`            | Edge administration panel                |
+| Net Admin   | `http://<IP>:9090/`            | Network config web UI (token-protected)  |
 | SSH         | `ssh safeschool@<IP>:22`       | Command-line administration              |
 
 **Note**: The edge node uses self-signed TLS certificates by default. Browsers
@@ -310,6 +327,8 @@ the following commands:
 | `safeschool restart`          | Restart all SafeSchool services                      |
 | `safeschool stop`             | Stop all services (database data is preserved)       |
 | `safeschool start`            | Start all services                                   |
+| `safeschool network [cmd]`    | Network config (`show`, `set`, `dhcp`, `test`)       |
+| `safeschool admin-token`      | Display the admin token for the Network Admin web UI |
 | `safeschool version`          | Show installed SafeSchool version and commit hash    |
 
 Examples:
@@ -345,10 +364,12 @@ safeschool update
 
 ### No Network After Install
 
+- The NUC defaults to static IP **192.168.0.250/24** after install.
 - Verify the Ethernet cable is connected and the link LED is active.
-- Check that a DHCP server is available on the network.
-- For static IP configuration, edit `/etc/netplan/00-installer-config.yaml`
-  and run `sudo netplan apply`.
+- If your network uses a different subnet, connect a laptop directly to the NUC
+  with a static IP in the 192.168.0.x range and open `http://192.168.0.250:9090`
+  to reconfigure.
+- Alternatively, use `safeschool network set` from the console or SSH.
 - Check network status: `ip addr show` and `ping -c 3 8.8.8.8`.
 
 ### Services Not Starting

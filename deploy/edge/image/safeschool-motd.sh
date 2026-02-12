@@ -188,12 +188,26 @@ if [ -f "${INSTALL_DIR}/data/offline-queue.db" ]; then
 fi
 echo ""
 
+# -- Admin Token ---------------------------------------------------------------
+ADMIN_TOKEN_FILE="/etc/safeschool/admin-token"
+if [ -f "$ADMIN_TOKEN_FILE" ] && [ -r "$ADMIN_TOKEN_FILE" ]; then
+    ADMIN_TOKEN=$(cat "$ADMIN_TOKEN_FILE" 2>/dev/null)
+    if [ -n "$ADMIN_TOKEN" ]; then
+        echo -e "  ${BLUE}${BOLD}Network Admin${RST}"
+        echo -e "  ${DIM}------------------------------------------------------${RST}"
+        echo -e "  ${BOLD}URL:${RST}        http://${IP}:9090"
+        echo -e "  ${BOLD}Token:${RST}      ${YELLOW}${ADMIN_TOKEN}${RST}"
+        echo ""
+    fi
+fi
+
 # -- Quick Reference -----------------------------------------------------------
 echo -e "  ${BLUE}${BOLD}Quick Reference${RST}"
 echo -e "  ${DIM}------------------------------------------------------${RST}"
 echo -e "  ${BOLD}Dashboard:${RST}  https://${IP}"
 echo -e "  ${BOLD}Kiosk:${RST}      https://${IP}:8443"
 echo -e "  ${BOLD}API:${RST}        https://${IP}:3443"
+echo -e "  ${BOLD}Net Admin:${RST}  http://${IP}:9090"
 echo ""
-echo -e "  ${BOLD}CLI:${RST}        safeschool status | logs | update | config"
+echo -e "  ${BOLD}CLI:${RST}        safeschool status | logs | update | config | network"
 echo ""

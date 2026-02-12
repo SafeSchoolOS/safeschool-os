@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 
 # Copy all image builder files
-COPY autoinstall.yaml user-data meta-data first-boot.sh safeschool-motd.sh ./
+COPY autoinstall.yaml user-data meta-data first-boot.sh safeschool-motd.sh network-admin.py ./
 
 # The build script
 COPY build-iso.sh /build/build-iso.sh

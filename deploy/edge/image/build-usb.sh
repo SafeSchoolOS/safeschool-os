@@ -257,7 +257,7 @@ inject_autoinstall() {
         cp "${SCRIPT_DIR}/meta-data" "$server_dir/meta-data"
     fi
 
-    # Copy first-boot script and MOTD script into the ISO so late-commands can access them
+    # Copy first-boot script, MOTD, and network-admin into the ISO so late-commands can access them
     if [[ -f "${SCRIPT_DIR}/first-boot.sh" ]]; then
         cp "${SCRIPT_DIR}/first-boot.sh" "$autoinstall_dir/first-boot.sh"
         chmod +x "$autoinstall_dir/first-boot.sh"
@@ -265,6 +265,10 @@ inject_autoinstall() {
     if [[ -f "${SCRIPT_DIR}/safeschool-motd.sh" ]]; then
         cp "${SCRIPT_DIR}/safeschool-motd.sh" "$autoinstall_dir/safeschool-motd.sh"
         chmod +x "$autoinstall_dir/safeschool-motd.sh"
+    fi
+    if [[ -f "${SCRIPT_DIR}/network-admin.py" ]]; then
+        cp "${SCRIPT_DIR}/network-admin.py" "$autoinstall_dir/network-admin.py"
+        chmod +x "$autoinstall_dir/network-admin.py"
     fi
 
     # Modify the GRUB configuration to add autoinstall kernel parameter
@@ -486,8 +490,9 @@ main() {
     echo -e "    2. Insert USB into the target mini PC"
     echo -e "    3. Boot from USB (may need to change BIOS boot order)"
     echo -e "    4. Installation is fully automated -- hands off"
-    echo -e "    5. After reboot, log in as safeschool / SafeSchool2026!"
-    echo -e "    6. Run: sudo safeschool config  (to set SITE_ID and integrations)"
+    echo -e "    5. NUC comes up at 192.168.0.250 (static IP)"
+    echo -e "    6. Open http://192.168.0.250:9090 to configure network"
+    echo -e "    7. Run: sudo safeschool config  (to set SITE_ID and integrations)"
     echo ""
 }
 

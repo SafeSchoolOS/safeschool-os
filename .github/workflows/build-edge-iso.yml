@@ -1,0 +1,131 @@
+name: Build Edge ISO
+
+on:
+  # Manual trigger with optional version tag
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g., v1.0.0-edge). Leave blank for dev build.'
+        required: false
+        default: ''
+      create_release:
+        description: 'Create a GitHub Release with the ISO'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+  # Auto-build when edge image files change on main
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/edge/image/**'
+      - '.github/workflows/build-edge-iso.yml'
+
+jobs:
+  build-iso:
+    name: Build SafeSchool Edge ISO
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xorriso \
+            p7zip-full \
+            isolinux \
+            syslinux-utils \
+            fdisk \
+            file
+
+      - name: Cache Ubuntu Server ISO
+        uses: actions/cache@v4
+        with:
+          path: deploy/edge/image/build/ubuntu-*.iso
+          key: ubuntu-iso-24.04.2
+
+      - name: Build SafeSchool Edge ISO
+        working-directory: deploy/edge/image
+        run: |
+          chmod +x build-usb.sh
+          ./build-usb.sh --output safeschool-edge-installer.iso
+
+      - name: Generate build info
+        id: build-info
+        working-directory: deploy/edge/image
+        run: |
+          ISO_PATH="deploy/edge/image/safeschool-edge-installer.iso"
+          ISO_SHA256=$(sha256sum safeschool-edge-installer.iso | awk '{print $1}')
+          ISO_SIZE=$(du -h safeschool-edge-installer.iso | cut -f1)
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          DATE_TAG=$(date -u '+%Y%m%d')
+
+          # Determine version tag
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="edge-${DATE_TAG}-${COMMIT_SHORT}"
+          fi
+
+          echo "sha256=${ISO_SHA256}" >> "$GITHUB_OUTPUT"
+          echo "size=${ISO_SIZE}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT_SHORT}" >> "$GITHUB_OUTPUT"
+
+          # Write SHA256SUM file
+          echo "${ISO_SHA256}  safeschool-edge-installer.iso" > SHA256SUM
+
+      - name: Upload ISO as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: safeschool-edge-installer
+          path: |
+            deploy/edge/image/safeschool-edge-installer.iso
+            deploy/edge/image/SHA256SUM
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: >
+          (github.event.inputs.create_release == 'true' || github.event.inputs.create_release == '')
+          && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.build-info.outputs.version }}
+          name: "SafeSchool Edge ISO - ${{ steps.build-info.outputs.version }}"
+          body: |
+            ## SafeSchool Edge Installer ISO
+
+            Fully unattended Ubuntu Server 24.04 LTS installer for SafeSchool edge mini PCs.
+
+            ### Download
+            Download `safeschool-edge-installer.iso` below and flash it to a USB drive (8GB+).
+
+            ### Quick Start
+            1. Flash ISO to USB with [Rufus](https://rufus.ie/) (Windows) or `dd` (Linux/Mac)
+            2. Boot the target mini PC from USB
+            3. Installation is fully automated (~15-20 min)
+            4. SSH in: `ssh safeschool@<IP>` (password: `SafeSchool2026!`)
+            5. Configure: `sudo safeschool config`
+
+            ### Build Info
+            - **Commit:** ${{ steps.build-info.outputs.commit }}
+            - **SHA256:** `${{ steps.build-info.outputs.sha256 }}`
+            - **Size:** ${{ steps.build-info.outputs.size }}
+
+            ### Supported Hardware
+            Intel NUC 12/13, Beelink Mini S12 Pro/SER5, MinisForum UM690/UM760, or any x86_64 mini PC with 4GB+ RAM and 64GB+ SSD.
+
+            See [deploy/edge/image/README.md](https://github.com/bwattendorf/safeSchool/blob/main/deploy/edge/image/README.md) for full documentation.
+          files: |
+            deploy/edge/image/safeschool-edge-installer.iso
+            deploy/edge/image/SHA256SUM
+          draft: false
+          prerelease: ${{ github.event.inputs.version == '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
