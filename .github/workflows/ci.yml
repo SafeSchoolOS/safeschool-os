@@ -96,11 +96,28 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for deployable changes
+        id: changes
+        run: |
+          # Skip deploy if only edge image files or CI workflow files changed
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          DEPLOYABLE=$(echo "$CHANGED" | grep -v '^deploy/edge/' | grep -v '^\.github/workflows/build-edge-iso\.yml$' || true)
+          if [ -z "$DEPLOYABLE" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Only edge/workflow files changed — skipping Railway deploy."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install Railway CLI
+        if: steps.changes.outputs.skip != 'true'
         run: npm install -g @railway/cli
 
       - name: Deploy
+        if: steps.changes.outputs.skip != 'true'
         run: railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

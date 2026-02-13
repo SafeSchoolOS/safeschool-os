@@ -93,6 +93,17 @@ jobs:
             deploy/edge/image/SHA256SUM
           retention-days: 30
 
+      - name: Split ISO for GitHub Release
+        if: >
+          (github.event.inputs.create_release == 'true' || github.event.inputs.create_release == '')
+          && github.ref == 'refs/heads/main'
+        working-directory: deploy/edge/image
+        run: |
+          # GitHub release assets have a 2GB limit; the ISO is ~3GB.
+          # Split into 1.9GB parts so each fits comfortably.
+          split -b 1900M -d safeschool-edge-installer.iso safeschool-edge-installer.iso.part
+          ls -lh safeschool-edge-installer.iso.part*
+
       - name: Create GitHub Release
         if: >
           (github.event.inputs.create_release == 'true' || github.event.inputs.create_release == '')
@@ -107,7 +118,17 @@ jobs:
             Fully unattended Ubuntu Server 24.04 LTS installer for SafeSchool edge mini PCs.
 
             ### Download
-            Download `safeschool-edge-installer.iso` below and flash it to a USB drive (8GB+).
+            The ISO is split into parts (GitHub's 2 GB asset limit). Download all `.part*` files and reassemble:
+
+            **Linux / Mac:**
+            ```bash
+            cat safeschool-edge-installer.iso.part* > safeschool-edge-installer.iso
+            ```
+            **Windows (PowerShell):**
+            ```powershell
+            cmd /c "copy /b safeschool-edge-installer.iso.part00+safeschool-edge-installer.iso.part01 safeschool-edge-installer.iso"
+            ```
+            Then verify: `sha256sum safeschool-edge-installer.iso` matches the SHA256 below.
 
             ### Quick Start
             1. Flash ISO to USB with [Rufus](https://rufus.ie/) (Windows) or `dd` (Linux/Mac)
@@ -126,7 +147,7 @@ jobs:
 
             See [deploy/edge/image/README.md](https://github.com/bwattendorf/safeSchool/blob/main/deploy/edge/image/README.md) for full documentation.
           files: |
-            deploy/edge/image/safeschool-edge-installer.iso
+            deploy/edge/image/safeschool-edge-installer.iso.part*
             deploy/edge/image/SHA256SUM
           draft: false
           prerelease: ${{ github.event.inputs.version == '' }}
