@@ -80,11 +80,13 @@ COPY --from=build-api /app/packages/integrations/panic-devices/dist ./packages/i
 COPY --from=build-api /app/packages/integrations/panic-devices/package.json ./packages/integrations/panic-devices/package.json
 COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packages/integrations/gunshot-detection/dist
 COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
+COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
+COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 
 # Build-time module test
-RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('fastify'); console.log('Modules OK')"
+RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('@safeschool/weather'); require('fastify'); console.log('Modules OK')"
 
 # Copy startup script
 COPY deploy/railway/start-api.sh /app/start.sh
@@ -136,6 +138,8 @@ COPY --from=build-api /app/packages/integrations/panic-devices/dist ./packages/i
 COPY --from=build-api /app/packages/integrations/panic-devices/package.json ./packages/integrations/panic-devices/package.json
 COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packages/integrations/gunshot-detection/dist
 COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
+COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
+COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 
