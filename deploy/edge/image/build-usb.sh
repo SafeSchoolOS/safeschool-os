@@ -303,37 +303,52 @@ inject_autoinstall() {
 # -- Rebuild ISO ---------------------------------------------------------------
 rebuild_iso() {
     local output_path="${SCRIPT_DIR}/${OUTPUT_ISO}"
+    local source_iso="${WORK_DIR}/${UBUNTU_ISO_FILENAME}"
 
     log_info "Rebuilding bootable ISO with xorriso..."
 
-    # Detect the EFI boot image and MBR
-    local efi_img=""
-    local mbr_img=""
+    # Ubuntu 24.04+ does not include boot_hybrid.img or efi.img in the
+    # extracted ISO tree.  Extract the MBR boot code and EFI partition
+    # directly from the source ISO binary — this works for every version.
 
-    if [[ -f "${EXTRACT_DIR}/boot/grub/i386-pc/eltorito.img" ]]; then
-        mbr_img="boot/grub/i386-pc/eltorito.img"
-    elif [[ -f "${EXTRACT_DIR}/isolinux/isolinux.bin" ]]; then
-        mbr_img="isolinux/isolinux.bin"
+    local mbr_img="${WORK_DIR}/mbr.img"
+    local efi_img="${WORK_DIR}/efi.img"
+
+    # 1) MBR boot code: first 432 bytes of the source ISO
+    dd if="$source_iso" bs=1 count=432 of="$mbr_img" 2>/dev/null
+    log_success "MBR boot code extracted ($(stat -c%s "$mbr_img" 2>/dev/null || stat -f%z "$mbr_img") bytes)"
+
+    # 2) EFI System Partition: locate via fdisk, then extract
+    local efi_info
+    efi_info=$(fdisk -l "$source_iso" 2>/dev/null | grep "EFI" || true)
+    if [[ -n "$efi_info" ]]; then
+        local efi_start efi_end efi_sectors
+        efi_start=$(echo "$efi_info" | awk '{print $2}')
+        efi_end=$(echo "$efi_info" | awk '{print $3}')
+        efi_sectors=$((efi_end - efi_start + 1))
+        dd if="$source_iso" bs=512 skip="$efi_start" count="$efi_sectors" of="$efi_img" 2>/dev/null
+        log_success "EFI partition extracted (sectors ${efi_start}-${efi_end})"
+    else
+        # Fallback: look for efi.img inside the extracted tree
+        local found_efi
+        found_efi=$(find "$EXTRACT_DIR" -name "efi.img" 2>/dev/null | head -1 || true)
+        if [[ -n "$found_efi" ]]; then
+            cp "$found_efi" "$efi_img"
+            log_success "EFI image found at ${found_efi}"
+        else
+            log_error "Cannot locate EFI partition in source ISO."
+            exit 1
+        fi
     fi
 
-    if [[ -f "${EXTRACT_DIR}/EFI/boot/bootx64.efi" ]] || [[ -f "${EXTRACT_DIR}/boot.catalog" ]]; then
-        efi_img="boot/grub/efi.img"
-    fi
-
-    # Find the boot catalog
-    local boot_catalog=""
-    if [[ -f "${EXTRACT_DIR}/boot.catalog" ]]; then
-        boot_catalog="boot.catalog"
-    fi
-
-    # Build the xorriso command with proper BIOS + UEFI boot support
+    # Build the xorriso command with proper BIOS + UEFI hybrid boot support
     xorriso -as mkisofs \
         -r -V "SafeSchool Edge Installer" \
         -o "$output_path" \
-        --grub2-mbr "${EXTRACT_DIR}/boot/grub/i386-pc/boot_hybrid.img" \
+        --grub2-mbr "$mbr_img" \
         -partition_offset 16 \
         --mbr-force-bootable \
-        -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "${EXTRACT_DIR}/boot/grub/efi.img" \
+        -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$efi_img" \
         -appended_part_as_gpt \
         -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 \
         -c '/boot.catalog' \
@@ -347,6 +362,23 @@ rebuild_iso() {
         -no-emul-boot \
         "$EXTRACT_DIR" \
         2>&1 | tail -5
+
+    if [[ ! -f "$output_path" ]]; then
+        # If BIOS+UEFI hybrid build failed (missing eltorito.img), try UEFI-only
+        log_warn "Hybrid BIOS+UEFI build failed. Trying UEFI-only build..."
+        xorriso -as mkisofs \
+            -r -V "SafeSchool Edge Installer" \
+            -o "$output_path" \
+            --grub2-mbr "$mbr_img" \
+            --mbr-force-bootable \
+            -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$efi_img" \
+            -appended_part_as_gpt \
+            -eltorito-alt-boot \
+            -e '--interval:appended_partition_2:::' \
+            -no-emul-boot \
+            "$EXTRACT_DIR" \
+            2>&1 | tail -5
+    fi
 
     if [[ ! -f "$output_path" ]]; then
         log_error "Failed to create ISO."
