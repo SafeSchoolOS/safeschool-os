@@ -116,8 +116,14 @@ jobs:
         if: steps.changes.outputs.skip != 'true'
         run: npm install -g @railway/cli
 
-      - name: Deploy
+      - name: Deploy API
         if: steps.changes.outputs.skip != 'true'
-        run: railway up --detach
+        run: railway up --detach --service api
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Dashboard
+        if: steps.changes.outputs.skip != 'true'
+        run: railway up --detach --service dashboard
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
