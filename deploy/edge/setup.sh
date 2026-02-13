@@ -94,9 +94,10 @@ SVCEOF
 systemctl daemon-reload
 systemctl enable ${SERVICE_NAME}.service
 
-# --- Build and start services ---
-echo "[6/6] Building and starting SafeSchool services..."
-docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+# --- Pull and start services ---
+echo "[6/6] Pulling and starting SafeSchool services..."
+docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" pull
+docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
 echo ""
 echo "========================================"

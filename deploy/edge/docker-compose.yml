@@ -4,9 +4,7 @@
 services:
   # Database migration init container
   migrate:
-    build:
-      context: ../../
-      dockerfile: deploy/docker/Dockerfile
+    image: ghcr.io/bwattendorf/safeschool/api:latest
     command: npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
     environment:
       - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
@@ -39,9 +37,8 @@ services:
       - safeschool
 
   api:
-    build:
-      context: ../../
-      dockerfile: deploy/docker/Dockerfile
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    command: ["node", "packages/api/dist/server.js"]
     expose:
       - "3000"
     environment:
@@ -95,9 +92,7 @@ services:
       - safeschool
 
   worker:
-    build:
-      context: ../../
-      dockerfile: deploy/docker/Dockerfile
+    image: ghcr.io/bwattendorf/safeschool/api:latest
     command: ["node", "packages/api/dist/worker-entry.js"]
     environment:
       - NODE_ENV=production
@@ -126,9 +121,7 @@ services:
       - safeschool
 
   dashboard:
-    build:
-      context: ../../
-      dockerfile: deploy/docker/Dockerfile.dashboard
+    image: ghcr.io/bwattendorf/safeschool/dashboard:latest
     expose:
       - "80"
     depends_on:
@@ -143,9 +136,7 @@ services:
       - safeschool
 
   kiosk:
-    build:
-      context: ../../
-      dockerfile: deploy/docker/Dockerfile.kiosk
+    image: ghcr.io/bwattendorf/safeschool/kiosk:latest
     expose:
       - "80"
     depends_on:
@@ -160,9 +151,7 @@ services:
       - safeschool
 
   admin:
-    build:
-      context: ../../
-      dockerfile: deploy/docker/Dockerfile.admin
+    image: ghcr.io/bwattendorf/safeschool/admin:latest
     ports:
       - "127.0.0.1:9091:80"
     depends_on:

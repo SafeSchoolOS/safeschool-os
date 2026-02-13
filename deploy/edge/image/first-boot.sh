@@ -170,16 +170,13 @@ log "SITE_ID placeholder set. Configure with: sudo safeschool config"
 chmod 600 "$ENV_FILE"
 
 # ==============================================================================
-# Step 6: Docker compose pull + build
+# Step 6: Docker compose pull (pre-built images from GHCR)
 # ==============================================================================
-log_section "Step 6/19: Pulling and building Docker images"
+log_section "Step 6/19: Pulling Docker images from GHCR"
 
 cd "$INSTALL_DIR"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull --ignore-pull-failures 2>&1 || true
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull 2>&1
 log "Docker pull complete."
-
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build 2>&1
-log "Docker build complete."
 
 # ==============================================================================
 # Step 7: Docker compose up

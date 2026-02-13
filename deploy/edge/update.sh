@@ -59,9 +59,10 @@ log "New version: $(git log --oneline -1)"
 log "Running database migrations..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" run --rm migrate
 
-# --- Rebuild and restart services ---
-log "Rebuilding and restarting services..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+# --- Pull new images and restart services ---
+log "Pulling new images and restarting services..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
 # --- Wait for health checks ---
 log "Waiting for services to become healthy..."
