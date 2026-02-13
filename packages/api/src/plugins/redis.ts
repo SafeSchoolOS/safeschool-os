@@ -24,7 +24,7 @@ export default fp(async (fastify) => {
   });
 
   const alertQueue = new Queue('alert-processing', {
-    connection: redis,
+    connection: redis as any,
     defaultJobOptions: {
       removeOnComplete: 100,
       removeOnFail: 200,

@@ -48,7 +48,7 @@ export function createAlertWorker(deps: WorkerDeps): Worker {
           console.warn(`Unknown job type: ${job.name}`);
       }
     },
-    { connection, concurrency: 5 },
+    { connection: connection as any, concurrency: 5 },
   );
 
   worker.on('completed', (job) => {
