@@ -93,7 +93,7 @@ export function CheckInPage() {
       if (result.status === 'DENIED' || result.status === 'FLAGGED') {
         navigate('/denied');
       } else {
-        navigate(`/badge/${result.id || visitor.id}`);
+        navigate(`/confirmed/${result.id || visitor.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('checkIn.errorDefault'));

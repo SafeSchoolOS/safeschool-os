@@ -26,7 +26,7 @@ test.describe('Sidebar Navigation', () => {
       await expect(page.getByRole('link', { name: 'Reports' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Audit Log' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Grants' })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'BadgeKiosk' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Compliance' })).toBeVisible();
     });
 
     test('shows SafeSchool brand in sidebar header', async ({ page }) => {
@@ -188,11 +188,6 @@ test.describe('Sidebar Navigation', () => {
     test('navigate to Grants', async ({ page }) => {
       await page.getByRole('link', { name: 'Grants' }).click();
       await expect(page).toHaveURL('/grants');
-    });
-
-    test('navigate to BadgeKiosk', async ({ page }) => {
-      await page.getByRole('link', { name: 'BadgeKiosk' }).click();
-      await expect(page).toHaveURL('/badgekiosk');
     });
   });
 });

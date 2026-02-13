@@ -4,7 +4,7 @@
     "subtitle": "All visitors must sign in at the front desk",
     "checkIn": "Visitor Check-In",
     "checkOut": "Visitor Check-Out",
-    "footer": "BadgeKiosk by SafeSchool"
+    "footer": "Powered by SafeSchool"
   },
   "checkIn": {
     "header": "Visitor Check-In",
@@ -58,18 +58,13 @@
     "errorDefault": "Check-out failed",
     "badgeLabel": "Badge"
   },
-  "badge": {
-    "title": "Welcome!",
-    "loadingMessage": "Loading visitor information...",
-    "badgeNumber": "Badge #",
-    "purpose": "Purpose",
-    "destination": "Destination",
-    "timeIn": "Time In",
-    "instructions": "Please wear your badge visibly at all times while in {{siteName}}.",
-    "printBadge": "Print Badge",
-    "printing": "Printing...",
-    "printAnother": "Print Another",
-    "printEnabled": "Professional badge printing enabled",
+  "confirmed": {
+    "title": "You're All Set!",
+    "welcome": "Welcome, {{name}}",
+    "badge": "Badge #{{number}}",
+    "destination": "Destination: {{dest}}",
+    "instructions": "Please proceed to the front desk.",
+    "redirect": "Returning to home in {{seconds}}s",
     "done": "Done"
   },
   "denied": {

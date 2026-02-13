@@ -4,7 +4,7 @@
     "subtitle": "Todos los visitantes deben registrarse en la recepcion",
     "checkIn": "Registro de Visitante",
     "checkOut": "Salida de Visitante",
-    "footer": "BadgeKiosk por SafeSchool"
+    "footer": "Desarrollado por SafeSchool"
   },
   "checkIn": {
     "header": "Registro de Visitante",
@@ -58,18 +58,13 @@
     "errorDefault": "La salida fallo",
     "badgeLabel": "Credencial"
   },
-  "badge": {
-    "title": "Bienvenido!",
-    "loadingMessage": "Cargando informacion del visitante...",
-    "badgeNumber": "Credencial #",
-    "purpose": "Motivo",
-    "destination": "Destino",
-    "timeIn": "Hora de Entrada",
-    "instructions": "Por favor lleve su credencial visible en todo momento dentro de {{siteName}}.",
-    "printBadge": "Imprimir Credencial",
-    "printing": "Imprimiendo...",
-    "printAnother": "Imprimir Otra",
-    "printEnabled": "Impresion profesional de credenciales habilitada",
+  "confirmed": {
+    "title": "Todo Listo!",
+    "welcome": "Bienvenido/a, {{name}}",
+    "badge": "Credencial #{{number}}",
+    "destination": "Destino: {{dest}}",
+    "instructions": "Por favor dirijase a la recepcion.",
+    "redirect": "Regresando al inicio en {{seconds}}s",
     "done": "Listo"
   },
   "denied": {

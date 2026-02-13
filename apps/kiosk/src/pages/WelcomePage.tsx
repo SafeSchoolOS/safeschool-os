@@ -12,25 +12,12 @@ const LANGUAGE_OPTIONS = [
 export function WelcomePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const [guardTaps, setGuardTaps] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
-
-  // Triple-tap the footer to access guard console
-  const handleFooterTap = () => {
-    const next = guardTaps + 1;
-    if (next >= 3) {
-      setGuardTaps(0);
-      navigate('/guard-login');
-    } else {
-      setGuardTaps(next);
-      setTimeout(() => setGuardTaps(0), 2000);
-    }
-  };
 
   const handleLanguageChange = (langCode: string) => {
     i18n.changeLanguage(langCode);
@@ -129,15 +116,10 @@ export function WelcomePage() {
         </div>
       </div>
 
-      {/* Footer with hidden guard access */}
-      <button
-        onClick={handleFooterTap}
-        className="mt-8 text-sm text-gray-600 cursor-default select-none hover:text-gray-600 focus:outline-none"
-        tabIndex={-1}
-        aria-hidden="true"
-      >
+      {/* Footer */}
+      <p className="mt-8 text-sm text-gray-600 select-none">
         {t('welcome.footer')}
-      </button>
+      </p>
     </div>
   );
 }

@@ -12,7 +12,6 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { DrillsPage } from './pages/DrillsPage';
 import { ReunificationPage } from './pages/ReunificationPage';
 import { GrantsPage } from './pages/GrantsPage';
-import { BadgeKioskPage } from './pages/BadgeKioskPage';
 import { FloorPlanPage } from './pages/FloorPlanPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -60,7 +59,6 @@ export function App() {
         <Route path="/reunification" element={<ErrorBoundary><ReunificationPage /></ErrorBoundary>} />
         <Route path="/grants" element={<ErrorBoundary><GrantsPage /></ErrorBoundary>} />
         <Route path="/audit-log" element={<ErrorBoundary><AuditLogPage /></ErrorBoundary>} />
-        <Route path="/badgekiosk" element={<ErrorBoundary><BadgeKioskPage /></ErrorBoundary>} />
         <Route path="/floor-plan" element={<ErrorBoundary><FloorPlanPage /></ErrorBoundary>} />
         <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
         <Route path="/compliance" element={<ErrorBoundary><CompliancePage /></ErrorBoundary>} />

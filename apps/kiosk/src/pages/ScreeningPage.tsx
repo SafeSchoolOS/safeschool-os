@@ -10,7 +10,7 @@ export function ScreeningPage() {
   useEffect(() => {
     // The check-in API already ran screening; this page shows a brief "checking" state
     const timer = setTimeout(() => {
-      navigate(`/badge/${id}`);
+      navigate(`/confirmed/${id}`);
     }, 2000);
     return () => clearTimeout(timer);
   }, [id, navigate]);
