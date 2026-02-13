@@ -24,6 +24,9 @@ on:
       - 'deploy/edge/image/**'
       - '.github/workflows/build-edge-iso.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-iso:
     name: Build SafeSchool Edge ISO
