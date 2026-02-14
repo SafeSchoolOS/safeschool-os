@@ -217,9 +217,11 @@ late-commands:
       echo "Embedded deploy/edge files copied to target."
     fi
 
-  # --- Write static IP netplan for post-install (replaces installer DHCP) ---
+  # --- Save static IP netplan as .pending (applied AFTER first-boot completes) ---
+  # First boot uses DHCP so the system can reach the internet and the user can SSH in.
+  # At the end of first-boot.sh, this config replaces DHCP with static 192.168.0.250.
   - |
-    cat > /target/etc/netplan/99-safeschool-static.yaml <<'NETPLAN'
+    cat > /target/etc/netplan/99-safeschool-static.yaml.pending <<'NETPLAN'
     network:
       version: 2
       ethernets:
@@ -236,18 +238,7 @@ late-commands:
           nameservers:
             addresses: [8.8.8.8, 1.1.1.1]
     NETPLAN
-  - chmod 600 /target/etc/netplan/99-safeschool-static.yaml
-
-  # --- Remove installer-generated DHCP config (static takes over) ---
-  - rm -f /target/etc/netplan/00-installer-config.yaml
-  - rm -f /target/etc/netplan/50-cloud-init.yaml
-
-  # --- Disable cloud-init network config (prevents it from overriding static IP on first boot) ---
-  - |
-    mkdir -p /target/etc/cloud/cloud.cfg.d
-    cat > /target/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CLOUDINIT'
-    network: {config: disabled}
-    CLOUDINIT
+  - chmod 600 /target/etc/netplan/99-safeschool-static.yaml.pending
 
   # --- Create first-boot systemd service ---
   - |

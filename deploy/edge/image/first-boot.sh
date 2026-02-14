@@ -48,21 +48,17 @@ log "Hostname: $(hostname)"
 log "Kernel: $(uname -r)"
 
 # ==============================================================================
-# Step 1: Ensure network is configured and wait for connectivity
+# Step 1: Wait for network connectivity (DHCP is active during first boot)
 # ==============================================================================
-log_section "Step 1/19: Configuring network and waiting for connectivity"
+log_section "Step 1/20: Waiting for network connectivity"
 
-# Remove any cloud-init generated netplan that might override our static config
-rm -f /etc/netplan/50-cloud-init.yaml 2>/dev/null || true
-rm -f /etc/netplan/00-installer-config.yaml 2>/dev/null || true
-
-# Apply netplan to ensure our static IP config is active
-if [ -f /etc/netplan/99-safeschool-static.yaml ]; then
-    log "Applying static IP configuration..."
-    netplan apply 2>&1 || log "netplan apply returned non-zero (may be normal on first boot)"
-    sleep 3
-    log "Network interfaces after netplan apply:"
-    ip -br addr show 2>/dev/null || ip addr show
+# First boot uses DHCP so the mini PC works on any network.
+# Static IP (192.168.0.250) is applied at the END of first-boot after everything is set up.
+DHCP_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+if [ -n "$DHCP_IP" ]; then
+    log "Current IP (DHCP): ${DHCP_IP}"
+else
+    log "No IP assigned yet. Waiting for DHCP..."
 fi
 
 MAX_WAIT=120
@@ -70,13 +66,15 @@ WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
     if ping -c 1 -W 3 github.com &>/dev/null; then
         log "Network is available (internet reachable)."
+        DHCP_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        log "DHCP IP: ${DHCP_IP}"
         break
     fi
-    # Also check if we at least have a local IP assigned (offline deployment)
-    if [ $WAITED -eq 0 ]; then
-        LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-        if [ -n "$LOCAL_IP" ]; then
-            log "Local IP assigned: ${LOCAL_IP} (waiting for internet...)"
+    # Check if we at least have a local IP (offline deployment)
+    if [ $WAITED -eq 30 ]; then
+        DHCP_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$DHCP_IP" ]; then
+            log "Local IP assigned: ${DHCP_IP} (no internet — offline boot)"
         fi
     fi
     log "Waiting for network... (${WAITED}s/${MAX_WAIT}s)"
@@ -95,7 +93,7 @@ fi
 # ==============================================================================
 # Step 2: Clone SafeSchool repository (non-fatal — embedded files are sufficient)
 # ==============================================================================
-log_section "Step 2/19: Cloning SafeSchool repository"
+log_section "Step 2/20: Cloning SafeSchool repository"
 
 GIT_CLONE_OK=false
 
@@ -138,7 +136,7 @@ fi
 # ==============================================================================
 # Step 3: Generate .env with secure random values
 # ==============================================================================
-log_section "Step 3/19: Generating environment configuration"
+log_section "Step 3/20: Generating environment configuration"
 
 if [ -f "$ENV_FILE" ]; then
     log ".env already exists. Skipping generation."
@@ -166,7 +164,7 @@ fi
 # ==============================================================================
 # Step 4: Set OPERATING_MODE=edge
 # ==============================================================================
-log_section "Step 4/19: Setting operating mode"
+log_section "Step 4/20: Setting operating mode"
 
 if grep -q "^OPERATING_MODE=" "$ENV_FILE"; then
     sed -i "s|^OPERATING_MODE=.*|OPERATING_MODE=edge|" "$ENV_FILE"
@@ -178,7 +176,7 @@ log "OPERATING_MODE set to 'edge'."
 # ==============================================================================
 # Step 5: Set SITE_ID placeholder
 # ==============================================================================
-log_section "Step 5/19: Setting SITE_ID placeholder"
+log_section "Step 5/20: Setting SITE_ID placeholder"
 
 # Load site.conf if it has values
 SITE_CONF="/etc/safeschool/site.conf"
@@ -204,7 +202,7 @@ chmod 600 "$ENV_FILE"
 # ==============================================================================
 # Step 6: Load Docker images (embedded tars first, then pull as fallback)
 # ==============================================================================
-log_section "Step 6/19: Loading Docker images"
+log_section "Step 6/20: Loading Docker images"
 
 cd "$INSTALL_DIR"
 EMBEDDED_IMAGES_DIR="${INSTALL_DIR}/docker-images"
@@ -235,7 +233,7 @@ log "Docker images ready."
 # ==============================================================================
 # Step 7: Docker compose up
 # ==============================================================================
-log_section "Step 7/19: Starting SafeSchool services"
+log_section "Step 7/20: Starting SafeSchool services"
 
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d 2>&1
 log "Docker Compose up complete."
@@ -262,7 +260,7 @@ fi
 # ==============================================================================
 # Step 8: Create systemd service
 # ==============================================================================
-log_section "Step 8/19: Creating systemd service"
+log_section "Step 8/20: Creating systemd service"
 
 cat > /etc/systemd/system/safeschool.service <<SVCEOF
 [Unit]
@@ -292,7 +290,7 @@ log "Systemd service file created."
 # ==============================================================================
 # Step 9: Enable the systemd service
 # ==============================================================================
-log_section "Step 9/19: Enabling systemd service"
+log_section "Step 9/20: Enabling systemd service"
 
 systemctl enable safeschool.service
 log "safeschool.service enabled -- will start on boot."
@@ -300,7 +298,7 @@ log "safeschool.service enabled -- will start on boot."
 # ==============================================================================
 # Step 10: Set up daily backup cron job (2 AM UTC)
 # ==============================================================================
-log_section "Step 10/19: Setting up daily backup cron"
+log_section "Step 10/20: Setting up daily backup cron"
 
 BACKUP_SCRIPT="${EDGE_DIR}/backup.sh"
 if [ -f "$BACKUP_SCRIPT" ]; then
@@ -324,7 +322,7 @@ log "Backup directories created at ${BACKUP_DIR}."
 # ==============================================================================
 # Step 11: Set up logrotate
 # ==============================================================================
-log_section "Step 11/19: Configuring logrotate"
+log_section "Step 11/20: Configuring logrotate"
 
 cat > /etc/logrotate.d/safeschool <<'LOGROTATE'
 /var/log/safeschool/*.log {
@@ -348,7 +346,7 @@ log "Logrotate configured for /var/log/safeschool/*.log (14 days, compressed)."
 # ==============================================================================
 # Step 12: Harden SSH
 # ==============================================================================
-log_section "Step 12/19: Hardening SSH configuration"
+log_section "Step 12/20: Hardening SSH configuration"
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
@@ -392,7 +390,7 @@ log "SSH hardened: root login disabled, MaxAuthTries 3, idle timeout 15min."
 # ==============================================================================
 # Step 13: Configure UFW firewall
 # ==============================================================================
-log_section "Step 13/19: Verifying UFW firewall rules"
+log_section "Step 13/20: Verifying UFW firewall rules"
 
 # UFW should already be configured by autoinstall late-commands, but verify
 if command -v ufw &>/dev/null; then
@@ -413,7 +411,7 @@ fi
 # ==============================================================================
 # Step 14: Configure fail2ban
 # ==============================================================================
-log_section "Step 14/19: Configuring fail2ban"
+log_section "Step 14/20: Configuring fail2ban"
 
 if command -v fail2ban-client &>/dev/null; then
     cat > /etc/fail2ban/jail.local <<'FAIL2BAN'
@@ -439,9 +437,9 @@ else
 fi
 
 # ==============================================================================
-# Step 15/19: Generate admin token for Network Admin web UI
+# Step 15/20: Generate admin token for Network Admin web UI
 # ==============================================================================
-log_section "Step 15/19: Generating admin token"
+log_section "Step 15/20: Generating admin token"
 
 ADMIN_TOKEN_FILE="/etc/safeschool/admin-token"
 if [ ! -f "$ADMIN_TOKEN_FILE" ]; then
@@ -458,9 +456,9 @@ else
 fi
 
 # ==============================================================================
-# Step 16/19: Install Network Admin web UI service
+# Step 16/20: Install Network Admin web UI service
 # ==============================================================================
-log_section "Step 16/19: Installing Network Admin web UI"
+log_section "Step 16/20: Installing Network Admin web UI"
 
 NETWORK_ADMIN_SCRIPT="/opt/safeschool/network-admin.py"
 if [ -f "$NETWORK_ADMIN_SCRIPT" ]; then
@@ -500,9 +498,9 @@ else
 fi
 
 # ==============================================================================
-# Step 17/19: Set the MOTD with status info
+# Step 17/20: Set the MOTD with status info
 # ==============================================================================
-log_section "Step 17/19: Installing MOTD"
+log_section "Step 17/20: Installing MOTD"
 
 MOTD_SCRIPT="/opt/safeschool/safeschool-motd.sh"
 MOTD_TARGET="/etc/update-motd.d/99-safeschool"
@@ -543,9 +541,9 @@ MOTD_FALLBACK
 fi
 
 # ==============================================================================
-# Step 18/19: Create /usr/local/bin/safeschool CLI helper
+# Step 18/20: Create /usr/local/bin/safeschool CLI helper
 # ==============================================================================
-log_section "Step 18/19: Installing safeschool CLI helper"
+log_section "Step 18/20: Installing safeschool CLI helper"
 
 cat > /usr/local/bin/safeschool <<'CLIMAIN'
 #!/usr/bin/env bash
@@ -1003,9 +1001,47 @@ chmod +x /usr/local/bin/safeschool
 log "safeschool CLI installed at /usr/local/bin/safeschool."
 
 # ==============================================================================
-# Step 19/19: Disable first-boot service (self-removal)
+# Step 19/20: Switch from DHCP to static IP (192.168.0.250)
 # ==============================================================================
-log_section "Step 19/19: Disabling first-boot service"
+log_section "Step 19/20: Switching to static IP"
+
+PENDING_NETPLAN="/etc/netplan/99-safeschool-static.yaml.pending"
+STATIC_NETPLAN="/etc/netplan/99-safeschool-static.yaml"
+
+if [ -f "$PENDING_NETPLAN" ]; then
+    DHCP_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    log "Current DHCP IP: ${DHCP_IP:-unknown}"
+    log "Switching to static IP: 192.168.0.250"
+
+    # Activate the static config
+    mv "$PENDING_NETPLAN" "$STATIC_NETPLAN"
+
+    # Remove DHCP configs
+    rm -f /etc/netplan/00-installer-config.yaml 2>/dev/null || true
+    rm -f /etc/netplan/50-cloud-init.yaml 2>/dev/null || true
+
+    # Disable cloud-init network management so it doesn't revert on next boot
+    mkdir -p /etc/cloud/cloud.cfg.d
+    echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+
+    # Apply the static IP
+    netplan apply 2>&1 || log "netplan apply returned non-zero"
+    sleep 3
+
+    NEW_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    log "Static IP applied. New IP: ${NEW_IP:-192.168.0.250}"
+    log ""
+    log "NOTE: If you were connected via SSH on the DHCP IP (${DHCP_IP:-unknown}),"
+    log "      reconnect using: ssh safeschool@192.168.0.250"
+else
+    log "No pending static IP config found. Network unchanged."
+    log "Set static IP later with: safeschool network set"
+fi
+
+# ==============================================================================
+# Step 20/20: Disable first-boot service (self-removal)
+# ==============================================================================
+log_section "Step 20/20: Disabling first-boot service"
 
 systemctl disable safeschool-first-boot.service 2>/dev/null || true
 rm -f /opt/safeschool/first-boot.sh
