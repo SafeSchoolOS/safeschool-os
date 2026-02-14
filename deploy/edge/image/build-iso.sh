@@ -11,6 +11,7 @@ SHA256_URL="https://releases.ubuntu.com/${UBUNTU_VERSION}/SHA256SUMS"
 OUTPUT_ISO="/output/safeschool-edge-installer.iso"
 WORK="/build/work"
 EXTRACT="/build/work/iso-extract"
+BOOT_DIR="/build/work/BOOT"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -76,15 +77,22 @@ ok "Ubuntu ISO ready: ${ISO_SIZE}"
 log "${BOLD}Step 2/5: Extracting ISO contents...${NC}"
 
 rm -rf "$EXTRACT"
+rm -rf "$BOOT_DIR"
 mkdir -p "$EXTRACT"
+mkdir -p "$BOOT_DIR"
 
 7z x -o"$EXTRACT" "${WORK}/${UBUNTU_ISO_FILE}" -y > /dev/null 2>&1
 chmod -R u+w "$EXTRACT"
 
-# Remove 7z-created [BOOT] directory — it conflicts with xorriso's boot setup
+# 7z creates a [BOOT] directory with boot images we need for xorriso.
+# Move them to a separate directory so they don't end up in the ISO filesystem.
 if [ -d "${EXTRACT}/[BOOT]" ]; then
+    mv "${EXTRACT}/[BOOT]"/* "$BOOT_DIR/" 2>/dev/null || true
     rm -rf "${EXTRACT}/[BOOT]"
-    log "Removed [BOOT] directory (handled by xorriso)."
+    log "Boot images saved to ${BOOT_DIR}:"
+    ls -la "$BOOT_DIR/"
+else
+    warn "[BOOT] directory not found in extraction. Will extract from source ISO."
 fi
 
 ok "ISO extracted to ${EXTRACT}"
@@ -139,34 +147,61 @@ else
     warn "No deploy-edge/ directory found. ISO will require git clone for deploy files."
 fi
 
-# Patch ALL GRUB configs for autoinstall
-log "Patching GRUB for unattended install..."
+# =========================================================================
+# GRUB: Replace grub.cfg entirely for reliable autoinstall boot
+# =========================================================================
+log "Writing autoinstall GRUB configuration..."
 
-GRUB_FILES=$(find "$EXTRACT" -name "grub.cfg" -o -name "loopback.cfg" 2>/dev/null || true)
-if [ -z "$GRUB_FILES" ]; then
-    warn "No grub.cfg files found. The installer may prompt for confirmation."
+MAIN_GRUB="${EXTRACT}/boot/grub/grub.cfg"
+if [ -f "$MAIN_GRUB" ]; then
+    # Detect kernel and initrd paths from the original grub.cfg
+    KERNEL_PATH=$(grep -m1 'linux.*vmlinuz' "$MAIN_GRUB" | sed 's/.*\(\/casper\/[^ ]*vmlinuz[^ ]*\).*/\1/' || echo "/casper/vmlinuz")
+    INITRD_PATH=$(grep -m1 'initrd.*initrd' "$MAIN_GRUB" | sed 's/.*\(\/casper\/[^ ]*initrd[^ ]*\).*/\1/' || echo "/casper/initrd")
+    log "Kernel: ${KERNEL_PATH}"
+    log "Initrd: ${INITRD_PATH}"
+
+    # Write a minimal grub.cfg for zero-touch autoinstall
+    cat > "$MAIN_GRUB" <<GRUBEOF
+set timeout=0
+
+loadfont unicode
+
+set menu_color_normal=white/black
+set menu_color_highlight=black/light-gray
+
+menuentry "SafeSchool OS Autoinstall" {
+    set gfxpayload=keep
+    linux   ${KERNEL_PATH} quiet autoinstall cloud-config-url=/dev/null ds=nocloud\\;s=/cdrom/autoinstall/ ---
+    initrd  ${INITRD_PATH}
+}
+GRUBEOF
+    ok "grub.cfg replaced with autoinstall config."
+    log "Contents:"
+    cat "$MAIN_GRUB"
 else
-    echo "$GRUB_FILES" | while IFS= read -r grub_file; do
-        log "Patching: ${grub_file#$EXTRACT/}"
-        # Add autoinstall parameter to kernel command lines
-        sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_file"
-        # Set timeout to 0 (instant boot, no menu)
-        sed -i 's/set timeout=.*/set timeout=0/' "$grub_file" 2>/dev/null || true
-        # Force hidden timeout style so no menu appears
-        if ! grep -q "timeout_style" "$grub_file" 2>/dev/null; then
-            sed -i '/set timeout=/a set timeout_style=hidden' "$grub_file" 2>/dev/null || true
-        else
-            sed -i 's/set timeout_style=.*/set timeout_style=hidden/' "$grub_file" 2>/dev/null || true
-        fi
-        ok "  Patched: ${grub_file#$EXTRACT/}"
-    done
+    warn "boot/grub/grub.cfg not found!"
 fi
 
-# Log patched config for debugging
-GRUB_CFG="${EXTRACT}/boot/grub/grub.cfg"
-if [ -f "$GRUB_CFG" ]; then
-    log "Patched GRUB timeout settings:"
-    grep "set timeout" "$GRUB_CFG" | head -3 || true
+# Also replace loopback.cfg
+LOOPBACK="${EXTRACT}/boot/grub/loopback.cfg"
+if [ -f "$LOOPBACK" ]; then
+    KERNEL_PATH=$(grep -m1 'linux.*vmlinuz' "$LOOPBACK" | sed 's/.*\(\/casper\/[^ ]*vmlinuz[^ ]*\).*/\1/' || echo "/casper/vmlinuz")
+    INITRD_PATH=$(grep -m1 'initrd.*initrd' "$LOOPBACK" | sed 's/.*\(\/casper\/[^ ]*initrd[^ ]*\).*/\1/' || echo "/casper/initrd")
+    cat > "$LOOPBACK" <<GRUBEOF
+menuentry "SafeSchool OS Autoinstall" {
+    set gfxpayload=keep
+    linux   ${KERNEL_PATH} quiet autoinstall cloud-config-url=/dev/null ds=nocloud\\;s=/cdrom/autoinstall/ ---
+    initrd  ${INITRD_PATH}
+}
+GRUBEOF
+    ok "loopback.cfg replaced."
+fi
+
+# Update md5sum.txt to reflect our changes
+if [ -f "${EXTRACT}/md5sum.txt" ]; then
+    log "Updating md5sum.txt..."
+    (cd "$EXTRACT" && find . -type f -not -name md5sum.txt -exec md5sum {} \; > md5sum.txt 2>/dev/null) || true
+    ok "md5sum.txt updated."
 fi
 
 ok "Autoinstall injection complete."
@@ -178,60 +213,52 @@ log "${BOLD}Step 4/5: Rebuilding bootable ISO with xorriso...${NC}"
 
 SOURCE_ISO="${WORK}/${UBUNTU_ISO_FILE}"
 
-# Extract MBR and EFI partition directly from the source ISO.
-# This is the reliable method for Ubuntu 24.04+ which may not have
-# boot_hybrid.img / eltorito.img in the extracted filesystem.
-log "Extracting boot data from source ISO..."
+# Determine MBR and EFI boot images
+MBR_IMG=""
+EFI_IMG=""
 
-MBR_IMG="${WORK}/mbr.img"
-EFI_IMG="${WORK}/efi.img"
-
-# Extract the first 432 bytes (MBR boot code) from the source ISO
-dd if="$SOURCE_ISO" bs=1 count=432 of="$MBR_IMG" 2>/dev/null
-ok "MBR boot code extracted ($(stat -c%s "$MBR_IMG") bytes)"
-
-# Extract the EFI System Partition from the source ISO using xorriso
-# First, find the EFI partition offset and size
-EFI_START=$(xorriso -indev "$SOURCE_ISO" -report_el_torito as_mkisofs 2>/dev/null | grep -oP '(?<=--interval:appended_partition_2:all::)\d+' || true)
-
-if [ -z "$EFI_START" ]; then
-    # Fallback: look for efi.img in the extracted filesystem
-    log "Trying fallback EFI image detection..."
-    EFI_IMG=$(find "$EXTRACT" -name "efi.img" -o -name "boot*.img" 2>/dev/null | head -1)
-    if [ -z "$EFI_IMG" ]; then
-        # Extract EFI partition using fdisk to find it
-        EFI_INFO=$(fdisk -l "$SOURCE_ISO" 2>/dev/null | grep "EFI" || true)
-        if [ -n "$EFI_INFO" ]; then
-            EFI_SECTOR_START=$(echo "$EFI_INFO" | awk '{print $2}')
-            EFI_SECTOR_END=$(echo "$EFI_INFO" | awk '{print $3}')
-            EFI_SECTORS=$((EFI_SECTOR_END - EFI_SECTOR_START + 1))
-            dd if="$SOURCE_ISO" bs=512 skip="$EFI_SECTOR_START" count="$EFI_SECTORS" of="${WORK}/efi.img" 2>/dev/null
-            EFI_IMG="${WORK}/efi.img"
-            ok "EFI partition extracted via fdisk (sectors ${EFI_SECTOR_START}-${EFI_SECTOR_END})"
-        else
-            fail "Cannot locate EFI partition in source ISO."
-        fi
-    else
-        ok "Found EFI image at: ${EFI_IMG}"
-    fi
+# Prefer [BOOT] images extracted by 7z (cleanest source)
+if [ -f "${BOOT_DIR}/1-Boot-NoEmul.img" ]; then
+    MBR_IMG="${BOOT_DIR}/1-Boot-NoEmul.img"
+    ok "Using [BOOT]/1-Boot-NoEmul.img for MBR boot"
 else
-    ok "EFI partition info found via xorriso"
+    # Fallback: extract MBR from source ISO (first 432 bytes)
+    MBR_IMG="${WORK}/mbr.img"
+    dd if="$SOURCE_ISO" bs=1 count=432 of="$MBR_IMG" 2>/dev/null
+    log "MBR extracted from source ISO (fallback)"
 fi
 
-# Get the xorriso reproduction command from the source ISO
-# This tells us exactly how to rebuild it with the same boot setup
-log "Querying source ISO boot configuration..."
-MKISOFS_OPTS=$(xorriso -indev "$SOURCE_ISO" -report_el_torito as_mkisofs 2>/dev/null || true)
-log "Source boot config detected."
+if [ -f "${BOOT_DIR}/2-Boot-NoEmul.img" ]; then
+    EFI_IMG="${BOOT_DIR}/2-Boot-NoEmul.img"
+    ok "Using [BOOT]/2-Boot-NoEmul.img for EFI boot"
+else
+    # Fallback: extract EFI partition from source ISO via fdisk
+    EFI_IMG="${WORK}/efi.img"
+    EFI_INFO=$(fdisk -l "$SOURCE_ISO" 2>/dev/null | grep "EFI" || true)
+    if [ -n "$EFI_INFO" ]; then
+        EFI_SECTOR_START=$(echo "$EFI_INFO" | awk '{print $2}')
+        EFI_SECTOR_END=$(echo "$EFI_INFO" | awk '{print $3}')
+        EFI_SECTORS=$((EFI_SECTOR_END - EFI_SECTOR_START + 1))
+        dd if="$SOURCE_ISO" bs=512 skip="$EFI_SECTOR_START" count="$EFI_SECTORS" of="${WORK}/efi.img" 2>/dev/null
+        log "EFI partition extracted from source ISO (fallback)"
+    else
+        fail "Cannot locate EFI partition in source ISO."
+    fi
+fi
+
+log "MBR image: ${MBR_IMG} ($(stat -c%s "$MBR_IMG") bytes)"
+log "EFI image: ${EFI_IMG} ($(stat -c%s "$EFI_IMG") bytes)"
 
 log "Building ISO (this takes a moment)..."
 
-# Rebuild using the extracted boot data
+# Build with proper BIOS + UEFI hybrid boot support
 xorriso -as mkisofs \
     -r \
     -V "SafeSchool Edge Installer" \
     -o "$OUTPUT_ISO" \
     --grub2-mbr "$MBR_IMG" \
+    --protective-msdos-label \
+    -partition_cyl_align off \
     -partition_offset 16 \
     --mbr-force-bootable \
     -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$EFI_IMG" \
@@ -248,13 +275,14 @@ xorriso -as mkisofs \
     -no-emul-boot \
     "$EXTRACT" \
     2>&1 | tail -10 || {
-    # If the above fails (missing eltorito.img), try UEFI-only build
+    # If BIOS+UEFI hybrid build failed (missing eltorito.img), try UEFI-only
     warn "Hybrid BIOS+UEFI build failed. Trying UEFI-only build..."
     xorriso -as mkisofs \
         -r \
         -V "SafeSchool Edge Installer" \
         -o "$OUTPUT_ISO" \
         --grub2-mbr "$MBR_IMG" \
+        --protective-msdos-label \
         --mbr-force-bootable \
         -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$EFI_IMG" \
         -appended_part_as_gpt \
@@ -289,6 +317,7 @@ ok "SHA256: ${ISO_SHA256}"
 # Cleanup extracted files to save space
 log "Cleaning up working files..."
 rm -rf "$EXTRACT"
+rm -rf "$BOOT_DIR"
 
 # ============================================================================
 # Done

@@ -29,6 +29,7 @@ OUTPUT_ISO="safeschool-edge-installer.iso"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="${SCRIPT_DIR}/build"
 EXTRACT_DIR="${WORK_DIR}/iso-extract"
+BOOT_DIR="${WORK_DIR}/BOOT"
 FLASH_DEVICE=""
 
 # -- Colors -------------------------------------------------------------------
@@ -64,11 +65,6 @@ usage() {
     echo "  --work-dir DIR     Working directory (default: ${WORK_DIR})"
     echo "  --skip-download    Skip ISO download (use existing)"
     echo "  --help             Show this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0                           # Build ISO only"
-    echo "  $0 --flash /dev/sdb          # Build and flash to USB"
-    echo "  $0 --output custom.iso       # Build with custom output name"
     exit 0
 }
 
@@ -87,6 +83,7 @@ while [[ $# -gt 0 ]]; do
         --work-dir)
             WORK_DIR="$2"
             EXTRACT_DIR="${WORK_DIR}/iso-extract"
+            BOOT_DIR="${WORK_DIR}/BOOT"
             shift 2
             ;;
         --skip-download)
@@ -112,12 +109,10 @@ check_dependencies() {
         missing+=("xorriso")
     fi
 
-    # Check for extraction tool
     if ! command -v 7z &>/dev/null && ! command -v bsdtar &>/dev/null; then
         missing+=("p7zip-full (or bsdtar)")
     fi
 
-    # Check for download tool
     if ! command -v wget &>/dev/null && ! command -v curl &>/dev/null; then
         missing+=("wget or curl")
     fi
@@ -128,12 +123,7 @@ check_dependencies() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         log_error "Missing required tools: ${missing[*]}"
-        echo ""
-        echo "Install on Ubuntu/Debian:"
-        echo "  sudo apt-get install xorriso p7zip-full wget"
-        echo ""
-        echo "Install on macOS:"
-        echo "  brew install xorriso p7zip wget"
+        echo "Install on Ubuntu: sudo apt-get install xorriso p7zip-full wget"
         exit 1
     fi
 
@@ -153,7 +143,6 @@ download_iso() {
         log_info "ISO already downloaded: ${iso_path}"
         log_info "Verifying SHA256 checksum..."
 
-        # Download SHA256SUMS for verification
         local sha256_file="${WORK_DIR}/SHA256SUMS"
         if command -v wget &>/dev/null; then
             wget -q -O "$sha256_file" "$UBUNTU_ISO_SHA256_URL" 2>/dev/null || true
@@ -184,16 +173,11 @@ download_iso() {
 
     if [[ ! -f "$iso_path" ]]; then
         log_info "Downloading Ubuntu Server ${UBUNTU_VERSION} LTS ISO..."
-        log_info "URL: ${UBUNTU_ISO_URL}"
-        log_info "This may take a while depending on your connection speed."
-        echo ""
-
         if command -v wget &>/dev/null; then
             wget --show-progress -O "$iso_path" "$UBUNTU_ISO_URL"
         else
             curl -L --progress-bar -o "$iso_path" "$UBUNTU_ISO_URL"
         fi
-
         if [[ ! -f "$iso_path" ]]; then
             log_error "Failed to download Ubuntu ISO."
             exit 1
@@ -207,11 +191,12 @@ extract_iso() {
     local iso_path="${WORK_DIR}/${UBUNTU_ISO_FILENAME}"
 
     if [[ -d "$EXTRACT_DIR" ]]; then
-        log_info "Cleaning previous extraction..."
         rm -rf "$EXTRACT_DIR"
     fi
+    rm -rf "$BOOT_DIR"
 
     mkdir -p "$EXTRACT_DIR"
+    mkdir -p "$BOOT_DIR"
     log_info "Extracting ISO contents..."
 
     if command -v 7z &>/dev/null; then
@@ -223,14 +208,17 @@ extract_iso() {
         exit 1
     fi
 
-    # Ensure the extracted contents are writable
     chmod -R u+w "$EXTRACT_DIR"
 
-    # Remove 7z-created [BOOT] directory — it conflicts with xorriso's boot setup.
-    # xorriso handles BIOS/UEFI boot via -b and -append_partition flags directly.
+    # 7z creates a [BOOT] directory with the boot images we need for xorriso.
+    # Move them to a separate directory so they don't end up in the ISO filesystem.
     if [[ -d "${EXTRACT_DIR}/[BOOT]" ]]; then
+        mv "${EXTRACT_DIR}/[BOOT]"/* "$BOOT_DIR/" 2>/dev/null || true
         rm -rf "${EXTRACT_DIR}/[BOOT]"
-        log_info "Removed [BOOT] directory (handled by xorriso)."
+        log_info "Boot images saved to ${BOOT_DIR}:"
+        ls -la "$BOOT_DIR/"
+    else
+        log_warn "[BOOT] directory not found in extraction. Will extract from source ISO."
     fi
 
     log_success "ISO extracted to ${EXTRACT_DIR}"
@@ -256,31 +244,23 @@ inject_autoinstall() {
 
     cp "${SCRIPT_DIR}/user-data" "$autoinstall_dir/user-data"
     cp "${SCRIPT_DIR}/meta-data" "$autoinstall_dir/meta-data"
+    log_success "user-data and meta-data copied to /autoinstall/"
 
     # Also place in the server directory (some installers look here)
     local server_dir="${EXTRACT_DIR}/server"
     if [[ -d "$server_dir" ]]; then
         cp "${SCRIPT_DIR}/user-data" "$server_dir/user-data"
         cp "${SCRIPT_DIR}/meta-data" "$server_dir/meta-data"
+        log_info "Also copied to /server/ directory."
     fi
 
-    # Copy first-boot script, MOTD, and network-admin into the ISO so late-commands can access them
-    if [[ -f "${SCRIPT_DIR}/first-boot.sh" ]]; then
-        cp "${SCRIPT_DIR}/first-boot.sh" "$autoinstall_dir/first-boot.sh"
-        chmod +x "$autoinstall_dir/first-boot.sh"
-    fi
-    if [[ -f "${SCRIPT_DIR}/safeschool-motd.sh" ]]; then
-        cp "${SCRIPT_DIR}/safeschool-motd.sh" "$autoinstall_dir/safeschool-motd.sh"
-        chmod +x "$autoinstall_dir/safeschool-motd.sh"
-    fi
-    if [[ -f "${SCRIPT_DIR}/network-admin.py" ]]; then
-        cp "${SCRIPT_DIR}/network-admin.py" "$autoinstall_dir/network-admin.py"
-        chmod +x "$autoinstall_dir/network-admin.py"
-    fi
-    if [[ -f "${SCRIPT_DIR}/admin-menu.sh" ]]; then
-        cp "${SCRIPT_DIR}/admin-menu.sh" "$autoinstall_dir/admin-menu.sh"
-        chmod +x "$autoinstall_dir/admin-menu.sh"
-    fi
+    # Copy support scripts into the ISO
+    for script_file in first-boot.sh safeschool-motd.sh network-admin.py admin-menu.sh; do
+        if [[ -f "${SCRIPT_DIR}/${script_file}" ]]; then
+            cp "${SCRIPT_DIR}/${script_file}" "$autoinstall_dir/${script_file}"
+            chmod +x "$autoinstall_dir/${script_file}"
+        fi
+    done
 
     # Copy embedded Docker images (if built by CI or locally)
     if [[ -d "${SCRIPT_DIR}/docker-images" ]]; then
@@ -290,51 +270,76 @@ inject_autoinstall() {
         images_size=$(du -sh "$autoinstall_dir/docker-images" | cut -f1)
         log_success "Docker images embedded (${images_size} total)."
     else
-        log_warn "No docker-images/ directory found. ISO will require network to pull images on first boot."
+        log_warn "No docker-images/ directory found. ISO will require network to pull images."
     fi
 
     # Copy deploy/edge files (docker-compose.yml, Caddyfile, etc.)
     if [[ -d "${SCRIPT_DIR}/deploy-edge" ]]; then
         log_info "Embedding deploy/edge files into ISO..."
         cp -r "${SCRIPT_DIR}/deploy-edge" "$autoinstall_dir/deploy-edge"
-        log_success "Deploy files embedded: $(ls "${SCRIPT_DIR}/deploy-edge" | tr '\n' ' ')"
-    else
-        log_warn "No deploy-edge/ directory found. ISO will require git clone for deploy files."
+        log_success "Deploy files embedded."
     fi
 
-    # Modify ALL GRUB configurations to add autoinstall kernel parameter
-    log_info "Patching GRUB configuration for autoinstall..."
+    # =========================================================================
+    # GRUB: Replace grub.cfg entirely for reliable autoinstall boot
+    # =========================================================================
+    # Instead of sed-patching (fragile), we replace grub.cfg with a minimal
+    # config that boots directly into autoinstall with zero interaction.
+    # =========================================================================
+    log_info "Writing autoinstall GRUB configuration..."
 
-    # Find ALL grub.cfg files on the ISO (BIOS, UEFI, loopback, etc.)
-    local grub_files
-    grub_files=$(find "$EXTRACT_DIR" -name "grub.cfg" -o -name "loopback.cfg" 2>/dev/null || true)
-
-    if [[ -z "$grub_files" ]]; then
-        log_warn "No grub.cfg files found. Manual GRUB editing may be required."
-    else
-        while IFS= read -r grub_file; do
-            log_info "Patching: ${grub_file#$EXTRACT_DIR/}"
-            # Add autoinstall parameter to kernel command lines
-            sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_file"
-            # Set timeout to 0 (no wait) and hide the menu completely
-            sed -i 's/set timeout=.*/set timeout=0/' "$grub_file" 2>/dev/null || true
-            # Force hidden timeout style so no menu appears at all
-            if ! grep -q "timeout_style" "$grub_file" 2>/dev/null; then
-                sed -i '/set timeout=/a set timeout_style=hidden' "$grub_file" 2>/dev/null || true
-            else
-                sed -i 's/set timeout_style=.*/set timeout_style=hidden/' "$grub_file" 2>/dev/null || true
-            fi
-            log_success "  Patched: ${grub_file#$EXTRACT_DIR/}"
-        done <<< "$grub_files"
-    fi
-
-    # Log the patched grub.cfg for debugging
     local main_grub="${EXTRACT_DIR}/boot/grub/grub.cfg"
     if [[ -f "$main_grub" ]]; then
-        log_info "Patched GRUB menuentry (first match):"
-        grep -m1 "menuentry" "$main_grub" || true
-        grep -m1 "linux" "$main_grub" | head -1 || true
-        grep "set timeout" "$main_grub" | head -3 || true
+        # Detect kernel and initrd paths from the original grub.cfg
+        local kernel_path initrd_path
+        kernel_path=$(grep -m1 'linux.*vmlinuz' "$main_grub" | sed 's/.*\(\/casper\/[^ ]*vmlinuz[^ ]*\).*/\1/' || echo "/casper/vmlinuz")
+        initrd_path=$(grep -m1 'initrd.*initrd' "$main_grub" | sed 's/.*\(\/casper\/[^ ]*initrd[^ ]*\).*/\1/' || echo "/casper/initrd")
+        log_info "Kernel: ${kernel_path}"
+        log_info "Initrd: ${initrd_path}"
+
+        # Write a minimal grub.cfg for zero-touch autoinstall
+        cat > "$main_grub" <<GRUBEOF
+set timeout=0
+
+loadfont unicode
+
+set menu_color_normal=white/black
+set menu_color_highlight=black/light-gray
+
+menuentry "SafeSchool OS Autoinstall" {
+    set gfxpayload=keep
+    linux   ${kernel_path} quiet autoinstall cloud-config-url=/dev/null ds=nocloud\\;s=/cdrom/autoinstall/ ---
+    initrd  ${initrd_path}
+}
+GRUBEOF
+        log_success "grub.cfg replaced with autoinstall config."
+        log_info "Contents:"
+        cat "$main_grub"
+    else
+        log_warn "boot/grub/grub.cfg not found!"
+    fi
+
+    # Also replace loopback.cfg
+    local loopback="${EXTRACT_DIR}/boot/grub/loopback.cfg"
+    if [[ -f "$loopback" ]]; then
+        local kernel_path initrd_path
+        kernel_path=$(grep -m1 'linux.*vmlinuz' "$loopback" | sed 's/.*\(\/casper\/[^ ]*vmlinuz[^ ]*\).*/\1/' || echo "/casper/vmlinuz")
+        initrd_path=$(grep -m1 'initrd.*initrd' "$loopback" | sed 's/.*\(\/casper\/[^ ]*initrd[^ ]*\).*/\1/' || echo "/casper/initrd")
+        cat > "$loopback" <<GRUBEOF
+menuentry "SafeSchool OS Autoinstall" {
+    set gfxpayload=keep
+    linux   ${kernel_path} quiet autoinstall cloud-config-url=/dev/null ds=nocloud\\;s=/cdrom/autoinstall/ ---
+    initrd  ${initrd_path}
+}
+GRUBEOF
+        log_success "loopback.cfg replaced."
+    fi
+
+    # Update md5sum.txt to reflect our changes
+    if [[ -f "${EXTRACT_DIR}/md5sum.txt" ]]; then
+        log_info "Updating md5sum.txt..."
+        (cd "$EXTRACT_DIR" && find . -type f -not -name md5sum.txt -exec md5sum {} \; > md5sum.txt 2>/dev/null) || true
+        log_success "md5sum.txt updated."
     fi
 
     log_success "Autoinstall configuration injected."
@@ -347,45 +352,53 @@ rebuild_iso() {
 
     log_info "Rebuilding bootable ISO with xorriso..."
 
-    # Ubuntu 24.04+ does not include boot_hybrid.img or efi.img in the
-    # extracted ISO tree.  Extract the MBR boot code and EFI partition
-    # directly from the source ISO binary — this works for every version.
+    # Determine MBR and EFI boot images
+    local mbr_img=""
+    local efi_img=""
 
-    local mbr_img="${WORK_DIR}/mbr.img"
-    local efi_img="${WORK_DIR}/efi.img"
-
-    # 1) MBR boot code: first 432 bytes of the source ISO
-    dd if="$source_iso" bs=1 count=432 of="$mbr_img" 2>/dev/null
-    log_success "MBR boot code extracted ($(stat -c%s "$mbr_img" 2>/dev/null || stat -f%z "$mbr_img") bytes)"
-
-    # 2) EFI System Partition: locate via fdisk, then extract
-    local efi_info
-    efi_info=$(fdisk -l "$source_iso" 2>/dev/null | grep "EFI" || true)
-    if [[ -n "$efi_info" ]]; then
-        local efi_start efi_end efi_sectors
-        efi_start=$(echo "$efi_info" | awk '{print $2}')
-        efi_end=$(echo "$efi_info" | awk '{print $3}')
-        efi_sectors=$((efi_end - efi_start + 1))
-        dd if="$source_iso" bs=512 skip="$efi_start" count="$efi_sectors" of="$efi_img" 2>/dev/null
-        log_success "EFI partition extracted (sectors ${efi_start}-${efi_end})"
+    # Prefer [BOOT] images extracted by 7z (cleanest source)
+    if [[ -f "${BOOT_DIR}/1-Boot-NoEmul.img" ]]; then
+        mbr_img="${BOOT_DIR}/1-Boot-NoEmul.img"
+        log_success "Using [BOOT]/1-Boot-NoEmul.img for MBR boot"
     else
-        # Fallback: look for efi.img inside the extracted tree
-        local found_efi
-        found_efi=$(find "$EXTRACT_DIR" -name "efi.img" 2>/dev/null | head -1 || true)
-        if [[ -n "$found_efi" ]]; then
-            cp "$found_efi" "$efi_img"
-            log_success "EFI image found at ${found_efi}"
+        # Fallback: extract MBR from source ISO (first 432 bytes)
+        mbr_img="${WORK_DIR}/mbr.img"
+        dd if="$source_iso" bs=1 count=432 of="$mbr_img" 2>/dev/null
+        log_info "MBR extracted from source ISO (fallback)"
+    fi
+
+    if [[ -f "${BOOT_DIR}/2-Boot-NoEmul.img" ]]; then
+        efi_img="${BOOT_DIR}/2-Boot-NoEmul.img"
+        log_success "Using [BOOT]/2-Boot-NoEmul.img for EFI boot"
+    else
+        # Fallback: extract EFI partition from source ISO via fdisk
+        efi_img="${WORK_DIR}/efi.img"
+        local efi_info
+        efi_info=$(fdisk -l "$source_iso" 2>/dev/null | grep "EFI" || true)
+        if [[ -n "$efi_info" ]]; then
+            local efi_start efi_end efi_sectors
+            efi_start=$(echo "$efi_info" | awk '{print $2}')
+            efi_end=$(echo "$efi_info" | awk '{print $3}')
+            efi_sectors=$((efi_end - efi_start + 1))
+            dd if="$source_iso" bs=512 skip="$efi_start" count="$efi_sectors" of="$efi_img" 2>/dev/null
+            log_info "EFI partition extracted from source ISO (fallback)"
         else
-            log_error "Cannot locate EFI partition in source ISO."
+            log_error "Cannot locate EFI partition."
             exit 1
         fi
     fi
 
+    log_info "MBR image: ${mbr_img} ($(stat -c%s "$mbr_img" 2>/dev/null || stat -f%z "$mbr_img") bytes)"
+    log_info "EFI image: ${efi_img} ($(stat -c%s "$efi_img" 2>/dev/null || stat -f%z "$efi_img") bytes)"
+
     # Build the xorriso command with proper BIOS + UEFI hybrid boot support
+    # Flags based on: https://github.com/maka00/ubuntu2404-autoinstall
     xorriso -as mkisofs \
         -r -V "SafeSchool Edge Installer" \
         -o "$output_path" \
         --grub2-mbr "$mbr_img" \
+        --protective-msdos-label \
+        -partition_cyl_align off \
         -partition_offset 16 \
         --mbr-force-bootable \
         -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$efi_img" \
@@ -401,7 +414,7 @@ rebuild_iso() {
         -e '--interval:appended_partition_2:::' \
         -no-emul-boot \
         "$EXTRACT_DIR" \
-        2>&1 | tail -5
+        2>&1 | tail -10
 
     if [[ ! -f "$output_path" ]]; then
         # If BIOS+UEFI hybrid build failed (missing eltorito.img), try UEFI-only
@@ -410,6 +423,7 @@ rebuild_iso() {
             -r -V "SafeSchool Edge Installer" \
             -o "$output_path" \
             --grub2-mbr "$mbr_img" \
+            --protective-msdos-label \
             --mbr-force-bootable \
             -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b "$efi_img" \
             -appended_part_as_gpt \
@@ -417,7 +431,7 @@ rebuild_iso() {
             -e '--interval:appended_partition_2:::' \
             -no-emul-boot \
             "$EXTRACT_DIR" \
-            2>&1 | tail -5
+            2>&1 | tail -10
     fi
 
     if [[ ! -f "$output_path" ]]; then
@@ -436,135 +450,84 @@ flash_usb() {
         return 0
     fi
 
-    # Validate the device exists
     if [[ ! -b "$FLASH_DEVICE" ]]; then
         log_error "Device ${FLASH_DEVICE} does not exist or is not a block device."
         exit 1
     fi
 
-    # Safety: refuse to flash to common system drives
     case "$FLASH_DEVICE" in
         /dev/sda|/dev/nvme0n1|/dev/vda|/dev/xvda|/dev/mmcblk0)
             log_error "Refusing to flash to ${FLASH_DEVICE} -- this looks like a system drive!"
-            log_error "Please specify a removable USB device (e.g., /dev/sdb, /dev/sdc)."
             exit 1
             ;;
     esac
 
-    # Check if the device is mounted
     if mount | grep -q "^${FLASH_DEVICE}"; then
-        log_warn "Device ${FLASH_DEVICE} has mounted partitions."
-        log_info "Unmounting all partitions on ${FLASH_DEVICE}..."
+        log_warn "Unmounting ${FLASH_DEVICE}..."
         umount "${FLASH_DEVICE}"* 2>/dev/null || true
     fi
 
-    # Get device info for confirmation
-    local device_size
+    local device_size device_model
     device_size=$(lsblk -dno SIZE "$FLASH_DEVICE" 2>/dev/null || echo "unknown")
-    local device_model
     device_model=$(lsblk -dno MODEL "$FLASH_DEVICE" 2>/dev/null || echo "unknown")
 
     echo ""
-    echo -e "${RED}${BOLD}========================================${NC}"
-    echo -e "${RED}${BOLD}  WARNING: USB FLASH OPERATION${NC}"
-    echo -e "${RED}${BOLD}========================================${NC}"
-    echo ""
-    echo -e "  Device:  ${BOLD}${FLASH_DEVICE}${NC}"
-    echo -e "  Size:    ${device_size}"
-    echo -e "  Model:   ${device_model}"
-    echo ""
-    echo -e "${RED}${BOLD}  ALL DATA ON THIS DEVICE WILL BE DESTROYED!${NC}"
-    echo ""
-    read -rp "  Type 'YES' (uppercase) to confirm: " confirm
+    echo -e "${RED}${BOLD}  WARNING: ALL DATA ON ${FLASH_DEVICE} WILL BE DESTROYED!${NC}"
+    echo -e "  Size: ${device_size}  Model: ${device_model}"
+    read -rp "  Type 'YES' to confirm: " confirm
 
     if [[ "$confirm" != "YES" ]]; then
-        log_info "Flash cancelled by user."
+        log_info "Flash cancelled."
         return 0
     fi
 
     local iso_path="${SCRIPT_DIR}/${OUTPUT_ISO}"
-    log_info "Flashing ${OUTPUT_ISO} to ${FLASH_DEVICE}..."
-    log_info "This may take several minutes. Do not remove the USB drive."
-    echo ""
-
+    log_info "Flashing to ${FLASH_DEVICE}..."
     dd if="$iso_path" of="$FLASH_DEVICE" bs=4M status=progress oflag=sync
-
-    # Ensure all data is written
     sync
-
     log_success "USB drive flashed successfully!"
-    echo ""
-    echo -e "${GREEN}${BOLD}The USB installer is ready.${NC}"
-    echo -e "Insert it into the target mini PC and boot from USB."
-    echo -e "The installation will proceed automatically."
 }
 
 # -- Cleanup -------------------------------------------------------------------
 cleanup() {
     if [[ -d "${WORK_DIR}/iso-extract" ]]; then
-        log_info "Cleaning up extracted ISO files..."
+        log_info "Cleaning up..."
         rm -rf "${WORK_DIR}/iso-extract"
     fi
+    rm -rf "$BOOT_DIR" 2>/dev/null || true
 }
 
 # -- Main ----------------------------------------------------------------------
 main() {
     print_banner
     check_dependencies
-
-    # Create working directory
     mkdir -p "$WORK_DIR"
 
-    # Step 1: Download ISO
-    echo ""
-    echo -e "${BOLD}Step 1/5: Download Ubuntu Server ISO${NC}"
+    echo -e "\n${BOLD}Step 1/5: Download Ubuntu Server ISO${NC}"
     download_iso
 
-    # Step 2: Extract ISO
-    echo ""
-    echo -e "${BOLD}Step 2/5: Extract ISO${NC}"
+    echo -e "\n${BOLD}Step 2/5: Extract ISO${NC}"
     extract_iso
 
-    # Step 3: Inject autoinstall
-    echo ""
-    echo -e "${BOLD}Step 3/5: Inject autoinstall configuration${NC}"
+    echo -e "\n${BOLD}Step 3/5: Inject autoinstall configuration${NC}"
     inject_autoinstall
 
-    # Step 4: Rebuild ISO
-    echo ""
-    echo -e "${BOLD}Step 4/5: Rebuild bootable ISO${NC}"
+    echo -e "\n${BOLD}Step 4/5: Rebuild bootable ISO${NC}"
     rebuild_iso
 
-    # Step 5: Optional flash
-    echo ""
-    echo -e "${BOLD}Step 5/5: Flash to USB (optional)${NC}"
+    echo -e "\n${BOLD}Step 5/5: Flash to USB (optional)${NC}"
     if [[ -n "$FLASH_DEVICE" ]]; then
         flash_usb
     else
-        log_info "No --flash device specified. Skipping USB flash."
-        echo ""
-        echo -e "To flash later, run:"
-        echo -e "  ${BOLD}sudo dd if=${SCRIPT_DIR}/${OUTPUT_ISO} of=/dev/sdX bs=4M status=progress oflag=sync${NC}"
+        log_info "No --flash device specified."
+        echo -e "  To flash: ${BOLD}sudo dd if=${SCRIPT_DIR}/${OUTPUT_ISO} of=/dev/sdX bs=4M status=progress${NC}"
     fi
 
-    # Cleanup extracted files
     cleanup
 
     echo ""
-    echo -e "${GREEN}${BOLD}=====================================================${NC}"
-    echo -e "${GREEN}${BOLD}  SafeSchool Edge USB Installer -- Build Complete${NC}"
-    echo -e "${GREEN}${BOLD}=====================================================${NC}"
-    echo ""
-    echo -e "  ISO:  ${BOLD}${SCRIPT_DIR}/${OUTPUT_ISO}${NC}"
-    echo ""
-    echo -e "  Next steps:"
-    echo -e "    1. Flash the ISO to a USB drive (4GB+ recommended)"
-    echo -e "    2. Insert USB into the target mini PC"
-    echo -e "    3. Boot from USB (may need to change BIOS boot order)"
-    echo -e "    4. Installation is fully automated -- hands off"
-    echo -e "    5. NUC comes up at 192.168.0.250 (static IP)"
-    echo -e "    6. Open http://192.168.0.250:9090 to configure network"
-    echo -e "    7. Run: sudo safeschool config  (to set SITE_ID and integrations)"
+    echo -e "${GREEN}${BOLD}  Build Complete!${NC}"
+    echo -e "  ISO: ${SCRIPT_DIR}/${OUTPUT_ISO}"
     echo ""
 }
 
