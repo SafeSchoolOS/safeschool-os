@@ -29,25 +29,22 @@ network:
   ethernets:
     id0:
       match:
-        name: "en*"
+        name: "e*"
       dhcp4: true
       dhcp6: false
-    # Fallback: match any remaining wired NIC (some NUCs use unexpected names)
-    id1:
-      match:
-        driver: "e1000e igc i225* r8169 atlantic"
-      dhcp4: true
-      dhcp6: false
-      optional: true
+
+# -- Early Commands (run before install) --------------------------------------
+# Wipe existing partition tables to prevent filesystem probe hangs
+early-commands:
+  - wipefs --all --force /dev/sda 2>/dev/null || true
+  - wipefs --all --force /dev/vda 2>/dev/null || true
+  - wipefs --all --force /dev/nvme0n1 2>/dev/null || true
 
 # -- Storage -------------------------------------------------------------------
 # Use the entire disk with LVM and ext4
 storage:
   layout:
     name: lvm
-    sizing-policy: all
-    match:
-      size: largest
 
 # -- Disable Swap (better for Docker/Redis) -----------------------------------
 swap:

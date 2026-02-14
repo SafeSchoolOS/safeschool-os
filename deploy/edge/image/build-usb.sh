@@ -308,7 +308,7 @@ set menu_color_highlight=black/light-gray
 
 menuentry "SafeSchool OS Autoinstall" {
     set gfxpayload=keep
-    linux   ${kernel_path} quiet autoinstall cloud-config-url=/dev/null ds=nocloud\\;s=/cdrom/autoinstall/ ---
+    linux   ${kernel_path} quiet autoinstall cloud-config-url=/dev/null 'ds=nocloud;s=/cdrom/autoinstall/' ---
     initrd  ${initrd_path}
 }
 GRUBEOF
@@ -328,7 +328,7 @@ GRUBEOF
         cat > "$loopback" <<GRUBEOF
 menuentry "SafeSchool OS Autoinstall" {
     set gfxpayload=keep
-    linux   ${kernel_path} quiet autoinstall cloud-config-url=/dev/null ds=nocloud\\;s=/cdrom/autoinstall/ ---
+    linux   ${kernel_path} quiet autoinstall cloud-config-url=/dev/null 'ds=nocloud;s=/cdrom/autoinstall/' ---
     initrd  ${initrd_path}
 }
 GRUBEOF
