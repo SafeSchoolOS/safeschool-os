@@ -240,6 +240,14 @@ late-commands:
 
   # --- Remove installer-generated DHCP config (static takes over) ---
   - rm -f /target/etc/netplan/00-installer-config.yaml
+  - rm -f /target/etc/netplan/50-cloud-init.yaml
+
+  # --- Disable cloud-init network config (prevents it from overriding static IP on first boot) ---
+  - |
+    mkdir -p /target/etc/cloud/cloud.cfg.d
+    cat > /target/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CLOUDINIT'
+    network: {config: disabled}
+    CLOUDINIT
 
   # --- Create first-boot systemd service ---
   - |

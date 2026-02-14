@@ -48,16 +48,36 @@ log "Hostname: $(hostname)"
 log "Kernel: $(uname -r)"
 
 # ==============================================================================
-# Step 1: Wait for network connectivity
+# Step 1: Ensure network is configured and wait for connectivity
 # ==============================================================================
-log_section "Step 1/19: Waiting for network connectivity"
+log_section "Step 1/19: Configuring network and waiting for connectivity"
+
+# Remove any cloud-init generated netplan that might override our static config
+rm -f /etc/netplan/50-cloud-init.yaml 2>/dev/null || true
+rm -f /etc/netplan/00-installer-config.yaml 2>/dev/null || true
+
+# Apply netplan to ensure our static IP config is active
+if [ -f /etc/netplan/99-safeschool-static.yaml ]; then
+    log "Applying static IP configuration..."
+    netplan apply 2>&1 || log "netplan apply returned non-zero (may be normal on first boot)"
+    sleep 3
+    log "Network interfaces after netplan apply:"
+    ip -br addr show 2>/dev/null || ip addr show
+fi
 
 MAX_WAIT=120
 WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
     if ping -c 1 -W 3 github.com &>/dev/null; then
-        log "Network is available."
+        log "Network is available (internet reachable)."
         break
+    fi
+    # Also check if we at least have a local IP assigned (offline deployment)
+    if [ $WAITED -eq 0 ]; then
+        LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$LOCAL_IP" ]; then
+            log "Local IP assigned: ${LOCAL_IP} (waiting for internet...)"
+        fi
     fi
     log "Waiting for network... (${WAITED}s/${MAX_WAIT}s)"
     sleep 5
@@ -65,7 +85,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
 done
 
 if [ $WAITED -ge $MAX_WAIT ]; then
-    log_error "Network connectivity timeout. Continuing anyway..."
+    log "Network connectivity timeout (no internet). Continuing with offline boot..."
     log "DNS resolv.conf:"
     cat /etc/resolv.conf || true
     log "IP addresses:"
