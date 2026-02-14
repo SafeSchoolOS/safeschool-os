@@ -5,7 +5,7 @@ COPY package.json turbo.json ./
 COPY packages/ ./packages/
 COPY apps/ ./apps/
 
-RUN npm install
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm install --legacy-peer-deps
 RUN npx turbo run build --filter=@safeschool/dashboard
 
 FROM nginx:alpine AS runner
