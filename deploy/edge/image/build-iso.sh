@@ -133,36 +133,34 @@ else
     warn "No deploy-edge/ directory found. ISO will require git clone for deploy files."
 fi
 
-# Patch GRUB to add autoinstall kernel parameter
+# Patch ALL GRUB configs for autoinstall
 log "Patching GRUB for unattended install..."
 
+GRUB_FILES=$(find "$EXTRACT" -name "grub.cfg" -o -name "loopback.cfg" 2>/dev/null || true)
+if [ -z "$GRUB_FILES" ]; then
+    warn "No grub.cfg files found. The installer may prompt for confirmation."
+else
+    echo "$GRUB_FILES" | while IFS= read -r grub_file; do
+        log "Patching: ${grub_file#$EXTRACT/}"
+        # Add autoinstall parameter to kernel command lines
+        sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_file"
+        # Set timeout to 0 (instant boot, no menu)
+        sed -i 's/set timeout=.*/set timeout=0/' "$grub_file" 2>/dev/null || true
+        # Force hidden timeout style so no menu appears
+        if ! grep -q "timeout_style" "$grub_file" 2>/dev/null; then
+            sed -i '/set timeout=/a set timeout_style=hidden' "$grub_file" 2>/dev/null || true
+        else
+            sed -i 's/set timeout_style=.*/set timeout_style=hidden/' "$grub_file" 2>/dev/null || true
+        fi
+        ok "  Patched: ${grub_file#$EXTRACT/}"
+    done
+fi
+
+# Log patched config for debugging
 GRUB_CFG="${EXTRACT}/boot/grub/grub.cfg"
 if [ -f "$GRUB_CFG" ]; then
-    # Insert autoinstall parameter before the --- separator
-    sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$GRUB_CFG"
-    ok "GRUB boot/grub/grub.cfg patched."
-else
-    # Search for grub.cfg in alternative locations
-    GRUB_CFG=$(find "$EXTRACT" -name "grub.cfg" -path "*/boot/grub/*" 2>/dev/null | head -1)
-    if [ -n "$GRUB_CFG" ]; then
-        sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$GRUB_CFG"
-        ok "GRUB patched at ${GRUB_CFG}"
-    else
-        warn "grub.cfg not found. The installer may prompt for confirmation."
-    fi
-fi
-
-# Also patch loopback.cfg for UEFI boot
-LOOPBACK_CFG="${EXTRACT}/boot/grub/loopback.cfg"
-if [ -f "$LOOPBACK_CFG" ]; then
-    sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$LOOPBACK_CFG"
-    ok "UEFI loopback.cfg patched."
-fi
-
-# Set timeout to 1 second so it boots automatically
-if [ -f "$GRUB_CFG" ]; then
-    sed -i 's/set timeout=.*/set timeout=1/' "$GRUB_CFG" 2>/dev/null || true
-    log "GRUB timeout set to 1 second."
+    log "Patched GRUB timeout settings:"
+    grep "set timeout" "$GRUB_CFG" | head -3 || true
 fi
 
 ok "Autoinstall injection complete."

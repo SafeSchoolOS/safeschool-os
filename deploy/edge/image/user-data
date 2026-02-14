@@ -60,8 +60,8 @@ autoinstall:
   identity:
     hostname: safeschoolos
     username: safeschool
-    # Password: SafeSchool2026! (SHA-512 hash)
-    # Generated with: openssl passwd -6 'SafeSchool2026!'
+    # SHA-512 hash — password MUST be changed on first login (enforced by chage -d 0)
+    # Generate a new hash with: openssl passwd -6
     password: "$6$rounds=4096$sZxRz0Kqm5FhGxkL$vvBM5lYJJBKeCQXPtJ5zOqVN5rXUoNxKbV3aGdJQ0qzX7KfKbC7m3wKF3FN8vJN5cZkZV7xPOqMxRJmQe0mK01"
 
   # -- SSH ---------------------------------------------------------------------
@@ -114,7 +114,14 @@ autoinstall:
     # --- Add safeschool user to docker group ---
     - curtin in-target --target=/target -- usermod -aG docker safeschool
 
-    # --- Force password change on first login ---
+    # --- Create admin user (admin/admin) for initial setup and network config ---
+    - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker admin
+    - curtin in-target --target=/target -- bash -c "echo 'admin:admin' | chpasswd"
+    - |
+      echo 'admin ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/admin
+      chmod 440 /target/etc/sudoers.d/admin
+
+    # --- Force password change on first login for safeschool user ---
     - curtin in-target --target=/target -- chage -d 0 safeschool
 
     # --- Set hostname ---
@@ -204,9 +211,44 @@ autoinstall:
         chmod +x /target/opt/safeschool/network-admin.py
       fi
 
-    # --- Write static IP netplan for post-install (replaces installer DHCP) ---
+    # --- Copy admin menu script from installer media ---
     - |
-      cat > /target/etc/netplan/99-safeschool-static.yaml <<'NETPLAN'
+      if [ -f /cdrom/autoinstall/admin-menu.sh ]; then
+        cp /cdrom/autoinstall/admin-menu.sh /target/opt/safeschool/admin-menu.sh
+        chmod +x /target/opt/safeschool/admin-menu.sh
+      fi
+
+    # --- Set admin user to auto-launch config menu on login ---
+    - |
+      cat >> /target/home/admin/.profile <<'ADMINPROFILE'
+
+      # Auto-launch SafeSchool admin menu on interactive login
+      if [ -t 0 ] && [ -x /opt/safeschool/admin-menu.sh ]; then
+        /opt/safeschool/admin-menu.sh
+      fi
+      ADMINPROFILE
+
+    # --- Copy embedded Docker images from installer media (if present) ---
+    - |
+      if [ -d /cdrom/autoinstall/docker-images ]; then
+        mkdir -p /target/opt/safeschool/docker-images
+        cp -r /cdrom/autoinstall/docker-images/* /target/opt/safeschool/docker-images/
+        echo "Embedded Docker images copied to target."
+      fi
+
+    # --- Copy embedded deploy/edge files from installer media (if present) ---
+    - |
+      if [ -d /cdrom/autoinstall/deploy-edge ]; then
+        mkdir -p /target/opt/safeschool/deploy/edge
+        cp -r /cdrom/autoinstall/deploy-edge/* /target/opt/safeschool/deploy/edge/
+        echo "Embedded deploy/edge files copied to target."
+      fi
+
+    # --- Save static IP netplan as .pending (applied AFTER first-boot completes) ---
+    # First boot uses DHCP so the system can reach the internet and the user can SSH in.
+    # At the end of first-boot.sh, this config replaces DHCP with static 192.168.0.250.
+    - |
+      cat > /target/etc/netplan/99-safeschool-static.yaml.pending <<'NETPLAN'
       network:
         version: 2
         ethernets:
@@ -223,10 +265,7 @@ autoinstall:
             nameservers:
               addresses: [8.8.8.8, 1.1.1.1]
       NETPLAN
-    - chmod 600 /target/etc/netplan/99-safeschool-static.yaml
-
-    # --- Remove installer-generated DHCP config (static takes over) ---
-    - rm -f /target/etc/netplan/00-installer-config.yaml
+    - chmod 600 /target/etc/netplan/99-safeschool-static.yaml.pending
 
     # --- Create first-boot systemd service ---
     - |

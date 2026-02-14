@@ -295,32 +295,39 @@ inject_autoinstall() {
         log_warn "No deploy-edge/ directory found. ISO will require git clone for deploy files."
     fi
 
-    # Modify the GRUB configuration to add autoinstall kernel parameter
-    local grub_cfg="${EXTRACT_DIR}/boot/grub/grub.cfg"
-    if [[ -f "$grub_cfg" ]]; then
-        log_info "Patching GRUB configuration for autoinstall..."
-        # Add autoinstall parameter to the default menu entry
-        sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_cfg"
-        # Set timeout to 1 second so it boots automatically without user interaction
-        sed -i 's/set timeout=.*/set timeout=1/' "$grub_cfg" 2>/dev/null || true
-        log_success "GRUB patched (autoinstall + 1s timeout)."
+    # Modify ALL GRUB configurations to add autoinstall kernel parameter
+    log_info "Patching GRUB configuration for autoinstall..."
+
+    # Find ALL grub.cfg files on the ISO (BIOS, UEFI, loopback, etc.)
+    local grub_files
+    grub_files=$(find "$EXTRACT_DIR" -name "grub.cfg" -o -name "loopback.cfg" 2>/dev/null || true)
+
+    if [[ -z "$grub_files" ]]; then
+        log_warn "No grub.cfg files found. Manual GRUB editing may be required."
     else
-        log_warn "grub.cfg not found at expected location. Checking alternatives..."
-        # Try alternative location
-        grub_cfg=$(find "$EXTRACT_DIR" -name "grub.cfg" -path "*/boot/grub/*" | head -1 || true)
-        if [[ -n "$grub_cfg" ]]; then
-            sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_cfg"
-            log_success "GRUB patched at ${grub_cfg}"
-        else
-            log_warn "Could not find grub.cfg. Manual GRUB editing may be required."
-        fi
+        while IFS= read -r grub_file; do
+            log_info "Patching: ${grub_file#$EXTRACT_DIR/}"
+            # Add autoinstall parameter to kernel command lines
+            sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_file"
+            # Set timeout to 0 (no wait) and hide the menu completely
+            sed -i 's/set timeout=.*/set timeout=0/' "$grub_file" 2>/dev/null || true
+            # Force hidden timeout style so no menu appears at all
+            if ! grep -q "timeout_style" "$grub_file" 2>/dev/null; then
+                sed -i '/set timeout=/a set timeout_style=hidden' "$grub_file" 2>/dev/null || true
+            else
+                sed -i 's/set timeout_style=.*/set timeout_style=hidden/' "$grub_file" 2>/dev/null || true
+            fi
+            log_success "  Patched: ${grub_file#$EXTRACT_DIR/}"
+        done <<< "$grub_files"
     fi
 
-    # Also patch the UEFI GRUB config if present
-    local uefi_grub="${EXTRACT_DIR}/boot/grub/loopback.cfg"
-    if [[ -f "$uefi_grub" ]]; then
-        sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$uefi_grub"
-        log_info "UEFI loopback GRUB patched."
+    # Log the patched grub.cfg for debugging
+    local main_grub="${EXTRACT_DIR}/boot/grub/grub.cfg"
+    if [[ -f "$main_grub" ]]; then
+        log_info "Patched GRUB menuentry (first match):"
+        grep -m1 "menuentry" "$main_grub" || true
+        grep -m1 "linux" "$main_grub" | head -1 || true
+        grep "set timeout" "$main_grub" | head -3 || true
     fi
 
     log_success "Autoinstall configuration injected."
