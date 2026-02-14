@@ -58,7 +58,7 @@ autoinstall:
 
   # -- Identity ----------------------------------------------------------------
   identity:
-    hostname: safeschool-edge
+    hostname: safeschoolos
     username: safeschool
     # Password: SafeSchool2026! (SHA-512 hash)
     # Generated with: openssl passwd -6 'SafeSchool2026!'
@@ -118,11 +118,11 @@ autoinstall:
     - curtin in-target --target=/target -- chage -d 0 safeschool
 
     # --- Set hostname ---
-    - echo "safeschool-edge" > /target/etc/hostname
+    - echo "safeschoolos" > /target/etc/hostname
     - |
       cat > /target/etc/hosts <<'HOSTS'
       127.0.0.1 localhost
-      127.0.1.1 safeschool-edge
+      127.0.1.1 safeschoolos
       ::1       localhost ip6-localhost ip6-loopback
       ff02::1   ip6-allnodes
       ff02::2   ip6-allrouters

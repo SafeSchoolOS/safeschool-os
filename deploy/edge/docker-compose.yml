@@ -21,9 +21,6 @@ services:
       - "443:443"
       - "8443:8443"
       - "3443:3443"
-    environment:
-      - EDGE_DOMAIN=${EDGE_DOMAIN:-}
-      - EDGE_TLS=${EDGE_TLS:-internal}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

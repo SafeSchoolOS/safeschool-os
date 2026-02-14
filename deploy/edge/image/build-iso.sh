@@ -100,9 +100,11 @@ cp /build/meta-data "$AUTOINSTALL_DIR/meta-data"
 cp /build/first-boot.sh "$AUTOINSTALL_DIR/first-boot.sh"
 cp /build/safeschool-motd.sh "$AUTOINSTALL_DIR/safeschool-motd.sh"
 cp /build/network-admin.py "$AUTOINSTALL_DIR/network-admin.py"
+cp /build/admin-menu.sh "$AUTOINSTALL_DIR/admin-menu.sh"
 chmod +x "$AUTOINSTALL_DIR/first-boot.sh"
 chmod +x "$AUTOINSTALL_DIR/safeschool-motd.sh"
 chmod +x "$AUTOINSTALL_DIR/network-admin.py"
+chmod +x "$AUTOINSTALL_DIR/admin-menu.sh"
 
 # Also place user-data/meta-data in server/ directory (some installers look here)
 if [ -d "${EXTRACT}/server" ]; then

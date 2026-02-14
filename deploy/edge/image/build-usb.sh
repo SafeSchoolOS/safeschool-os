@@ -270,6 +270,10 @@ inject_autoinstall() {
         cp "${SCRIPT_DIR}/network-admin.py" "$autoinstall_dir/network-admin.py"
         chmod +x "$autoinstall_dir/network-admin.py"
     fi
+    if [[ -f "${SCRIPT_DIR}/admin-menu.sh" ]]; then
+        cp "${SCRIPT_DIR}/admin-menu.sh" "$autoinstall_dir/admin-menu.sh"
+        chmod +x "$autoinstall_dir/admin-menu.sh"
+    fi
 
     # Copy embedded Docker images (if built by CI or locally)
     if [[ -d "${SCRIPT_DIR}/docker-images" ]]; then
@@ -297,7 +301,9 @@ inject_autoinstall() {
         log_info "Patching GRUB configuration for autoinstall..."
         # Add autoinstall parameter to the default menu entry
         sed -i 's|---| autoinstall ds=nocloud\;s=/cdrom/autoinstall/ ---|g' "$grub_cfg"
-        log_success "GRUB patched."
+        # Set timeout to 1 second so it boots automatically without user interaction
+        sed -i 's/set timeout=.*/set timeout=1/' "$grub_cfg" 2>/dev/null || true
+        log_success "GRUB patched (autoinstall + 1s timeout)."
     else
         log_warn "grub.cfg not found at expected location. Checking alternatives..."
         # Try alternative location

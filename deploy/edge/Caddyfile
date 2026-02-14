@@ -1,10 +1,16 @@
 # SafeSchool Edge — Caddy Reverse Proxy Configuration
 #
-# Environment variables (set in .env / docker-compose):
-#   EDGE_DOMAIN  — leave empty for local network (self-signed certs on bare ports)
-#                  set to a FQDN (e.g. edge.myschool.org) for Let's Encrypt auto-certs
-#   EDGE_TLS     — set to "internal" (default) for self-signed, or leave empty when
-#                  using a real domain so Caddy provisions Let's Encrypt certs
+# Default: HTTP on local network (no TLS complexity for on-prem mini PCs).
+# To enable HTTPS with a real domain, replace :443/:8443/:3443 with your FQDN:
+#   safeschool.myschool.org {
+#       reverse_proxy dashboard:80
+#   }
+#   safeschool.myschool.org:8443 {
+#       reverse_proxy kiosk:80
+#   }
+#   safeschool.myschool.org:3443 {
+#       reverse_proxy api:3000
+#   }
 
 # ---- Shared snippet: security headers applied to every site ----
 (security_headers) {
@@ -13,46 +19,39 @@
 		X-Frame-Options "SAMEORIGIN"
 		X-XSS-Protection "1; mode=block"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
 	}
 }
 
 # ====================================================================
-# Dashboard — HTTPS :443
+# Dashboard — HTTP :443
 # ====================================================================
-{$EDGE_DOMAIN::443} {
-	tls {$EDGE_TLS:internal}
-
+:443 {
 	import security_headers
-
 	reverse_proxy dashboard:80
 }
 
 # ====================================================================
-# Kiosk — HTTPS :8443
+# Kiosk — HTTP :8443
 # ====================================================================
-{$EDGE_DOMAIN::8443} {
-	tls {$EDGE_TLS:internal}
-
+:8443 {
 	import security_headers
-
 	reverse_proxy kiosk:80
 }
 
 # ====================================================================
-# API — HTTPS :3443
+# API — HTTP :3443
 # ====================================================================
-{$EDGE_DOMAIN::3443} {
-	tls {$EDGE_TLS:internal}
-
+:3443 {
 	import security_headers
-
 	reverse_proxy api:3000
 }
 
-# ---- HTTP :80 redirect to HTTPS ----
+# ====================================================================
+# HTTP :80 — Also serves Dashboard (convenience)
+# ====================================================================
 :80 {
-	redir https://{host}{uri} permanent
+	import security_headers
+	reverse_proxy dashboard:80
 }

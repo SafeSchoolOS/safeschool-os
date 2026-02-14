@@ -55,7 +55,7 @@ swap:
 
 # -- Identity ------------------------------------------------------------------
 identity:
-  hostname: safeschool-edge
+  hostname: safeschoolos
   username: safeschool
   # SHA-512 hash — password MUST be changed on first login (enforced by chage -d 0)
   # Generate a new hash with: openssl passwd -6
@@ -111,15 +111,22 @@ late-commands:
   # --- Add safeschool user to docker group ---
   - curtin in-target --target=/target -- usermod -aG docker safeschool
 
-  # --- Force password change on first login ---
+  # --- Create admin user (admin/admin) for initial setup and network config ---
+  - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker admin
+  - curtin in-target --target=/target -- bash -c "echo 'admin:admin' | chpasswd"
+  - |
+    echo 'admin ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/admin
+    chmod 440 /target/etc/sudoers.d/admin
+
+  # --- Force password change on first login for safeschool user ---
   - curtin in-target --target=/target -- chage -d 0 safeschool
 
   # --- Set hostname ---
-  - echo "safeschool-edge" > /target/etc/hostname
+  - echo "safeschoolos" > /target/etc/hostname
   - |
     cat > /target/etc/hosts <<'HOSTS'
     127.0.0.1 localhost
-    127.0.1.1 safeschool-edge
+    127.0.1.1 safeschoolos
     ::1       localhost ip6-localhost ip6-loopback
     ff02::1   ip6-allnodes
     ff02::2   ip6-allrouters
@@ -200,6 +207,23 @@ late-commands:
       cp /cdrom/autoinstall/network-admin.py /target/opt/safeschool/network-admin.py
       chmod +x /target/opt/safeschool/network-admin.py
     fi
+
+  # --- Copy admin menu script from installer media ---
+  - |
+    if [ -f /cdrom/autoinstall/admin-menu.sh ]; then
+      cp /cdrom/autoinstall/admin-menu.sh /target/opt/safeschool/admin-menu.sh
+      chmod +x /target/opt/safeschool/admin-menu.sh
+    fi
+
+  # --- Set admin user to auto-launch config menu on login ---
+  - |
+    cat >> /target/home/admin/.profile <<'ADMINPROFILE'
+
+    # Auto-launch SafeSchool admin menu on interactive login
+    if [ -t 0 ] && [ -x /opt/safeschool/admin-menu.sh ]; then
+      /opt/safeschool/admin-menu.sh
+    fi
+    ADMINPROFILE
 
   # --- Copy embedded Docker images from installer media (if present) ---
   - |
