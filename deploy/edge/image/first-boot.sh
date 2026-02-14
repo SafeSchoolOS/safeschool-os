@@ -73,27 +73,35 @@ if [ $WAITED -ge $MAX_WAIT ]; then
 fi
 
 # ==============================================================================
-# Step 2: Clone SafeSchool repository
+# Step 2: Clone SafeSchool repository (non-fatal — embedded files are sufficient)
 # ==============================================================================
 log_section "Step 2/19: Cloning SafeSchool repository"
+
+GIT_CLONE_OK=false
 
 if [ -d "${INSTALL_DIR}/.git" ]; then
     log "Repository already exists at ${INSTALL_DIR}. Pulling latest..."
     cd "$INSTALL_DIR"
-    git pull --ff-only origin main || log "Git pull failed. Using existing code."
+    git pull --ff-only origin main && GIT_CLONE_OK=true || log "Git pull failed. Using existing code."
 else
     log "Cloning ${SAFESCHOOL_REPO} to ${INSTALL_DIR}..."
     # Ensure directory exists but is empty for clone
     if [ -d "$INSTALL_DIR" ]; then
-        # Preserve any files placed during autoinstall (first-boot.sh, motd, etc.)
+        # Preserve any files placed during autoinstall (first-boot.sh, motd, docker-images, deploy, etc.)
         TEMP_PRESERVE=$(mktemp -d)
         cp -a "${INSTALL_DIR}"/* "$TEMP_PRESERVE/" 2>/dev/null || true
         rm -rf "${INSTALL_DIR}"
     fi
 
-    git clone "$SAFESCHOOL_REPO" "$INSTALL_DIR"
+    if git clone "$SAFESCHOOL_REPO" "$INSTALL_DIR" 2>&1; then
+        GIT_CLONE_OK=true
+    else
+        log "WARNING: Git clone failed (no network or private repo). Using embedded files."
+        # Recreate the directory and restore preserved files
+        mkdir -p "$INSTALL_DIR"
+    fi
 
-    # Restore preserved files
+    # Restore preserved files (first-boot.sh, motd, docker-images, deploy/edge, etc.)
     if [ -d "${TEMP_PRESERVE:-}" ]; then
         cp -a "$TEMP_PRESERVE"/* "${INSTALL_DIR}/" 2>/dev/null || true
         rm -rf "$TEMP_PRESERVE"
@@ -101,7 +109,11 @@ else
 fi
 
 cd "$INSTALL_DIR"
-log "Repository cloned. Current commit: $(git log --oneline -1)"
+if [ "$GIT_CLONE_OK" = "true" ] && [ -d "${INSTALL_DIR}/.git" ]; then
+    log "Repository ready. Current commit: $(git log --oneline -1)"
+else
+    log "Running from embedded deploy files (no git repo). Git clone can be done later when network is available."
+fi
 
 # ==============================================================================
 # Step 3: Generate .env with secure random values
@@ -170,13 +182,35 @@ log "SITE_ID placeholder set. Configure with: sudo safeschool config"
 chmod 600 "$ENV_FILE"
 
 # ==============================================================================
-# Step 6: Docker compose pull (pre-built images from GHCR)
+# Step 6: Load Docker images (embedded tars first, then pull as fallback)
 # ==============================================================================
-log_section "Step 6/19: Pulling Docker images from GHCR"
+log_section "Step 6/19: Loading Docker images"
 
 cd "$INSTALL_DIR"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull 2>&1
-log "Docker pull complete."
+EMBEDDED_IMAGES_DIR="${INSTALL_DIR}/docker-images"
+
+if [ -d "$EMBEDDED_IMAGES_DIR" ] && ls "$EMBEDDED_IMAGES_DIR"/*.tar.gz 1>/dev/null 2>&1; then
+    log "Found embedded Docker images. Loading from tarballs..."
+    for tarball in "$EMBEDDED_IMAGES_DIR"/*.tar.gz; do
+        IMAGE_NAME=$(basename "$tarball" .tar.gz)
+        log "Loading ${IMAGE_NAME}..."
+        if docker load < "$tarball" 2>&1; then
+            log "${IMAGE_NAME} loaded successfully."
+        else
+            log_error "Failed to load ${IMAGE_NAME} from tarball."
+        fi
+    done
+
+    # Clean up tarballs to free disk space (~500MB-1GB)
+    log "Cleaning up embedded image tarballs to free disk space..."
+    FREED_SIZE=$(du -sh "$EMBEDDED_IMAGES_DIR" | cut -f1)
+    rm -rf "$EMBEDDED_IMAGES_DIR"
+    log "Freed ${FREED_SIZE} of disk space."
+else
+    log "No embedded images found. Pulling from GHCR..."
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull 2>&1 || log_error "Docker pull failed. Services may not start."
+fi
+log "Docker images ready."
 
 # ==============================================================================
 # Step 7: Docker compose up

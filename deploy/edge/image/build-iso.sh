@@ -112,6 +112,25 @@ fi
 
 ok "Autoinstall files copied."
 
+# Copy embedded Docker images (if built by CI or locally)
+if [ -d /build/docker-images ]; then
+    log "Embedding Docker images into ISO..."
+    cp -r /build/docker-images "$AUTOINSTALL_DIR/docker-images"
+    IMAGES_SIZE=$(du -sh "$AUTOINSTALL_DIR/docker-images" | cut -f1)
+    ok "Docker images embedded (${IMAGES_SIZE} total)."
+else
+    warn "No docker-images/ directory found. ISO will require network to pull images on first boot."
+fi
+
+# Copy deploy/edge files (docker-compose.yml, Caddyfile, etc.)
+if [ -d /build/deploy-edge ]; then
+    log "Embedding deploy/edge files into ISO..."
+    cp -r /build/deploy-edge "$AUTOINSTALL_DIR/deploy-edge"
+    ok "Deploy files embedded: $(ls /build/deploy-edge | tr '\n' ' ')"
+else
+    warn "No deploy-edge/ directory found. ISO will require git clone for deploy files."
+fi
+
 # Patch GRUB to add autoinstall kernel parameter
 log "Patching GRUB for unattended install..."
 

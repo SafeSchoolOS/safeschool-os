@@ -201,6 +201,22 @@ late-commands:
       chmod +x /target/opt/safeschool/network-admin.py
     fi
 
+  # --- Copy embedded Docker images from installer media (if present) ---
+  - |
+    if [ -d /cdrom/autoinstall/docker-images ]; then
+      mkdir -p /target/opt/safeschool/docker-images
+      cp -r /cdrom/autoinstall/docker-images/* /target/opt/safeschool/docker-images/
+      echo "Embedded Docker images copied to target."
+    fi
+
+  # --- Copy embedded deploy/edge files from installer media (if present) ---
+  - |
+    if [ -d /cdrom/autoinstall/deploy-edge ]; then
+      mkdir -p /target/opt/safeschool/deploy/edge
+      cp -r /cdrom/autoinstall/deploy-edge/* /target/opt/safeschool/deploy/edge/
+      echo "Embedded deploy/edge files copied to target."
+    fi
+
   # --- Write static IP netplan for post-install (replaces installer DHCP) ---
   - |
     cat > /target/etc/netplan/99-safeschool-static.yaml <<'NETPLAN'

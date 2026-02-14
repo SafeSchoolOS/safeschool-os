@@ -31,6 +31,14 @@ COPY autoinstall.yaml user-data meta-data first-boot.sh safeschool-motd.sh netwo
 COPY build-iso.sh /build/build-iso.sh
 RUN chmod +x /build/build-iso.sh
 
+# Optional: To embed Docker images in the ISO (for offline first-boot), create
+# docker-images/ and deploy-edge/ in the build context before building:
+#   mkdir docker-images && docker save ghcr.io/.../api:latest | gzip > docker-images/api.tar.gz
+#   mkdir deploy-edge && cp ../docker-compose.yml ../Caddyfile ../.env.example deploy-edge/
+# Then mount them at runtime:
+#   docker run --rm -v "$(pwd)/docker-images:/build/docker-images" \
+#     -v "$(pwd)/deploy-edge:/build/deploy-edge" -v "$(pwd)/output:/output" safeschool-iso-builder
+
 # Output directory
 VOLUME /output
 

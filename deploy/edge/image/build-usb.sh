@@ -271,6 +271,26 @@ inject_autoinstall() {
         chmod +x "$autoinstall_dir/network-admin.py"
     fi
 
+    # Copy embedded Docker images (if built by CI or locally)
+    if [[ -d "${SCRIPT_DIR}/docker-images" ]]; then
+        log_info "Embedding Docker images into ISO..."
+        cp -r "${SCRIPT_DIR}/docker-images" "$autoinstall_dir/docker-images"
+        local images_size
+        images_size=$(du -sh "$autoinstall_dir/docker-images" | cut -f1)
+        log_success "Docker images embedded (${images_size} total)."
+    else
+        log_warn "No docker-images/ directory found. ISO will require network to pull images on first boot."
+    fi
+
+    # Copy deploy/edge files (docker-compose.yml, Caddyfile, etc.)
+    if [[ -d "${SCRIPT_DIR}/deploy-edge" ]]; then
+        log_info "Embedding deploy/edge files into ISO..."
+        cp -r "${SCRIPT_DIR}/deploy-edge" "$autoinstall_dir/deploy-edge"
+        log_success "Deploy files embedded: $(ls "${SCRIPT_DIR}/deploy-edge" | tr '\n' ' ')"
+    else
+        log_warn "No deploy-edge/ directory found. ISO will require git clone for deploy files."
+    fi
+
     # Modify the GRUB configuration to add autoinstall kernel parameter
     local grub_cfg="${EXTRACT_DIR}/boot/grub/grub.cfg"
     if [[ -f "$grub_cfg" ]]; then

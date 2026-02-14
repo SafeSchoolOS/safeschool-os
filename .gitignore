@@ -28,6 +28,9 @@ scripts/**/*.d.ts.map
 
 # Edge installer output (large binary)
 deploy/edge/image/output/
+deploy/edge/image/build/
+deploy/edge/image/docker-images/
+deploy/edge/image/deploy-edge/
 
 # Environment
 .env
