@@ -226,6 +226,13 @@ extract_iso() {
     # Ensure the extracted contents are writable
     chmod -R u+w "$EXTRACT_DIR"
 
+    # Remove 7z-created [BOOT] directory — it conflicts with xorriso's boot setup.
+    # xorriso handles BIOS/UEFI boot via -b and -append_partition flags directly.
+    if [[ -d "${EXTRACT_DIR}/[BOOT]" ]]; then
+        rm -rf "${EXTRACT_DIR}/[BOOT]"
+        log_info "Removed [BOOT] directory (handled by xorriso)."
+    fi
+
     log_success "ISO extracted to ${EXTRACT_DIR}"
 }
 

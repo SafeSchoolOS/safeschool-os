@@ -81,6 +81,12 @@ mkdir -p "$EXTRACT"
 7z x -o"$EXTRACT" "${WORK}/${UBUNTU_ISO_FILE}" -y > /dev/null 2>&1
 chmod -R u+w "$EXTRACT"
 
+# Remove 7z-created [BOOT] directory — it conflicts with xorriso's boot setup
+if [ -d "${EXTRACT}/[BOOT]" ]; then
+    rm -rf "${EXTRACT}/[BOOT]"
+    log "Removed [BOOT] directory (handled by xorriso)."
+fi
+
 ok "ISO extracted to ${EXTRACT}"
 
 # ============================================================================
