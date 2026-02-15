@@ -53,6 +53,24 @@ export interface LogEntry {
   message: string;
 }
 
+export interface VersionInfo {
+  version: string;
+  tag: string | null;
+  commit: string | null;
+  buildDate: string | null;
+  installedAt: string | null;
+  message?: string;
+}
+
+export interface Release {
+  tag: string;
+  name: string;
+  published: string;
+  prerelease: boolean;
+  body: string;
+  assets: number;
+}
+
 export const adminApi = {
   getStatus: () => request<SystemStatus>('/status'),
   getSync: () => request<SyncState>('/sync'),
@@ -66,6 +84,11 @@ export const adminApi = {
   restartService: (name: string) =>
     request<{ message: string }>(`/services/${name}/restart`, { method: 'POST' }),
   getLogs: (service: string) => request<{ logs: LogEntry[] }>(`/logs/${service}`),
-  checkUpdate: () =>
-    request<{ message: string }>('/update', { method: 'POST' }),
+  getVersion: () => request<VersionInfo>('/version'),
+  getReleases: () => request<{ releases: Release[]; error?: string }>('/releases'),
+  updateToVersion: (tag?: string) =>
+    request<{ message: string; tag: string }>('/update', {
+      method: 'POST',
+      body: JSON.stringify({ tag }),
+    }),
 };

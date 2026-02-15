@@ -210,6 +210,23 @@ log "SITE_ID placeholder set. Configure with: sudo safeschool config"
 # Secure the .env file
 chmod 600 "$ENV_FILE"
 
+# Write version.json for the admin UI version display
+VERSION_FILE="/etc/safeschool/version.json"
+ISO_BUILD_TAG="${ISO_VERSION:-unknown}"
+# Try to extract commit from tag like "edge-20260215-abc1234"
+ISO_COMMIT=$(echo "$ISO_BUILD_TAG" | grep -oP '[a-f0-9]{7}$' || echo "")
+cat > "$VERSION_FILE" <<VEOF
+{
+  "version": "${ISO_BUILD_TAG}",
+  "tag": "${ISO_BUILD_TAG}",
+  "commit": "${ISO_COMMIT}",
+  "buildDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+VEOF
+chmod 644 "$VERSION_FILE"
+log "Version file written: ${VERSION_FILE} (${ISO_BUILD_TAG})"
+
 # ==============================================================================
 # Step 6: Load Docker images (embedded tars first, then pull as fallback)
 # ==============================================================================

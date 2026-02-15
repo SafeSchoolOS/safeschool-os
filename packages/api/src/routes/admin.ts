@@ -232,68 +232,116 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   // GET /api/v1/admin/version — current version info
   app.get('/version', async () => {
+    // Try version.json first (written during ISO first-boot or update)
+    const versionFile = '/etc/safeschool/version.json';
+    if (existsSync(versionFile)) {
+      try {
+        const versionData = JSON.parse(readFileSync(versionFile, 'utf-8'));
+        return {
+          version: versionData.version || versionData.tag || 'unknown',
+          tag: versionData.tag || null,
+          commit: versionData.commit || null,
+          buildDate: versionData.buildDate || null,
+          installedAt: versionData.installedAt || null,
+        };
+      } catch {
+        // Fall through to git
+      }
+    }
+
+    // Fall back to git (works if repo was cloned, not for air-gapped ISO installs)
     try {
       const installDir = process.env.EDGE_INSTALL_DIR || '/opt/safeschool';
       const currentCommit = execSync('git rev-parse --short HEAD', { encoding: 'utf-8', cwd: installDir }).trim();
       const currentMessage = execSync('git log --oneline -1', { encoding: 'utf-8', cwd: installDir }).trim();
-      const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8', cwd: installDir }).trim();
-
-      // Check for available updates
-      let updateAvailable = false;
-      let remoteCommit = '';
-      try {
-        execSync('git fetch origin main --quiet', { encoding: 'utf-8', cwd: installDir, timeout: 10000 });
-        remoteCommit = execSync('git rev-parse --short origin/main', { encoding: 'utf-8', cwd: installDir }).trim();
-        updateAvailable = currentCommit !== remoteCommit;
-      } catch {
-        // Fetch failed — offline or network issue
-      }
-
       return {
         version: currentCommit,
+        tag: null,
+        commit: currentCommit,
+        buildDate: null,
+        installedAt: null,
         message: currentMessage,
-        branch,
-        updateAvailable,
-        remoteVersion: remoteCommit || null,
       };
     } catch {
-      return { version: 'unknown', updateAvailable: false };
+      return { version: 'unknown', tag: null, commit: null, buildDate: null };
     }
   });
 
-  // POST /api/v1/admin/update — pull latest code, run migrations, rebuild containers
-  app.post('/update', async () => {
+  // GET /api/v1/admin/releases — list available releases from GitHub
+  app.get('/releases', async (_request, reply) => {
+    const GITHUB_REPO = 'bwattendorf/safeSchool';
+    const token = process.env.GITHUB_TOKEN;
     try {
-      const installDir = process.env.EDGE_INSTALL_DIR || '/opt/safeschool';
-      const composeDir = process.env.EDGE_COMPOSE_DIR || '/app/deploy/edge';
-      const envFile = process.env.EDGE_ENV_FILE || '/app/deploy/edge/.env';
-
-      // Pull latest code
-      execSync('git pull --ff-only origin main', { encoding: 'utf-8', cwd: installDir, timeout: 60000 });
-      const newVersion = execSync('git log --oneline -1', { encoding: 'utf-8', cwd: installDir }).trim();
-
-      // Run migrations
-      try {
-        execSync(`docker compose -f ${installDir}/deploy/edge/docker-compose.yml --env-file ${envFile} run --rm migrate`, {
-          encoding: 'utf-8', timeout: 120000,
-        });
-      } catch (migErr: any) {
-        // Migrations may not be needed for every update
-        app.log.warn(`Migration step: ${migErr.message}`);
+      const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=5`;
+      const headers: Record<string, string> = {
+        'User-Agent': 'SafeSchool-Edge',
+        'Accept': 'application/vnd.github.v3+json',
+      };
+      if (token) headers['Authorization'] = `token ${token}`;
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`GitHub API ${res.status}: ${errText.slice(0, 200)}`);
       }
+      const data = await res.json() as any[];
+      return {
+        releases: data.map((r) => ({
+          tag: r.tag_name,
+          name: r.name,
+          published: r.published_at,
+          prerelease: r.prerelease,
+          body: r.body?.slice(0, 500) || '',
+          assets: (r.assets || []).length,
+        })),
+      };
+    } catch (err: any) {
+      reply.code(200); // Still 200 — just no releases available
+      return { releases: [], error: err.message };
+    }
+  });
 
-      // Rebuild and restart
-      execSync('docker compose pull', { encoding: 'utf-8', cwd: composeDir, timeout: 300000 });
-      execSync('docker compose up -d --build', { encoding: 'utf-8', cwd: composeDir, timeout: 300000 });
+  // POST /api/v1/admin/update — pull latest images and restart containers
+  app.post('/update', async (request) => {
+    try {
+      const { tag } = (request.body as { tag?: string }) || {};
+      const composeDir = process.env.EDGE_COMPOSE_DIR || '/opt/safeschool/deploy/edge';
+      const envFile = process.env.EDGE_ENV_FILE || '/opt/safeschool/deploy/edge/.env';
 
-      // Cleanup
+      // Pull latest Docker images
+      app.log.info(`Starting update${tag ? ` to ${tag}` : ' to latest'}...`);
+      execSync(`docker compose --env-file ${envFile} pull`, {
+        encoding: 'utf-8', cwd: composeDir, timeout: 300000,
+      });
+
+      // Restart services with new images
+      execSync(`docker compose --env-file ${envFile} up -d`, {
+        encoding: 'utf-8', cwd: composeDir, timeout: 300000,
+      });
+
+      // Cleanup old images
       try {
         execSync('docker image prune -f', { encoding: 'utf-8', timeout: 30000 });
       } catch {
         // Non-critical
       }
 
-      return { message: 'Update complete. Services are restarting.', version: newVersion };
+      // Update version.json if tag provided
+      if (tag) {
+        const versionFile = '/etc/safeschool/version.json';
+        try {
+          const versionData = existsSync(versionFile)
+            ? JSON.parse(readFileSync(versionFile, 'utf-8'))
+            : {};
+          versionData.version = tag;
+          versionData.tag = tag;
+          versionData.updatedAt = new Date().toISOString();
+          writeFileSync(versionFile, JSON.stringify(versionData, null, 2), 'utf-8');
+        } catch {
+          // Non-critical
+        }
+      }
+
+      return { message: `Update complete${tag ? ` (${tag})` : ''}. Services are restarting.`, tag: tag || 'latest' };
     } catch (err: any) {
       return { statusCode: 500, message: `Update failed: ${err.message}` };
     }

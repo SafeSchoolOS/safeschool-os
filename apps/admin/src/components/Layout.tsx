@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Activity, RefreshCw, Settings, Server, Download } from 'lucide-react';
+import { adminApi } from '../api/client';
 
 const navItems = [
   { to: '/', icon: Activity, label: 'Status' },
@@ -10,6 +12,14 @@ const navItems = [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const { data: versionData } = useQuery({
+    queryKey: ['admin', 'version'],
+    queryFn: () => adminApi.getVersion(),
+    staleTime: 300_000, // Cache for 5 minutes
+  });
+
+  const displayVersion = versionData?.version || '...';
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex">
       {/* Sidebar */}
@@ -39,8 +49,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-500">
-          SafeSchool OS v0.3.0
+        <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-500 truncate">
+          SafeSchool OS <span className="font-mono">{displayVersion}</span>
         </div>
       </aside>
 
