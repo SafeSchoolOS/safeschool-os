@@ -16,7 +16,7 @@ autoinstall:
     allow-pw: true
     authorized-keys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOkkRNjHpikLaDTxYfBbH4skE3axZGEzr6VAoH4Z+mAS safeschool-edge
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGm3RrIiUGKlBFSGkbe8fDBfLcsmREzXXLOQJbhiyrLj bwatt@safeschool
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIMhqUXyK/P+vjoUN+7B02uHh6eKVDMFSqu5JoP2kW3L bwatt@safeschool
 
   storage:
     layout:
