@@ -75,8 +75,8 @@ describe('Transportation Bugs', () => {
   // If a student scans EXIT without ever scanning BOARD (or scans EXIT twice),
   // the count goes to -1. There is no floor check at 0.
   // ---------------------------------------------------------------------------
-  describe('Bug: Bus student count can go negative', () => {
-    it.fails('EXIT scan without prior BOARD scan makes currentStudentCount negative', async () => {
+  describe('Bug: Bus student count can go negative (FIXED)', () => {
+    it('EXIT scan without prior BOARD scan clamps currentStudentCount to 0', async () => {
       // Verify bus starts at count 0
       const busBefore = await app.prisma.bus.findUnique({
         where: { id: TRANSPORT.bus42Id },
@@ -102,13 +102,11 @@ describe('Transportation Bugs', () => {
         where: { id: TRANSPORT.bus42Id },
       });
 
-      // BUG: currentStudentCount is now -1.
-      // A bus cannot have a negative number of students.
-      // The API should either reject the EXIT scan or clamp count to 0.
+      // FIXED: EXIT scan now uses Math.max(0, count - 1) to clamp to 0
       expect(busAfter!.currentStudentCount).toBeGreaterThanOrEqual(0);
     });
 
-    it.fails('Double EXIT scan makes count go to -2', async () => {
+    it('Double EXIT scan clamps count to 0', async () => {
       // First EXIT (no prior board)
       await app.inject({
         method: 'POST',
@@ -137,7 +135,7 @@ describe('Transportation Bugs', () => {
         where: { id: TRANSPORT.bus42Id },
       });
 
-      // BUG: count is -2 now
+      // FIXED: count stays at 0 instead of going to -2
       expect(bus!.currentStudentCount).toBeGreaterThanOrEqual(0);
     });
   });

@@ -305,8 +305,8 @@ describe('BUG 5: Mass notify findFirst race condition', () => {
 // and returns immediately. No parent notification, no ridership logging.
 // ---------------------------------------------------------------------------
 
-describe('BUG 6: RFID scan is a no-op without transportScanFn', () => {
-  it('does nothing when transportScanFn is undefined', async () => {
+describe('BUG 6: RFID scan is a no-op without transportScanFn (FIXED)', () => {
+  it('now inlines parent notification logic directly', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const workerSource = fs.readFileSync(
@@ -320,18 +320,13 @@ describe('BUG 6: RFID scan is a no-op without transportScanFn', () => {
     expect(fnMatch).not.toBeNull();
     const fnBody = fnMatch![0];
 
-    // The function only calls transportScanFn if it exists
-    expect(fnBody).toContain('if (deps.transportScanFn)');
+    // FIXED: The function no longer delegates to an optional transportScanFn.
+    // It inlines parent contact lookup and notification directly.
+    expect(fnBody).not.toContain('if (deps.transportScanFn)');
 
-    // BUG: No else branch -- no fallback behavior
-    // When transportScanFn is absent, no prisma calls are made:
-    // - No RidershipEvent is created
-    // - No parent notification is sent
-    // - No audit log entry is created
-    expect(fnBody).not.toContain('else');
-    expect(fnBody).not.toContain('ridershipEvent');
-    expect(fnBody).not.toContain('notifyFn');
-    expect(fnBody).not.toContain('auditLog');
+    // Now it directly looks up parent contacts and sends notifications
+    expect(fnBody).toContain('parentContact');
+    expect(fnBody).toContain('notifyFn');
   });
 });
 
@@ -340,8 +335,8 @@ describe('BUG 6: RFID scan is a no-op without transportScanFn', () => {
 // Same issue as BUG 6 -- no geofence checking, no bus location update.
 // ---------------------------------------------------------------------------
 
-describe('BUG 7: GPS update is a no-op without transportGpsFn', () => {
-  it('does nothing when transportGpsFn is undefined', async () => {
+describe('BUG 7: GPS update is a no-op without transportGpsFn (FIXED)', () => {
+  it('now inlines geofence checking logic directly', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const workerSource = fs.readFileSync(
@@ -355,18 +350,13 @@ describe('BUG 7: GPS update is a no-op without transportGpsFn', () => {
     expect(fnMatch).not.toBeNull();
     const fnBody = fnMatch![0];
 
-    // Same pattern: conditional call with no fallback
-    expect(fnBody).toContain('if (deps.transportGpsFn)');
+    // FIXED: The function no longer delegates to an optional transportGpsFn.
+    // It inlines bus lookup, geofence checking, and parent notifications directly.
+    expect(fnBody).not.toContain('if (deps.transportGpsFn)');
 
-    // BUG: No else branch -- no fallback behavior
-    // When transportGpsFn is absent:
-    // - No bus location is updated in the database
-    // - No geofence checks are performed
-    // - No arrival/departure notifications are sent
-    expect(fnBody).not.toContain('else');
-    // The function references busId from job.data but does no DB update/geofence outside transportGpsFn
-    expect(fnBody).not.toContain('geofence');
-    expect(fnBody).not.toContain('prisma');
+    // Now it directly queries prisma and does geofence calculations
+    expect(fnBody).toContain('prisma');
+    expect(fnBody).toContain('geofenceRadius');
   });
 });
 
@@ -460,7 +450,7 @@ describe('BUG 8: worker-entry.ts hardcodes ConsoleDispatchAdapter', () => {
     expect(lockdownBody).toContain('config.accessControl.adapter');
   });
 
-  it('worker-entry does not provide escalateFn, transportScanFn, or transportGpsFn', async () => {
+  it('worker-entry does not provide escalateFn (transportScanFn/transportGpsFn no longer needed)', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const entrySource = fs.readFileSync(
@@ -476,14 +466,11 @@ describe('BUG 8: worker-entry.ts hardcodes ConsoleDispatchAdapter', () => {
     expect(workerCall).not.toBeNull();
     const callBody = workerCall![0];
 
-    // BUG: escalateFn is not provided -- fallback path in handleAutoEscalate
-    // is always used, meaning escalation never re-enqueues jobs (BUG 4)
+    // BUG (still open): escalateFn is not provided -- fallback path in
+    // handleAutoEscalate is always used, meaning escalation never re-enqueues jobs (BUG 4)
     expect(callBody).not.toContain('escalateFn');
 
-    // BUG: transportScanFn is not provided -- RFID scans are no-ops (BUG 6)
-    expect(callBody).not.toContain('transportScanFn');
-
-    // BUG: transportGpsFn is not provided -- GPS updates are no-ops (BUG 7)
-    expect(callBody).not.toContain('transportGpsFn');
+    // FIXED: transportScanFn and transportGpsFn are no longer needed because
+    // handleRfidScan and handleGpsUpdate now inline the logic directly using prisma
   });
 });
