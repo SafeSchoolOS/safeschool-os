@@ -122,6 +122,12 @@ jobs:
           ls -lh deploy/edge/image/docker-images/
           du -sh deploy/edge/image/docker-images/
 
+      - name: Free disk space (Docker images saved as tarballs, no longer needed in daemon)
+        run: |
+          docker system prune -af
+          echo "Disk space after prune:"
+          df -h /
+
       - name: Stage deploy/edge files for ISO embedding
         run: |
           mkdir -p deploy/edge/image/deploy-edge
