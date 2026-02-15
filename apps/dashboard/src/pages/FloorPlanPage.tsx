@@ -53,6 +53,7 @@ export function FloorPlanPage() {
   const [editMode, setEditMode] = useState(false);
   const [dragging, setDragging] = useState<{ type: 'room' | 'door'; id: string } | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [imageLoadError, setImageLoadError] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -220,7 +221,7 @@ export function FloorPlanPage() {
         <div className="flex items-center gap-4">
           <div className="flex gap-2">
             {buildings.map((b: any) => (
-              <button key={b.id} onClick={() => { setSelectedBuilding(b.id); setSelectedFloor(1); }}
+              <button key={b.id} onClick={() => { setSelectedBuilding(b.id); setSelectedFloor(1); setImageLoadError(false); }}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   selectedBuilding === b.id ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}>
@@ -300,14 +301,21 @@ export function FloorPlanPage() {
               <rect width="820" height="280" fill="url(#grid)" rx="8"/>
 
               {/* Floor plan background image */}
-              {floorPlanImageUrl && (
+              {floorPlanImageUrl && !imageLoadError && (
                 <image
                   href={`${floorPlanImageUrl}?t=${currentBuilding?.updatedAt || ''}`}
                   x="20" y="20" width="780" height="240"
                   preserveAspectRatio="xMidYMid meet"
-                  opacity="0.6"
+                  opacity="0.85"
                   style={{ pointerEvents: 'none' }}
+                  onError={() => setImageLoadError(true)}
+                  onLoad={() => setImageLoadError(false)}
                 />
+              )}
+              {floorPlanImageUrl && imageLoadError && (
+                <text x="410" y="140" fill="#ef4444" fontSize="14" textAnchor="middle">
+                  Floor plan image failed to load
+                </text>
               )}
 
               {/* Building outline */}

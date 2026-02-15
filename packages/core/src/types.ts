@@ -526,3 +526,71 @@ export interface DoorEvent {
   userId?: string;
   credentialType?: string;
 }
+
+// ============================================================================
+// Credential Management Adapter (extends AccessControlAdapter optionally)
+// ============================================================================
+
+export interface CardholderData {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  title?: string;
+  personType: 'STAFF' | 'STUDENT' | 'WORKER' | 'VISITOR';
+  photo?: string;
+}
+
+export interface CredentialData {
+  cardholderId: string;
+  cardholderExternalId: string;
+  credentialType: 'PHYSICAL_CARD' | 'MOBILE' | 'TEMPORARY_CARD' | 'FOB';
+  cardNumber?: string;
+  facilityCode?: string;
+  accessZoneIds: string[];
+  expiresAt?: Date;
+}
+
+export interface ProvisionedCredential {
+  externalId: string;
+  cardNumber?: string;
+  credentialType: string;
+  issuedAt: Date;
+  expiresAt?: Date;
+}
+
+export interface ImportedCardholder {
+  externalId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  title?: string;
+  personType: 'STAFF' | 'STUDENT' | 'WORKER' | 'VISITOR';
+  credentials: Array<{
+    externalId: string;
+    credentialType: 'PHYSICAL_CARD' | 'MOBILE' | 'TEMPORARY_CARD' | 'FOB';
+    cardNumber?: string;
+    facilityCode?: string;
+    status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'REVOKED';
+  }>;
+}
+
+/**
+ * Separate interface for credential/cardholder management.
+ * Adapters that support this implement BOTH AccessControlAdapter and CredentialManagementAdapter.
+ * Consumer code should check `hasCredentialManagement()` before calling these methods.
+ */
+export interface CredentialManagementAdapter {
+  supportsCredentialManagement: boolean;
+  createCardholder(data: CardholderData): Promise<{ externalId: string }>;
+  updateCardholder(externalId: string, data: Partial<CardholderData>): Promise<void>;
+  deleteCardholder(externalId: string): Promise<void>;
+  importCardholders(): Promise<ImportedCardholder[]>;
+  provisionCredential(data: CredentialData): Promise<ProvisionedCredential>;
+  revokeCredential(externalCredentialId: string, reason?: string): Promise<void>;
+  revokeAllTemporaryCredentials(siteId?: string): Promise<{ revokedCount: number }>;
+  listAccessZones(): Promise<Array<{ externalId: string; name: string; doorCount: number }>>;
+}

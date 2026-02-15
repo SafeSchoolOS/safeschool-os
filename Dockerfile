@@ -82,8 +82,13 @@ COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packag
 COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
 COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
 COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
+COPY --from=build-api /app/packages/integrations/badge-printing/dist ./packages/integrations/badge-printing/dist
+COPY --from=build-api /app/packages/integrations/badge-printing/package.json ./packages/integrations/badge-printing/package.json
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
+
+# Create data directories
+RUN mkdir -p /app/data/students
 
 # Build-time module test
 RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('@safeschool/weather'); require('fastify'); console.log('Modules OK')"
@@ -140,6 +145,8 @@ COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packag
 COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
 COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
 COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
+COPY --from=build-api /app/packages/integrations/badge-printing/dist ./packages/integrations/badge-printing/dist
+COPY --from=build-api /app/packages/integrations/badge-printing/package.json ./packages/integrations/badge-printing/package.json
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 

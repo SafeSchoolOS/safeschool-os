@@ -51,6 +51,27 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.log.info({ lockdownId: lockdown.id }, 'Training mode: skipping dispatch for lockdown');
     }
 
+    // Revoke all temporary/mobile credentials for VISITOR cardholders (non-blocking)
+    try {
+      const revokeResult = await fastify.prisma.cardholderCredential.updateMany({
+        where: {
+          cardholder: { siteId, personType: 'VISITOR' },
+          credentialType: { in: ['TEMPORARY_CARD', 'MOBILE'] },
+          status: 'ACTIVE',
+        },
+        data: {
+          status: 'REVOKED',
+          revokedAt: new Date(),
+          revokedReason: `Lockdown: ${lockdown.id}`,
+        },
+      });
+      if (revokeResult.count > 0) {
+        fastify.log.info({ lockdownId: lockdown.id, revokedCount: revokeResult.count }, 'Revoked visitor temporary credentials during lockdown');
+      }
+    } catch (err) {
+      fastify.log.error(err, 'Failed to revoke visitor credentials during lockdown (non-blocking)');
+    }
+
     await fastify.prisma.auditLog.create({
       data: {
         siteId,

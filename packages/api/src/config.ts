@@ -63,6 +63,22 @@ interface AppConfig {
     zeroEyesApiKey?: string;
     zeroEyesWebhookSecret?: string;
   };
+  socialMedia: {
+    adapter: string;
+    barkApiUrl: string;
+    barkApiKey: string;
+    barkWebhookSecret: string;
+    gaggleApiUrl: string;
+    gaggleApiKey: string;
+    gaggleWebhookSecret: string;
+    securlyApiUrl: string;
+    securlyApiKey: string;
+    securlyWebhookSecret: string;
+    navigate360ApiUrl: string;
+    navigate360ApiKey: string;
+    navigate360WebhookSecret: string;
+    pollingIntervalSeconds: number;
+  };
 }
 
 export function getConfig(): AppConfig {
@@ -127,6 +143,22 @@ export function getConfig(): AppConfig {
       zeroEyesApiUrl: process.env.ZEROEYES_API_URL,
       zeroEyesApiKey: process.env.ZEROEYES_API_KEY,
       zeroEyesWebhookSecret: process.env.ZEROEYES_WEBHOOK_SECRET,
+    },
+    socialMedia: {
+      adapter: process.env.SOCIAL_MEDIA_ADAPTER || 'console',
+      barkApiUrl: process.env.BARK_API_URL || '',
+      barkApiKey: process.env.BARK_API_KEY || '',
+      barkWebhookSecret: process.env.BARK_WEBHOOK_SECRET || '',
+      gaggleApiUrl: process.env.GAGGLE_API_URL || '',
+      gaggleApiKey: process.env.GAGGLE_API_KEY || '',
+      gaggleWebhookSecret: process.env.GAGGLE_WEBHOOK_SECRET || '',
+      securlyApiUrl: process.env.SECURLY_API_URL || '',
+      securlyApiKey: process.env.SECURLY_API_KEY || '',
+      securlyWebhookSecret: process.env.SECURLY_WEBHOOK_SECRET || '',
+      navigate360ApiUrl: process.env.NAVIGATE360_API_URL || '',
+      navigate360ApiKey: process.env.NAVIGATE360_API_KEY || '',
+      navigate360WebhookSecret: process.env.NAVIGATE360_WEBHOOK_SECRET || '',
+      pollingIntervalSeconds: parseInt(process.env.SOCIAL_MEDIA_POLL_INTERVAL || '300', 10),
     },
   };
 }

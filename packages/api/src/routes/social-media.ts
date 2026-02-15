@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
+import { getConfig } from '../config.js';
+import { createSocialMediaAdapter, getWebhookSecretForSource } from '@safeschool/social-media';
+
+const VALID_SOURCES = ['bark', 'gaggle', 'securly', 'navigate360'] as const;
 
 const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/social-media/alerts — List social media alerts
@@ -192,7 +196,25 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
-  // POST /api/v1/social-media/webhook — External webhook endpoint (signature-verified)
+  // -------------------------------------------------------------------------
+  // POST /api/v1/social-media/webhook — External webhook (signature-verified)
+  // -------------------------------------------------------------------------
+
+  // Capture raw body for HMAC verification
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (req, body, done) => {
+      try {
+        const json = JSON.parse(body as string);
+        (req as any).rawBody = body;
+        done(null, json);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   fastify.post<{
     Body: {
       event_type: string;
@@ -208,8 +230,37 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
       };
     };
   }>('/webhook', async (request, reply) => {
-    // Webhook endpoints should verify signatures in production
-    // For now, accept the payload and create an alert
+    const config = getConfig();
+
+    // Detect source from header or default
+    const sourceHeader = (request.headers['x-webhook-source'] as string || '').toLowerCase();
+    const source = VALID_SOURCES.includes(sourceHeader as any) ? sourceHeader : null;
+
+    // Verify webhook signature
+    const signature = request.headers['x-webhook-signature'] as string | undefined;
+    const rawBody = (request as any).rawBody as string | undefined;
+    const webhookSecret = source ? getWebhookSecretForSource(source, config.socialMedia) : '';
+
+    if (webhookSecret) {
+      // Secret is configured — signature is required
+      if (!signature || !rawBody) {
+        return reply.code(401).send({ error: 'Missing x-webhook-signature header' });
+      }
+
+      const adapter = createSocialMediaAdapter({
+        ...config.socialMedia,
+        adapter: source || config.socialMedia.adapter,
+      });
+
+      if (!adapter.verifyWebhookSignature(rawBody, signature)) {
+        fastify.log.warn({ source }, 'Social media webhook signature verification failed');
+        return reply.code(401).send({ error: 'Invalid signature' });
+      }
+    } else if (signature && rawBody && source) {
+      // No secret configured but signature provided — log a dev warning
+      fastify.log.warn({ source }, 'Webhook signature provided but no secret configured — skipping verification');
+    }
+
     const { event_type, data } = request.body;
 
     if (event_type !== 'alert.created') {
@@ -229,7 +280,7 @@ const socialMediaRoutes: FastifyPluginAsync = async (fastify) => {
     const alert = await fastify.prisma.socialMediaAlert.create({
       data: {
         siteId: defaultSiteId,
-        source: 'BARK' as any,
+        source: (source?.toUpperCase() || 'BARK') as any,
         platform: sanitizeText(data.platform),
         contentType: data.content_type || 'text',
         flaggedContent: sanitizeText(data.content),

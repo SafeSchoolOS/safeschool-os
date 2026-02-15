@@ -18,6 +18,9 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { CompliancePage } from './pages/CompliancePage';
 import { ParentPortalPage } from './pages/ParentPortalPage';
 import { EscalationPage } from './pages/EscalationPage';
+import { FleetPage } from './pages/FleetPage';
+import { CardholderPage } from './pages/CardholderPage';
+import { StudentPage } from './pages/StudentPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export function App() {
@@ -63,6 +66,9 @@ export function App() {
         <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
         <Route path="/compliance" element={<ErrorBoundary><CompliancePage /></ErrorBoundary>} />
         <Route path="/escalation" element={<ErrorBoundary><EscalationPage /></ErrorBoundary>} />
+        <Route path="/cardholders" element={<ErrorBoundary><CardholderPage /></ErrorBoundary>} />
+        <Route path="/students" element={<ErrorBoundary><StudentPage /></ErrorBoundary>} />
+        <Route path="/fleet" element={<ErrorBoundary><FleetPage /></ErrorBoundary>} />
         <Route path="/onboarding" element={<ErrorBoundary><OnboardingPage /></ErrorBoundary>} />
         <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
       </Route>

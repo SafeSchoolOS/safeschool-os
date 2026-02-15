@@ -113,6 +113,60 @@ export const ALERT_MEDICAL_SMS: NotificationTemplate = {
   variables: ['siteName', 'buildingName', 'message'],
 };
 
+// --- Weather Templates ---
+
+export const WEATHER_ALERT_SMS: NotificationTemplate = {
+  id: 'weather-alert-sms',
+  name: 'Weather Alert (SMS)',
+  channel: 'sms',
+  body: 'WEATHER ALERT at {{siteName}}: {{event}} ({{severity}}). {{headline}}. Follow shelter-in-place procedures if directed.',
+  variables: ['siteName', 'event', 'severity', 'headline'],
+};
+
+export const WEATHER_ALERT_EMAIL: NotificationTemplate = {
+  id: 'weather-alert-email',
+  name: 'Weather Alert (Email)',
+  channel: 'email',
+  subject: 'WEATHER ALERT - {{event}} - {{siteName}}',
+  body: `WEATHER ALERT
+
+{{siteName}} has received a {{severity}} weather alert from the National Weather Service.
+
+Event: {{event}}
+Severity: {{severity}}
+{{headline}}
+
+Onset: {{onset}}
+Expires: {{expires}}
+
+{{description}}
+
+Instructions:
+- Follow all staff directions for shelter-in-place or evacuation
+- Stay away from windows and exterior doors
+- Monitor for updates from school administration
+- Do not attempt to pick up students unless instructed
+
+This message was sent by SafeSchool OS.`,
+  variables: ['siteName', 'event', 'severity', 'headline', 'description', 'onset', 'expires'],
+};
+
+export const WEATHER_ALERT_PUSH: NotificationTemplate = {
+  id: 'weather-alert-push',
+  name: 'Weather Alert (Push)',
+  channel: 'push',
+  body: 'WEATHER: {{event}} ({{severity}}) at {{siteName}} - {{headline}}',
+  variables: ['siteName', 'event', 'severity', 'headline'],
+};
+
+export const WEATHER_ALERT_PA: NotificationTemplate = {
+  id: 'weather-alert-pa',
+  name: 'Weather Alert (PA/Intercom)',
+  channel: 'pa',
+  body: 'Attention. This is a weather alert. The National Weather Service has issued a {{event}} for our area. Severity: {{severity}}. All students and staff, follow shelter-in-place procedures immediately. Move to interior rooms and hallways away from windows. Remain in position until an all-clear is given.',
+  variables: ['event', 'severity'],
+};
+
 // --- Visitor Templates ---
 
 export const VISITOR_CHECKIN_EMAIL: NotificationTemplate = {
@@ -298,6 +352,12 @@ export const NOTIFICATION_TEMPLATES = {
     ALERT_ALL_CLEAR_SMS,
     ALERT_ALL_CLEAR_EMAIL,
     ALERT_MEDICAL_SMS,
+  ],
+  weather: [
+    WEATHER_ALERT_SMS,
+    WEATHER_ALERT_EMAIL,
+    WEATHER_ALERT_PUSH,
+    WEATHER_ALERT_PA,
   ],
   visitors: [
     VISITOR_CHECKIN_EMAIL,

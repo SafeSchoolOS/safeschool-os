@@ -208,12 +208,18 @@ const transportationRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
-    // Update student count on bus
-    const countDelta = scanType === 'BOARD' ? 1 : -1;
-    await fastify.prisma.bus.update({
-      where: { id: busId },
-      data: { currentStudentCount: { increment: countDelta } },
-    });
+    // Update student count on bus (clamp to minimum 0 on EXIT)
+    if (scanType === 'BOARD') {
+      await fastify.prisma.bus.update({
+        where: { id: busId },
+        data: { currentStudentCount: { increment: 1 } },
+      });
+    } else {
+      await fastify.prisma.bus.update({
+        where: { id: busId },
+        data: { currentStudentCount: Math.max(0, bus.currentStudentCount - 1) },
+      });
+    }
 
     // Enqueue notification job
     await fastify.alertQueue.add('process-rfid-scan', {

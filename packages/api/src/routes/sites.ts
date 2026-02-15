@@ -1,8 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { mkdir, writeFile, readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { requireMinRole } from '../middleware/rbac.js';
+
+// Ensure floor plan upload directory exists at module load
+const FLOOR_PLAN_DIR = process.env.FLOOR_PLAN_DIR || '/app/data/floor-plans';
+mkdirSync(FLOOR_PLAN_DIR, { recursive: true });
 
 const siteRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/sites — User's sites
@@ -79,7 +83,6 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /:id/buildings/:buildingId/floor-plan-image — upload background image (SITE_ADMIN)
-  const FLOOR_PLAN_DIR = process.env.FLOOR_PLAN_DIR || '/app/data/floor-plans';
   const ALLOWED_MIMETYPES: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',

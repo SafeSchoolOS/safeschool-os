@@ -14,17 +14,15 @@ export { GenetecAdapter } from './adapters/genetec.js';
 export { BrivoAdapter } from './adapters/brivo.js';
 export { VerkadaAdapter } from './adapters/verkada.js';
 export { S2NetBoxAdapter } from './adapters/s2-netbox.js';
-export { AllegionAdapter } from './adapters/allegion.js';
 export { AssaAbloyAdapter } from './adapters/assa-abloy.js';
 
-import type { AccessControlAdapter } from '@safeschool/core';
+import type { AccessControlAdapter, CredentialManagementAdapter } from '@safeschool/core';
 import { SicunetAdapter } from './adapters/sicunet.js';
 import { MockAccessControlAdapter } from './adapters/mock.js';
 import { GenetecAdapter } from './adapters/genetec.js';
 import { BrivoAdapter } from './adapters/brivo.js';
 import { VerkadaAdapter } from './adapters/verkada.js';
 import { S2NetBoxAdapter } from './adapters/s2-netbox.js';
-import { AllegionAdapter } from './adapters/allegion.js';
 import { AssaAbloyAdapter } from './adapters/assa-abloy.js';
 
 const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
@@ -36,8 +34,6 @@ const adapterRegistry: Record<string, new () => AccessControlAdapter> = {
   's2-netbox': S2NetBoxAdapter,
   's2netbox': S2NetBoxAdapter,
   'netbox': S2NetBoxAdapter,
-  allegion: AllegionAdapter,
-  schlage: AllegionAdapter,
   'assa-abloy': AssaAbloyAdapter,
   assaabloy: AssaAbloyAdapter,
 };
@@ -51,4 +47,13 @@ export function createAdapter(vendor: string): AccessControlAdapter {
     throw new Error(`Unknown access control vendor: ${vendor}. Supported: ${Object.keys(adapterRegistry).join(', ')}`);
   }
   return new AdapterClass();
+}
+
+/**
+ * Type guard: check if an AccessControlAdapter also supports credential management.
+ */
+export function hasCredentialManagement(
+  adapter: AccessControlAdapter,
+): adapter is AccessControlAdapter & CredentialManagementAdapter {
+  return 'supportsCredentialManagement' in adapter && (adapter as any).supportsCredentialManagement === true;
 }

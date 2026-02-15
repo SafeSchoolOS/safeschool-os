@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
+import { renderTemplate, WEATHER_ALERT_SMS } from '@safeschool/core';
 import { NWSAdapter, type WeatherAlert } from '@safeschool/weather';
 
 const CACHE_TTL_SECONDS = 300; // 5 minutes
@@ -108,6 +109,27 @@ export default async function weatherRoutes(app: FastifyInstance) {
             app.wsManager?.broadcastToSite(siteId, 'alert:created', alert);
           } catch {
             // Non-blocking
+          }
+
+          // Queue mass notification for severe weather
+          try {
+            const templateVars = {
+              siteName: site.name,
+              event: weatherAlert.event,
+              severity: weatherAlert.severity,
+              headline: weatherAlert.headline,
+            };
+            const rendered = renderTemplate(WEATHER_ALERT_SMS, templateVars);
+
+            await app.alertQueue.add('mass-notify', {
+              siteId,
+              channels: ['SMS', 'EMAIL', 'PUSH', 'PA'],
+              message: rendered.body,
+              recipientScope: 'all-staff',
+              alertId: alert.id,
+            });
+          } catch {
+            // Non-blocking — notification failure shouldn't break weather response
           }
 
           app.log.warn(

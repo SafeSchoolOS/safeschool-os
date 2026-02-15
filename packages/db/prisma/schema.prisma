@@ -68,6 +68,8 @@ model Site {
   alerts    Alert[]
   lockdowns LockdownCommand[]
   doors     Door[]
+  accessZones  AccessZone[]
+  cardholders  Cardholder[]
   auditLogs AuditLog[]
   visitors  Visitor[]
   buses     Bus[]
@@ -80,8 +82,10 @@ model Site {
   anonymousTips        AnonymousTip[]
   threatReports        ThreatReport[]
   socialMediaAlerts    SocialMediaAlert[]
+  students             Student[]
   escalationRules      EscalationRule[]
   notificationPreferences NotificationPreference[]
+  edgeDevice           EdgeDevice?
 
   @@index([organizationId])
   @@map("sites")
@@ -97,8 +101,9 @@ model Building {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   site  Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  rooms Room[]
-  doors Door[]
+  rooms    Room[]
+  doors    Door[]
+  students Student[]
 
   @@map("buildings")
 }
@@ -119,7 +124,8 @@ model Room {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  students Student[]
 
   @@map("rooms")
 }
@@ -158,6 +164,7 @@ model User {
   auditLogs         AuditLog[]
   hostedVisitors    Visitor[]         @relation("VisitorHost")
   notificationPreferences NotificationPreference[]
+  cardholder        Cardholder?
 
   @@map("users")
 }
@@ -274,8 +281,9 @@ model Door {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  site     Site     @relation(fields: [siteId], references: [id])
-  building Building @relation(fields: [buildingId], references: [id])
+  site            Site               @relation(fields: [siteId], references: [id])
+  building        Building           @relation(fields: [buildingId], references: [id])
+  zoneAssignments DoorZoneAssignment[]
 
   @@index([siteId])
   @@index([buildingId])
@@ -411,9 +419,10 @@ model Visitor {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  site      Site              @relation(fields: [siteId], references: [id])
-  host      User?             @relation("VisitorHost", fields: [hostUserId], references: [id])
-  screening VisitorScreening?
+  site       Site              @relation(fields: [siteId], references: [id])
+  host       User?             @relation("VisitorHost", fields: [hostUserId], references: [id])
+  screening  VisitorScreening?
+  cardholder Cardholder?
 
   @@index([siteId, status])
   @@index([siteId, checkedInAt])
@@ -527,6 +536,7 @@ model BusStop {
 model StudentCard {
   id          String   @id @default(uuid())
   siteId      String   @map("site_id")
+  studentId   String?  @map("student_id")
   studentName String   @map("student_name")
   cardId      String   @unique @map("card_id")
   grade       String?
@@ -535,11 +545,13 @@ model StudentCard {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   site              Site                  @relation(fields: [siteId], references: [id])
+  student           Student?              @relation(fields: [studentId], references: [id])
   stopAssignments   StudentStopAssignment[]
   ridershipEvents   RidershipEvent[]
   parentContacts    ParentContact[]
 
   @@index([siteId])
+  @@index([studentId])
   @@map("student_cards")
 }
 
@@ -581,7 +593,8 @@ enum ScanType {
 
 model ParentContact {
   id            String  @id @default(uuid())
-  studentCardId String  @map("student_card_id")
+  studentCardId String? @map("student_card_id")
+  studentId     String? @map("student_id")
   parentName    String  @map("parent_name")
   relationship  String
   phone         String?
@@ -598,10 +611,49 @@ model ParentContact {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  studentCard StudentCard @relation(fields: [studentCardId], references: [id], onDelete: Cascade)
+  studentCard StudentCard? @relation(fields: [studentCardId], references: [id], onDelete: Cascade)
+  student     Student?     @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentCardId])
+  @@index([studentId])
   @@map("parent_contacts")
+}
+
+// ============================================================================
+// Student Management
+// ============================================================================
+
+model Student {
+  id             String    @id @default(uuid())
+  siteId         String    @map("site_id")
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  studentNumber  String    @map("student_number")
+  photo          String?
+  grade          String?
+  dateOfBirth    DateTime? @map("date_of_birth")
+  buildingId     String?   @map("building_id")
+  roomId         String?   @map("room_id")
+  enrollmentDate DateTime? @map("enrollment_date")
+  withdrawalDate DateTime? @map("withdrawal_date")
+  isActive       Boolean   @default(true) @map("is_active")
+  medicalNotes   String?   @map("medical_notes")
+  allergies      String?
+  notes          String?
+  externalId     String?   @map("external_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  site           Site           @relation(fields: [siteId], references: [id])
+  building       Building?      @relation(fields: [buildingId], references: [id])
+  room           Room?          @relation(fields: [roomId], references: [id])
+  transportCards StudentCard[]
+  parentContacts ParentContact[]
+
+  @@unique([siteId, studentNumber])
+  @@index([siteId, grade])
+  @@index([siteId, isActive])
+  @@map("students")
 }
 
 // ============================================================================
@@ -1023,4 +1075,161 @@ model EscalationRule {
 
   @@index([siteId, alertLevel])
   @@map("escalation_rules")
+}
+
+// ============================================================================
+// Edge Device Fleet Management
+// ============================================================================
+
+model EdgeDevice {
+  id               String        @id @default(uuid())
+  siteId           String        @unique @map("site_id")
+  currentVersion   String?       @map("current_version")
+  targetVersion    String?       @map("target_version")
+  operatingMode    String?       @map("operating_mode") // EDGE, STANDALONE
+  pendingChanges   Int           @default(0) @map("pending_changes")
+  upgradeStatus    UpgradeStatus @default(IDLE) @map("upgrade_status")
+  upgradeError     String?       @map("upgrade_error")
+  hostname         String?
+  ipAddress        String?       @map("ip_address")
+  nodeVersion      String?       @map("node_version")
+  diskUsagePercent Float?        @map("disk_usage_percent")
+  memoryUsageMb    Float?        @map("memory_usage_mb")
+  lastHeartbeatAt  DateTime      @default(now()) @map("last_heartbeat_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([upgradeStatus])
+  @@map("edge_devices")
+}
+
+enum UpgradeStatus {
+  IDLE
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+}
+
+// ============================================================================
+// Access Control — Cardholders, Credentials & Zones
+// ============================================================================
+
+model AccessZone {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  name        String
+  description String?
+  externalId  String?  @map("external_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  site            Site                      @relation(fields: [siteId], references: [id])
+  doorAssignments DoorZoneAssignment[]
+  credentials     CredentialZoneAssignment[]
+
+  @@unique([siteId, name])
+  @@index([siteId])
+  @@map("access_zones")
+}
+
+model DoorZoneAssignment {
+  id     String @id @default(uuid())
+  doorId String @map("door_id")
+  zoneId String @map("zone_id")
+
+  door Door       @relation(fields: [doorId], references: [id], onDelete: Cascade)
+  zone AccessZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([doorId, zoneId])
+  @@map("door_zone_assignments")
+}
+
+model Cardholder {
+  id         String     @id @default(uuid())
+  siteId     String     @map("site_id")
+  personType PersonType @map("person_type")
+  firstName  String     @map("first_name")
+  lastName   String     @map("last_name")
+  email      String?
+  phone      String?
+  company    String?
+  title      String?
+  userId     String?    @unique @map("user_id")
+  visitorId  String?    @unique @map("visitor_id")
+  externalId String?    @map("external_id")
+  photo      String?
+  isActive   Boolean    @default(true) @map("is_active")
+  notes      String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  site        Site                  @relation(fields: [siteId], references: [id])
+  user        User?                 @relation(fields: [userId], references: [id])
+  visitor     Visitor?              @relation(fields: [visitorId], references: [id])
+  credentials CardholderCredential[]
+
+  @@index([siteId, personType])
+  @@index([siteId, isActive])
+  @@map("cardholders")
+}
+
+model CardholderCredential {
+  id             String           @id @default(uuid())
+  cardholderId   String           @map("cardholder_id")
+  credentialType CredentialType   @map("credential_type")
+  status         CredentialStatus @default(ACTIVE)
+  cardNumber     String?          @map("card_number")
+  facilityCode   String?          @map("facility_code")
+  externalId     String?          @map("external_id")
+  issuedAt       DateTime         @default(now()) @map("issued_at")
+  expiresAt      DateTime?        @map("expires_at")
+  revokedAt      DateTime?        @map("revoked_at")
+  revokedReason  String?          @map("revoked_reason")
+  lastUsedAt     DateTime?        @map("last_used_at")
+  metadata       Json?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  cardholder Cardholder               @relation(fields: [cardholderId], references: [id], onDelete: Cascade)
+  zones      CredentialZoneAssignment[]
+
+  @@index([cardholderId])
+  @@index([status])
+  @@map("cardholder_credentials")
+}
+
+model CredentialZoneAssignment {
+  id           String @id @default(uuid())
+  credentialId String @map("credential_id")
+  zoneId       String @map("zone_id")
+
+  credential CardholderCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  zone       AccessZone           @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([credentialId, zoneId])
+  @@map("credential_zone_assignments")
+}
+
+enum PersonType {
+  STAFF
+  STUDENT
+  WORKER
+  VISITOR
+}
+
+enum CredentialType {
+  PHYSICAL_CARD
+  MOBILE
+  TEMPORARY_CARD
+  FOB
+}
+
+enum CredentialStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  REVOKED
 }

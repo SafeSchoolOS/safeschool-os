@@ -157,6 +157,258 @@ export const KNOWN_GRANTS: Omit<Grant, 'id' | 'status'>[] = [
     ],
   },
 
+  // ============ STATE GRANTS (Alyssa's Law States) ============
+  {
+    name: 'NJ School Security Aid (Alyssa\'s Law)',
+    source: 'STATE' as GrantSource,
+    agency: 'New Jersey Department of Education',
+    programName: 'School Security Aid',
+    description:
+      'New Jersey was the first state to enact Alyssa\'s Law (2019), requiring all public schools to install panic alarm systems linked directly to law enforcement. State funding offsets costs for compliant systems.',
+    fundingAmount: { min: 10000, max: 150000, typical: 50000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['NJ'],
+      requirements: [
+        'Must be a NJ public elementary or secondary school',
+        'System must connect directly to local law enforcement',
+        'Must comply with NJ Alyssa\'s Law (P.L. 2019, c.50)',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm / silent alert systems',
+      'Direct law enforcement notification systems',
+      'Installation and training costs',
+      'Access control systems',
+    ],
+  },
+  {
+    name: 'Florida Safe Schools Allocation',
+    source: 'STATE' as GrantSource,
+    agency: 'Florida Department of Education',
+    programName: 'Safe Schools Allocation',
+    description:
+      'Florida allocates over $180M annually for school safety through the FEFP Safe Schools Allocation. Covers panic buttons (Alyssa\'s Law, SB 7030), threat assessments, school safety officers, and security technology.',
+    fundingAmount: { min: 25000, max: 500000, typical: 150000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['FL'],
+      requirements: [
+        'Must be a Florida public school district or charter school',
+        'Must comply with Marjory Stoneman Douglas Act requirements',
+        'Must have a district school safety specialist',
+        'Threat assessment teams required at each school',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm systems (Alyssa\'s Law compliance)',
+      'Mobile panic buttons',
+      'School safety officers',
+      'Threat assessment programs',
+      'Mental health services',
+      'Security cameras and monitoring',
+      'Physical security improvements',
+      'Safe-school officer training',
+    ],
+  },
+  {
+    name: 'New York School Safety Improvement Grant',
+    source: 'STATE' as GrantSource,
+    agency: 'New York Division of Criminal Justice Services',
+    programName: 'School Safety Improvement Program',
+    description:
+      'New York\'s Alyssa\'s Law (2023) requires all public schools to have silent panic alarm systems. DCJS provides grants for implementation of compliant systems and security infrastructure.',
+    fundingAmount: { min: 15000, max: 250000, typical: 75000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['NY'],
+      requirements: [
+        'Must be a NY public or charter school',
+        'Must implement system connecting to 911/local LE dispatch',
+        'Must comply with NY Education Law Section 2801-d',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic alarm systems',
+      'Emergency communication systems',
+      'Direct 911 dispatch integration',
+      'Staff training on panic systems',
+      'Access control and lockdown systems',
+    ],
+  },
+  {
+    name: 'Texas School Safety Grant (TxSSC)',
+    source: 'STATE' as GrantSource,
+    agency: 'Texas School Safety Center / TEA',
+    programName: 'School Safety and Security Fund',
+    description:
+      'Texas provides school safety funding through the Texas School Safety Center. SB 11 and subsequent legislation require silent panic alert technology, threat assessment, and hardened entries.',
+    fundingAmount: { min: 25000, max: 500000, typical: 100000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['TX'],
+      requirements: [
+        'Must be a Texas ISD or open-enrollment charter school',
+        'Must have multi-hazard emergency operations plan',
+        'Must conduct threat assessments',
+        'Must comply with TEC Chapter 37',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic alert technology',
+      'Visitor management systems',
+      'Access control and secured entries',
+      'Security cameras',
+      'Emergency communications',
+      'Threat assessment training',
+      'Mental health programs',
+    ],
+  },
+  {
+    name: 'Oklahoma School Security Grant Program',
+    source: 'STATE' as GrantSource,
+    agency: 'Oklahoma Office of Management and Enterprise Services',
+    programName: 'School Security Grant',
+    description:
+      'Oklahoma\'s Alyssa\'s Law (HB 3350, 2022) funds silent panic alert systems for public schools. Grants cover panic devices, dispatch integration, and security improvements.',
+    fundingAmount: { min: 10000, max: 100000, typical: 40000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['OK'],
+      requirements: [
+        'Must be an Oklahoma public school district',
+        'Must implement system that alerts local 911/dispatch',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm / silent alert systems',
+      'Emergency notification systems',
+      'Direct dispatch integration',
+      'Installation and staff training',
+    ],
+  },
+  {
+    name: 'Tennessee School Safety Grant',
+    source: 'STATE' as GrantSource,
+    agency: 'Tennessee Department of Education',
+    programName: 'School Safety Grant Program',
+    description:
+      'Tennessee enacted panic button legislation requiring schools to implement silent alert systems. State grants support panic devices, access control, and communication systems.',
+    fundingAmount: { min: 15000, max: 200000, typical: 60000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['TN'],
+      requirements: [
+        'Must be a Tennessee LEA or public charter school',
+        'Must have school safety plan on file',
+        'Must comply with TN Code 49-6-8xx',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic button systems',
+      'Emergency alert systems',
+      'Interoperable communications',
+      'Access control upgrades',
+      'Security cameras',
+    ],
+  },
+  {
+    name: 'Virginia School Safety Grant (DCJS)',
+    source: 'STATE' as GrantSource,
+    agency: 'Virginia Department of Criminal Justice Services',
+    programName: 'School Security Equipment Grant',
+    description:
+      'Virginia provides grants for school security equipment including panic alarm systems, access control, and surveillance. Virginia\'s panic alert legislation aligns with Alyssa\'s Law framework.',
+    fundingAmount: { min: 10000, max: 250000, typical: 75000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER', 'PRIVATE'] as any[],
+      states: ['VA'],
+      requirements: [
+        'Must be a Virginia school division or eligible private school',
+        'Must have current school crisis and emergency management plan',
+        'Equipment must be used solely for school safety',
+      ],
+      matchRequired: true,
+      matchPercentage: 25,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm systems',
+      'Access control systems',
+      'Security cameras and video surveillance',
+      'Communication systems',
+      'Mass notification systems',
+      'Visitor management systems',
+    ],
+  },
+  {
+    name: 'Arizona School Safety Program',
+    source: 'STATE' as GrantSource,
+    agency: 'Arizona Department of Education',
+    programName: 'School Safety Program',
+    description:
+      'Arizona allocates funding for school safety improvements including panic button systems, threat assessment, and physical security. Complies with Arizona\'s school safety legislation.',
+    fundingAmount: { min: 10000, max: 150000, typical: 50000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['AZ'],
+      requirements: [
+        'Must be an Arizona public school or charter',
+        'Must have board-approved school safety plan',
+        'Must participate in ADE safety reporting',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic button systems',
+      'Emergency communication technology',
+      'Physical security upgrades',
+      'Threat assessment training',
+      'School resource officer equipment',
+    ],
+  },
+  {
+    name: 'North Carolina School Safety Grants (CSSOG)',
+    source: 'STATE' as GrantSource,
+    agency: 'North Carolina Department of Public Instruction',
+    programName: 'Center for Safer Schools Grants',
+    description:
+      'North Carolina\'s Center for Safer Schools provides grants for security infrastructure, panic systems, threat assessment, and crisis response. Aligned with NC school safety legislation.',
+    fundingAmount: { min: 15000, max: 200000, typical: 65000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['NC'],
+      requirements: [
+        'Must be a NC public school unit or charter school',
+        'Must comply with NC Safe School Plans statute',
+        'Must participate in School Risk Management Plan',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm systems',
+      'Crisis alert technology',
+      'Access control and entry security',
+      'Security cameras',
+      'Anonymous tip systems',
+      'Emergency communications',
+    ],
+  },
+
   // ============ PRIVATE / FOUNDATION GRANTS ============
   {
     name: 'Sandy Hook Promise Foundation Grants',

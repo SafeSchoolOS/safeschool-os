@@ -39,6 +39,9 @@ import parentRoutes from './routes/parent.js';
 import escalationRoutes from './routes/escalation.js';
 import notificationPreferenceRoutes from './routes/notification-preferences.js';
 import weatherRoutes from './routes/weather.js';
+import fleetRoutes from './routes/fleet.js';
+import cardholderRoutes from './routes/cardholders.js';
+import studentRoutes from './routes/students.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import wsHandler from './ws/handler.js';
 
@@ -212,6 +215,9 @@ export async function buildServer() {
   await app.register(escalationRoutes, { prefix: '/api/v1/escalation' });
   await app.register(notificationPreferenceRoutes, { prefix: '/api/v1/notification-preferences' });
   await app.register(weatherRoutes, { prefix: '/api/v1/weather' });
+  await app.register(fleetRoutes, { prefix: '/api/v1/fleet' });
+  await app.register(cardholderRoutes, { prefix: '/api/v1/cardholders' });
+  await app.register(studentRoutes, { prefix: '/api/v1/students' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });

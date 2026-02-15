@@ -22,10 +22,15 @@
 import type {
   AccessControlAdapter,
   AccessControlConfig,
+  CardholderData,
+  CredentialData,
+  CredentialManagementAdapter,
   DoorCommandResult,
   DoorEvent,
   DoorStatus,
+  ImportedCardholder,
   LockdownResult,
+  ProvisionedCredential,
 } from '@safeschool/core';
 
 interface SicunetConfig extends AccessControlConfig {
@@ -39,9 +44,10 @@ interface SicunetConfig extends AccessControlConfig {
   siteId?: string;
 }
 
-export class SicunetAdapter implements AccessControlAdapter {
+export class SicunetAdapter implements AccessControlAdapter, CredentialManagementAdapter {
   name = 'Sicunet';
   vendor = 'Sicunet';
+  supportsCredentialManagement = true as const;
 
   private baseUrl = '';
   private apiKey = '';
@@ -270,45 +276,87 @@ export class SicunetAdapter implements AccessControlAdapter {
     this.eventCallbacks.push(callback);
   }
 
-  // ---- Sicunet-specific methods (beyond the standard adapter interface) ----
+  // ---- CredentialManagementAdapter implementation ----
 
-  /**
-   * Provision a temporary visitor credential.
-   * Unique to Sicunet's deep integration with SafeSchool's visitor management.
-   */
-  async provisionVisitorCredential(
-    visitorId: string,
-    accessZones: string[],
-    expiresAt: Date,
-  ): Promise<{ credentialId: string; cardNumber: string }> {
-    const response = await this.request('POST', '/api/v1/credentials/temporary', {
-      visitorId,
-      accessZones,
-      expiresAt: expiresAt.toISOString(),
-      credentialType: 'mobile', // Default to mobile credential
-      source: 'SafeSchool-Visitor',
+  async createCardholder(data: CardholderData): Promise<{ externalId: string }> {
+    const response = await this.request('POST', '/api/v1/cardholders', {
+      ...data,
+      source: 'SafeSchool',
     });
-    return response.json() as Promise<{ credentialId: string; cardNumber: string }>;
+    const result: any = await response.json();
+    return { externalId: result.id || result.externalId };
   }
 
-  /**
-   * Revoke a visitor credential immediately (e.g., on checkout or alert).
-   */
-  async revokeCredential(credentialId: string): Promise<void> {
-    await this.request('DELETE', `/api/v1/credentials/${credentialId}`, {
-      reason: 'SafeSchool-Revoke',
+  async updateCardholder(externalId: string, data: Partial<CardholderData>): Promise<void> {
+    await this.request('PUT', `/api/v1/cardholders/${externalId}`, {
+      ...data,
+      source: 'SafeSchool',
     });
   }
 
-  /**
-   * Revoke all temporary credentials for a site during lockdown.
-   */
+  async deleteCardholder(externalId: string): Promise<void> {
+    await this.request('DELETE', `/api/v1/cardholders/${externalId}`);
+  }
+
+  async importCardholders(): Promise<ImportedCardholder[]> {
+    const response = await this.request('GET', `/api/v1/cardholders?siteId=${this.siteId}`);
+    const data: any = await response.json();
+    return (data.cardholders || []).map((ch: any) => ({
+      externalId: ch.id,
+      firstName: ch.firstName,
+      lastName: ch.lastName,
+      email: ch.email,
+      phone: ch.phone,
+      company: ch.company,
+      title: ch.title,
+      personType: mapSicunetPersonType(ch.type),
+      credentials: (ch.credentials || []).map((c: any) => ({
+        externalId: c.id,
+        credentialType: mapSicunetCredentialType(c.type),
+        cardNumber: c.cardNumber,
+        facilityCode: c.facilityCode,
+        status: (c.status || 'ACTIVE').toUpperCase(),
+      })),
+    }));
+  }
+
+  async provisionCredential(data: CredentialData): Promise<ProvisionedCredential> {
+    const response = await this.request('POST', '/api/v1/credentials', {
+      cardholderId: data.cardholderExternalId,
+      credentialType: data.credentialType.toLowerCase(),
+      cardNumber: data.cardNumber,
+      facilityCode: data.facilityCode,
+      accessZones: data.accessZoneIds,
+      expiresAt: data.expiresAt?.toISOString(),
+      source: 'SafeSchool',
+    });
+    const result: any = await response.json();
+    return {
+      externalId: result.id || result.credentialId,
+      cardNumber: result.cardNumber,
+      credentialType: data.credentialType,
+      issuedAt: new Date(),
+      expiresAt: data.expiresAt,
+    };
+  }
+
+  async revokeCredential(externalCredentialId: string, reason?: string): Promise<void> {
+    await this.request('DELETE', `/api/v1/credentials/${externalCredentialId}`, {
+      reason: reason || 'SafeSchool-Revoke',
+    });
+  }
+
   async revokeAllTemporaryCredentials(siteId?: string): Promise<{ revokedCount: number }> {
     const response = await this.request('POST', '/api/v1/credentials/revoke-temporary', {
       siteId: siteId || this.siteId,
       source: 'SafeSchool-Lockdown',
     });
     return response.json() as Promise<{ revokedCount: number }>;
+  }
+
+  async listAccessZones(): Promise<Array<{ externalId: string; name: string; doorCount: number }>> {
+    const zones = await this.getZones();
+    return zones.map((z) => ({ externalId: z.id, name: z.name, doorCount: z.doorCount }));
   }
 
   /**
@@ -560,4 +608,31 @@ function mapSicunetEventType(type: string): DoorEventType {
     'lockdown_released': 'UNLOCKED',
   };
   return mapping[type?.toLowerCase()] || 'ALARM';
+}
+
+function mapSicunetPersonType(type: string): 'STAFF' | 'STUDENT' | 'WORKER' | 'VISITOR' {
+  const mapping: Record<string, 'STAFF' | 'STUDENT' | 'WORKER' | 'VISITOR'> = {
+    'employee': 'STAFF',
+    'staff': 'STAFF',
+    'teacher': 'STAFF',
+    'student': 'STUDENT',
+    'contractor': 'WORKER',
+    'worker': 'WORKER',
+    'visitor': 'VISITOR',
+    'temporary': 'VISITOR',
+  };
+  return mapping[type?.toLowerCase()] || 'VISITOR';
+}
+
+function mapSicunetCredentialType(type: string): 'PHYSICAL_CARD' | 'MOBILE' | 'TEMPORARY_CARD' | 'FOB' {
+  const mapping: Record<string, 'PHYSICAL_CARD' | 'MOBILE' | 'TEMPORARY_CARD' | 'FOB'> = {
+    'card': 'PHYSICAL_CARD',
+    'physical': 'PHYSICAL_CARD',
+    'mobile': 'MOBILE',
+    'temporary': 'TEMPORARY_CARD',
+    'temp': 'TEMPORARY_CARD',
+    'fob': 'FOB',
+    'keyfob': 'FOB',
+  };
+  return mapping[type?.toLowerCase()] || 'PHYSICAL_CARD';
 }

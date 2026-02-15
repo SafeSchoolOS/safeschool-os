@@ -213,15 +213,87 @@ const syncRoutes: FastifyPluginAsync = async (fastify) => {
     return { data: result, timestamp: new Date().toISOString() };
   });
 
-  // POST /api/v1/sync/heartbeat — Edge heartbeat
+  // POST /api/v1/sync/heartbeat — Edge heartbeat (extended for fleet management)
   fastify.post<{
-    Body: { siteId: string; mode: string; pendingChanges: number };
+    Body: {
+      siteId: string;
+      mode: string;
+      pendingChanges: number;
+      version?: string;
+      hostname?: string;
+      nodeVersion?: string;
+      diskUsagePercent?: number;
+      memoryUsageMb?: number;
+      ipAddress?: string;
+      upgradeStatus?: string;
+      upgradeError?: string;
+    };
   }>('/heartbeat', { preHandler: [verifySyncKey] }, async (request) => {
-    const { siteId, mode, pendingChanges } = request.body;
+    const {
+      siteId, mode, pendingChanges,
+      version, hostname, nodeVersion,
+      diskUsagePercent, memoryUsageMb, ipAddress,
+      upgradeStatus, upgradeError,
+    } = request.body;
 
-    fastify.log.info({ siteId, mode, pendingChanges }, 'Edge heartbeat received');
+    fastify.log.info({ siteId, mode, pendingChanges, version }, 'Edge heartbeat received');
 
-    return { ack: true, timestamp: new Date().toISOString() };
+    // Upsert EdgeDevice record
+    const upsertData: any = {
+      operatingMode: mode,
+      pendingChanges: pendingChanges ?? 0,
+      lastHeartbeatAt: new Date(),
+      ...(version && { currentVersion: version }),
+      ...(hostname && { hostname }),
+      ...(nodeVersion && { nodeVersion }),
+      ...(ipAddress && { ipAddress }),
+      ...(diskUsagePercent !== undefined && { diskUsagePercent }),
+      ...(memoryUsageMb !== undefined && { memoryUsageMb }),
+    };
+
+    // Handle upgrade status reports from edge
+    if (upgradeStatus === 'SUCCESS') {
+      upsertData.upgradeStatus = 'IDLE';
+      upsertData.targetVersion = null;
+      upsertData.upgradeError = null;
+    } else if (upgradeStatus === 'FAILED') {
+      upsertData.upgradeStatus = 'IDLE';
+      upsertData.upgradeError = upgradeError || 'Unknown error';
+    } else if (upgradeStatus === 'IN_PROGRESS') {
+      upsertData.upgradeStatus = 'IN_PROGRESS';
+    }
+
+    const device = await fastify.prisma.edgeDevice.upsert({
+      where: { siteId },
+      update: upsertData,
+      create: {
+        siteId,
+        ...upsertData,
+        upgradeStatus: upsertData.upgradeStatus || 'IDLE',
+      },
+    });
+
+    // Check if an upgrade should be pushed to this edge device
+    let upgrade: { targetVersion: string; action: string } | undefined;
+    if (
+      device.targetVersion &&
+      device.currentVersion !== device.targetVersion &&
+      device.upgradeStatus === 'IDLE' &&
+      upgradeStatus !== 'IN_PROGRESS'
+    ) {
+      // Mark as PENDING so we only send the command once
+      await fastify.prisma.edgeDevice.update({
+        where: { siteId },
+        data: { upgradeStatus: 'PENDING' },
+      });
+      upgrade = { targetVersion: device.targetVersion, action: 'update' };
+    }
+
+    return {
+      ack: true,
+      timestamp: new Date().toISOString(),
+      ...(upgrade && { upgrade }),
+    };
   });
 };
 

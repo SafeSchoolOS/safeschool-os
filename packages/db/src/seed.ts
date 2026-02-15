@@ -75,10 +75,24 @@ const IDS = {
     parent1: '00000000-0000-4000-a000-000000005001',
     parent2: '00000000-0000-4000-a000-000000005002',
   },
+  students: {
+    alex: '00000000-0000-4000-a000-000000007001',
+    maya: '00000000-0000-4000-a000-000000007002',
+  },
   visitors: {
     preregistered: '00000000-0000-4000-a000-000000006001',
   },
   organization: '00000000-0000-4000-a000-000000008001',
+  accessZones: {
+    allDoors: '00000000-0000-4000-a000-000000009001',
+    adminWing: '00000000-0000-4000-a000-000000009002',
+    visitorAccess: '00000000-0000-4000-a000-000000009003',
+    mechanical: '00000000-0000-4000-a000-000000009004',
+  },
+  cardholders: {
+    emilyStaff: '00000000-0000-4000-a000-00000000a001',
+    tonyWorker: '00000000-0000-4000-a000-00000000a002',
+  },
 } as const;
 
 async function main() {
@@ -340,6 +354,64 @@ async function main() {
   }
   console.log(`  Parent contacts: ${parentContacts.length}`);
 
+  // ---- Students ----
+  const studentsData = [
+    {
+      id: IDS.students.alex,
+      firstName: 'Alex',
+      lastName: 'Thompson',
+      studentNumber: 'STU-2026-001',
+      grade: '3',
+      dateOfBirth: new Date('2017-03-15'),
+      buildingId: IDS.buildings.main,
+      roomId: IDS.rooms.room101,
+      enrollmentDate: new Date('2023-09-01'),
+      medicalNotes: 'Asthma - has inhaler in nurse office',
+      allergies: 'Peanuts',
+    },
+    {
+      id: IDS.students.maya,
+      firstName: 'Maya',
+      lastName: 'Patel',
+      studentNumber: 'STU-2026-002',
+      grade: '4',
+      dateOfBirth: new Date('2016-07-22'),
+      buildingId: IDS.buildings.main,
+      roomId: IDS.rooms.room102,
+      enrollmentDate: new Date('2022-09-01'),
+    },
+  ];
+
+  for (const stu of studentsData) {
+    await prisma.student.upsert({
+      where: { id: stu.id },
+      update: {},
+      create: { ...stu, siteId: IDS.site, isActive: true },
+    });
+  }
+
+  // Link existing student cards to students
+  await prisma.studentCard.update({
+    where: { id: IDS.studentCards.student1 },
+    data: { studentId: IDS.students.alex },
+  });
+  await prisma.studentCard.update({
+    where: { id: IDS.studentCards.student2 },
+    data: { studentId: IDS.students.maya },
+  });
+
+  // Link existing parent contacts to students
+  await prisma.parentContact.update({
+    where: { id: IDS.parentContacts.parent1 },
+    data: { studentId: IDS.students.alex },
+  });
+  await prisma.parentContact.update({
+    where: { id: IDS.parentContacts.parent2 },
+    data: { studentId: IDS.students.maya },
+  });
+
+  console.log(`  Students: ${studentsData.length} (linked to transport cards and parent contacts)`);
+
   // ---- Phase 2: Visitor ----
 
   await prisma.visitor.upsert({
@@ -358,7 +430,86 @@ async function main() {
   });
   console.log('  Visitor: 1 pre-registered');
 
-  console.log('✅ Seed complete!');
+  // ---- Access Zones ----
+
+  const accessZones = [
+    { id: IDS.accessZones.allDoors, name: 'All Doors', description: 'Full building access — all doors' },
+    { id: IDS.accessZones.adminWing, name: 'Admin Wing', description: 'Administrative offices and front desk' },
+    { id: IDS.accessZones.visitorAccess, name: 'Visitor Access', description: 'Main entrance and common areas only' },
+    { id: IDS.accessZones.mechanical, name: 'Mechanical Rooms', description: 'HVAC, electrical, and maintenance areas' },
+  ];
+
+  for (const zone of accessZones) {
+    await prisma.accessZone.upsert({
+      where: { id: zone.id },
+      update: {},
+      create: { ...zone, siteId: IDS.site },
+    });
+  }
+  console.log(`  Access zones: ${accessZones.length}`);
+
+  // Door-zone assignments
+  const doorZoneAssignments = [
+    // All Doors zone gets every non-emergency door
+    { doorId: IDS.doors.mainEntrance, zoneId: IDS.accessZones.allDoors },
+    { doorId: IDS.doors.office, zoneId: IDS.accessZones.allDoors },
+    { doorId: IDS.doors.cafeteria, zoneId: IDS.accessZones.allDoors },
+    { doorId: IDS.doors.hallway1, zoneId: IDS.accessZones.allDoors },
+    { doorId: IDS.doors.annexEntrance, zoneId: IDS.accessZones.allDoors },
+    // Admin Wing
+    { doorId: IDS.doors.office, zoneId: IDS.accessZones.adminWing },
+    { doorId: IDS.doors.mainEntrance, zoneId: IDS.accessZones.adminWing },
+    // Visitor Access (main entrance + cafeteria only)
+    { doorId: IDS.doors.mainEntrance, zoneId: IDS.accessZones.visitorAccess },
+    { doorId: IDS.doors.cafeteria, zoneId: IDS.accessZones.visitorAccess },
+    // Mechanical (hallway fire door)
+    { doorId: IDS.doors.hallway1, zoneId: IDS.accessZones.mechanical },
+  ];
+
+  for (const dza of doorZoneAssignments) {
+    await prisma.doorZoneAssignment.upsert({
+      where: { doorId_zoneId: { doorId: dza.doorId, zoneId: dza.zoneId } },
+      update: {},
+      create: dza,
+    });
+  }
+  console.log(`  Door-zone assignments: ${doorZoneAssignments.length}`);
+
+  // ---- Cardholders ----
+
+  await prisma.cardholder.upsert({
+    where: { id: IDS.cardholders.emilyStaff },
+    update: {},
+    create: {
+      id: IDS.cardholders.emilyStaff,
+      siteId: IDS.site,
+      personType: 'STAFF',
+      firstName: 'Emily',
+      lastName: 'Chen',
+      email: 'teacher1@lincoln.edu',
+      phone: '+15551000003',
+      title: 'Teacher',
+      userId: IDS.users.teacher1,
+    },
+  });
+
+  await prisma.cardholder.upsert({
+    where: { id: IDS.cardholders.tonyWorker },
+    update: {},
+    create: {
+      id: IDS.cardholders.tonyWorker,
+      siteId: IDS.site,
+      personType: 'WORKER',
+      firstName: 'Tony',
+      lastName: 'Martinez',
+      company: 'Metro HVAC Services',
+      title: 'HVAC Technician',
+      phone: '+15559002001',
+    },
+  });
+  console.log('  Cardholders: 2 (1 staff, 1 worker)');
+
+  console.log('Seed complete!');
 }
 
 main()

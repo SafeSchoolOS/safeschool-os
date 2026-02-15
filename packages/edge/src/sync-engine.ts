@@ -15,11 +15,15 @@
  * - User/site data: Cloud -> Edge (polling, cloud-wins)
  */
 
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { OperatingMode, SyncState } from '@safeschool/core';
-import { SyncClient, type SyncEntity } from './sync-client.js';
+import { SyncClient, type SyncEntity, type HeartbeatRequest } from './sync-client.js';
 import { OfflineQueue } from './offline-queue.js';
 import { resolveConflict, type SyncRecord } from './conflict-resolver.js';
 import { HealthMonitor, type HealthCheckResult } from './health-monitor.js';
+
+const execFileAsync = promisify(execFile);
 
 // ============================================================================
 // Types
@@ -74,6 +78,12 @@ export class SyncEngine {
   private lastError: string | undefined;
   private eventCallbacks: SyncEventCallback[] = [];
   private localChanges: SyncEntity[] = [];
+
+  // Fleet upgrade state
+  private upgrading = false;
+  private upgradeStatus: string | undefined;
+  private upgradeError: string | undefined;
+  private currentVersion: string | undefined;
 
   constructor(config: SyncEngineConfig) {
     this.siteId = config.siteId;
@@ -237,15 +247,44 @@ export class SyncEngine {
       await this.syncToCloud();
       await this.syncFromCloud();
 
-      // Send heartbeat
+      // Send heartbeat with version and system info
       const stats = this.offlineQueue.getStats();
-      await this.syncClient.heartbeat(
-        this.siteId,
+      const heartbeatReq: HeartbeatRequest = {
+        siteId: this.siteId,
         mode,
-        stats.pending + this.localChanges.length,
-      ).catch((err) => {
+        pendingChanges: stats.pending + this.localChanges.length,
+        version: await this.getVersion(),
+        hostname: (await import('node:os')).hostname(),
+        nodeVersion: process.version,
+        ...(this.upgradeStatus && { upgradeStatus: this.upgradeStatus }),
+        ...(this.upgradeError && { upgradeError: this.upgradeError }),
+      };
+
+      // Collect system metrics
+      try {
+        const os = await import('node:os');
+        heartbeatReq.memoryUsageMb = Math.round((os.totalmem() - os.freemem()) / 1024 / 1024);
+      } catch { /* ignore */ }
+
+      try {
+        const heartbeatResp = await this.syncClient.heartbeat(heartbeatReq);
+
+        // Clear upgrade status after reporting
+        if (this.upgradeStatus === 'SUCCESS' || this.upgradeStatus === 'FAILED') {
+          this.upgradeStatus = undefined;
+          this.upgradeError = undefined;
+        }
+
+        // Handle upgrade command from cloud
+        if (heartbeatResp.upgrade && !this.upgrading) {
+          console.log(`[SyncEngine] Upgrade command received: ${heartbeatResp.upgrade.targetVersion}`);
+          this.executeUpgrade(heartbeatResp.upgrade.targetVersion).catch((err) => {
+            console.error('[SyncEngine] Upgrade execution failed:', err);
+          });
+        }
+      } catch (err) {
         console.warn('[SyncEngine] Heartbeat failed:', err);
-      });
+      }
 
       this.lastSyncAt = new Date();
       this.lastError = undefined;
@@ -379,6 +418,53 @@ export class SyncEngine {
   }
 
   // ---------- Internal helpers ----------
+
+  /**
+   * Get the current git short SHA as the version identifier.
+   * Cached for the lifetime of the process (refreshed after upgrade).
+   */
+  private async getVersion(): Promise<string> {
+    if (this.currentVersion) return this.currentVersion;
+    try {
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD']);
+      this.currentVersion = stdout.trim();
+    } catch {
+      this.currentVersion = 'unknown';
+    }
+    return this.currentVersion;
+  }
+
+  /**
+   * Execute an upgrade by running deploy/edge/update.sh.
+   * Reports status back to cloud via upgradeStatus on subsequent heartbeats.
+   */
+  private async executeUpgrade(targetVersion: string): Promise<void> {
+    if (this.upgrading) return;
+    this.upgrading = true;
+    this.upgradeStatus = 'IN_PROGRESS';
+    console.log(`[SyncEngine] Starting upgrade to ${targetVersion}...`);
+
+    try {
+      const updateScript = process.env.EDGE_UPDATE_SCRIPT || './deploy/edge/update.sh';
+      await execFileAsync('bash', [updateScript], {
+        timeout: 300000, // 5 min max
+        env: { ...process.env, TARGET_VERSION: targetVersion },
+      });
+
+      // Refresh version after successful upgrade
+      this.currentVersion = undefined;
+      const newVersion = await this.getVersion();
+      console.log(`[SyncEngine] Upgrade succeeded. New version: ${newVersion}`);
+      this.upgradeStatus = 'SUCCESS';
+    } catch (err: any) {
+      const errMsg = err.stderr || err.message || String(err);
+      console.error(`[SyncEngine] Upgrade failed: ${errMsg}`);
+      this.upgradeStatus = 'FAILED';
+      this.upgradeError = errMsg.slice(0, 500);
+    } finally {
+      this.upgrading = false;
+    }
+  }
 
   /**
    * Move in-memory pending changes to the offline queue.

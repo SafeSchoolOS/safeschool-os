@@ -6,6 +6,8 @@
  * Supports Bark for Schools, Gaggle, Securly, and Navigate360.
  */
 
+import crypto from 'node:crypto';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -63,6 +65,28 @@ export interface SocialMediaAdapter {
   pollAlerts(since: Date): Promise<SocialMediaEvent[]>;
   /** Acknowledge/dismiss an alert in the external system */
   acknowledgeAlert(externalId: string): Promise<void>;
+  /** Verify HMAC-SHA256 webhook signature. Returns true if valid or no secret configured. */
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Shared HMAC verification helper
+// ---------------------------------------------------------------------------
+
+function verifyHmacSha256(secret: string, rawBody: string | Buffer, signature: string): boolean {
+  if (!secret) return true; // No secret configured — allow in dev mode
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, 'hex'),
+      Buffer.from(expected, 'hex'),
+    );
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -73,10 +97,16 @@ export class BarkAdapter implements SocialMediaAdapter {
   name = 'bark';
   private apiUrl: string;
   private apiKey: string;
+  private webhookSecret: string;
 
-  constructor(config: { apiUrl: string; apiKey: string }) {
+  constructor(config: { apiUrl: string; apiKey: string; webhookSecret?: string }) {
     this.apiUrl = config.apiUrl;
     this.apiKey = config.apiKey;
+    this.webhookSecret = config.webhookSecret || '';
+  }
+
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
+    return verifyHmacSha256(this.webhookSecret, rawBody, signature);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -176,6 +206,11 @@ export class BarkAdapter implements SocialMediaAdapter {
 export class ConsoleSocialMediaAdapter implements SocialMediaAdapter {
   name = 'console';
 
+  verifyWebhookSignature(_rawBody: string | Buffer, _signature: string): boolean {
+    console.log('[ConsoleSocialMedia] Webhook signature verification skipped (console adapter)');
+    return true;
+  }
+
   async healthCheck(): Promise<boolean> {
     console.log('[ConsoleSocialMedia] Health check: OK');
     return true;
@@ -209,10 +244,16 @@ export class GaggleAdapter implements SocialMediaAdapter {
   name = 'gaggle';
   private apiUrl: string;
   private apiKey: string;
+  private webhookSecret: string;
 
-  constructor(config: { apiUrl: string; apiKey: string }) {
+  constructor(config: { apiUrl: string; apiKey: string; webhookSecret?: string }) {
     this.apiUrl = config.apiUrl;
     this.apiKey = config.apiKey;
+    this.webhookSecret = config.webhookSecret || '';
+  }
+
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
+    return verifyHmacSha256(this.webhookSecret, rawBody, signature);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -294,5 +335,287 @@ export class GaggleAdapter implements SocialMediaAdapter {
     if (!response.ok) {
       throw new Error(`Gaggle API error: ${response.status}`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Securly Adapter
+// ---------------------------------------------------------------------------
+
+export class SecurlyAdapter implements SocialMediaAdapter {
+  name = 'securly';
+  private apiUrl: string;
+  private apiKey: string;
+  private webhookSecret: string;
+
+  constructor(config: { apiUrl: string; apiKey: string; webhookSecret?: string }) {
+    this.apiUrl = config.apiUrl.replace(/\/$/, '');
+    this.apiKey = config.apiKey;
+    this.webhookSecret = config.webhookSecret || '';
+  }
+
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
+    return verifyHmacSha256(this.webhookSecret, rawBody, signature);
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.apiUrl}/v1/health`, {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async getStatus(): Promise<MonitoringStatus> {
+    const response = await fetch(`${this.apiUrl}/v1/status`, {
+      headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      return { service: 'securly', connected: false, studentsMonitored: 0, platforms: [] };
+    }
+
+    const data = await response.json() as {
+      monitored_count: number;
+      services: string[];
+      last_scan_at: string;
+    };
+
+    return {
+      service: 'securly',
+      connected: true,
+      studentsMonitored: data.monitored_count,
+      platforms: data.services,
+      lastCheckedAt: new Date(data.last_scan_at),
+    };
+  }
+
+  async pollAlerts(since: Date): Promise<SocialMediaEvent[]> {
+    const response = await fetch(
+      `${this.apiUrl}/v1/alerts?since=${since.toISOString()}`,
+      {
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Securly API error: ${response.status}`);
+    }
+
+    const data = await response.json() as Array<{
+      alert_id: string;
+      platform: string;
+      content_type: string;
+      content: string;
+      category: string;
+      severity: string;
+      student_name: string;
+      student_grade: string;
+      flagged_at: string;
+    }>;
+
+    return data.map((alert) => ({
+      id: alert.alert_id,
+      source: 'securly' as const,
+      platform: alert.platform,
+      contentType: alert.content_type as SocialMediaEvent['contentType'],
+      content: alert.content,
+      category: alert.category,
+      severity: alert.severity,
+      studentName: alert.student_name,
+      studentGrade: alert.student_grade,
+      flaggedAt: new Date(alert.flagged_at),
+    }));
+  }
+
+  async acknowledgeAlert(externalId: string): Promise<void> {
+    const response = await fetch(`${this.apiUrl}/v1/alerts/${externalId}/acknowledge`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Securly API error: ${response.status}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Navigate360 Adapter
+// ---------------------------------------------------------------------------
+
+export class Navigate360Adapter implements SocialMediaAdapter {
+  name = 'navigate360';
+  private apiUrl: string;
+  private apiKey: string;
+  private webhookSecret: string;
+
+  constructor(config: { apiUrl: string; apiKey: string; webhookSecret?: string }) {
+    this.apiUrl = config.apiUrl.replace(/\/$/, '');
+    this.apiKey = config.apiKey;
+    this.webhookSecret = config.webhookSecret || '';
+  }
+
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
+    return verifyHmacSha256(this.webhookSecret, rawBody, signature);
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/health`, {
+        headers: { 'X-API-Key': this.apiKey },
+        signal: AbortSignal.timeout(10000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async getStatus(): Promise<MonitoringStatus> {
+    const response = await fetch(`${this.apiUrl}/api/status`, {
+      headers: { 'X-API-Key': this.apiKey },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      return { service: 'navigate360', connected: false, studentsMonitored: 0, platforms: [] };
+    }
+
+    const data = await response.json() as {
+      students_monitored: number;
+      platforms: string[];
+      last_check: string;
+    };
+
+    return {
+      service: 'navigate360',
+      connected: true,
+      studentsMonitored: data.students_monitored,
+      platforms: data.platforms,
+      lastCheckedAt: new Date(data.last_check),
+    };
+  }
+
+  async pollAlerts(since: Date): Promise<SocialMediaEvent[]> {
+    const response = await fetch(
+      `${this.apiUrl}/api/alerts?after=${since.toISOString()}`,
+      {
+        headers: { 'X-API-Key': this.apiKey },
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Navigate360 API error: ${response.status}`);
+    }
+
+    const data = await response.json() as Array<{
+      id: string;
+      platform: string;
+      content_type: string;
+      content: string;
+      category: string;
+      severity: string;
+      student_name: string;
+      student_grade: string;
+      posted_at: string;
+      flagged_at: string;
+    }>;
+
+    return data.map((alert) => ({
+      id: alert.id,
+      source: 'navigate360' as const,
+      platform: alert.platform,
+      contentType: alert.content_type as SocialMediaEvent['contentType'],
+      content: alert.content,
+      category: alert.category,
+      severity: alert.severity,
+      studentName: alert.student_name,
+      studentGrade: alert.student_grade,
+      postedAt: alert.posted_at ? new Date(alert.posted_at) : undefined,
+      flaggedAt: new Date(alert.flagged_at),
+    }));
+  }
+
+  async acknowledgeAlert(externalId: string): Promise<void> {
+    const response = await fetch(`${this.apiUrl}/api/alerts/${externalId}/reviewed`, {
+      method: 'PUT',
+      headers: { 'X-API-Key': this.apiKey },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Navigate360 API error: ${response.status}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Factory helper
+// ---------------------------------------------------------------------------
+
+export interface SocialMediaConfig {
+  adapter: string;
+  barkApiUrl?: string;
+  barkApiKey?: string;
+  barkWebhookSecret?: string;
+  gaggleApiUrl?: string;
+  gaggleApiKey?: string;
+  gaggleWebhookSecret?: string;
+  securlyApiUrl?: string;
+  securlyApiKey?: string;
+  securlyWebhookSecret?: string;
+  navigate360ApiUrl?: string;
+  navigate360ApiKey?: string;
+  navigate360WebhookSecret?: string;
+}
+
+export function createSocialMediaAdapter(config: SocialMediaConfig): SocialMediaAdapter {
+  switch (config.adapter) {
+    case 'bark':
+      return new BarkAdapter({
+        apiUrl: config.barkApiUrl || '',
+        apiKey: config.barkApiKey || '',
+        webhookSecret: config.barkWebhookSecret,
+      });
+    case 'gaggle':
+      return new GaggleAdapter({
+        apiUrl: config.gaggleApiUrl || '',
+        apiKey: config.gaggleApiKey || '',
+        webhookSecret: config.gaggleWebhookSecret,
+      });
+    case 'securly':
+      return new SecurlyAdapter({
+        apiUrl: config.securlyApiUrl || '',
+        apiKey: config.securlyApiKey || '',
+        webhookSecret: config.securlyWebhookSecret,
+      });
+    case 'navigate360':
+      return new Navigate360Adapter({
+        apiUrl: config.navigate360ApiUrl || '',
+        apiKey: config.navigate360ApiKey || '',
+        webhookSecret: config.navigate360WebhookSecret,
+      });
+    default:
+      return new ConsoleSocialMediaAdapter();
+  }
+}
+
+/** Get the webhook secret for a given source, from config */
+export function getWebhookSecretForSource(source: string, config: SocialMediaConfig): string {
+  switch (source) {
+    case 'bark': return config.barkWebhookSecret || '';
+    case 'gaggle': return config.gaggleWebhookSecret || '';
+    case 'securly': return config.securlyWebhookSecret || '';
+    case 'navigate360': return config.navigate360WebhookSecret || '';
+    default: return '';
   }
 }

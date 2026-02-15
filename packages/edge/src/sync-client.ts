@@ -43,11 +43,25 @@ export interface HeartbeatRequest {
   siteId: string;
   mode: string;
   pendingChanges: number;
+  version?: string;
+  hostname?: string;
+  nodeVersion?: string;
+  diskUsagePercent?: number;
+  memoryUsageMb?: number;
+  ipAddress?: string;
+  upgradeStatus?: string;
+  upgradeError?: string;
+}
+
+export interface UpgradeCommand {
+  targetVersion: string;
+  action: 'update';
 }
 
 export interface HeartbeatResponse {
   ack: boolean;
   timestamp: string;
+  upgrade?: UpgradeCommand;
 }
 
 export class SyncClientError extends Error {
@@ -179,14 +193,18 @@ export class SyncClient {
 
   /**
    * Send a heartbeat to the cloud to indicate edge is alive.
+   * Accepts either the legacy 3-arg signature or a full HeartbeatRequest object.
    */
   async heartbeat(
-    siteId: string,
-    mode: string,
-    pendingChanges: number,
+    siteIdOrRequest: string | HeartbeatRequest,
+    mode?: string,
+    pendingChanges?: number,
   ): Promise<HeartbeatResponse> {
     await this.verifyTlsCertificate();
-    const body: HeartbeatRequest = { siteId, mode, pendingChanges };
+    const body: HeartbeatRequest =
+      typeof siteIdOrRequest === 'string'
+        ? { siteId: siteIdOrRequest, mode: mode!, pendingChanges: pendingChanges! }
+        : siteIdOrRequest;
     const response = await this.request<HeartbeatResponse>(
       'POST',
       '/api/v1/sync/heartbeat',
