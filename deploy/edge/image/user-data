@@ -41,68 +41,77 @@ autoinstall:
     - sqlite3
 
   late-commands:
-    # --- Docker group and enable ---
-    - curtin in-target --target=/target -- usermod -aG docker safeschool
-    - curtin in-target --target=/target -- systemctl enable docker
-
-    # --- Create admin user (admin/admin) for initial setup ---
-    - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' admin
-
-    # --- NOPASSWD sudo for safeschool and admin users ---
+    # -----------------------------------------------------------------------
+    # Single resilient script block. Uses chroot instead of curtin in-target
+    # for portability. Every command has || true so one failure can't abort
+    # the rest. Logs everything to /var/log/safeschool-late-commands.log on
+    # the installed system for post-mortem debugging.
+    # -----------------------------------------------------------------------
     - |
+      exec > /target/var/log/safeschool-late-commands.log 2>&1
+      set -x
+      echo "=== SafeSchool late-commands starting at $(date) ==="
+
+      # --- Docker group and enable ---
+      chroot /target usermod -aG docker safeschool || true
+      chroot /target systemctl enable docker || true
+
+      # --- Create admin user (admin/admin) ---
+      chroot /target useradd -m -s /bin/bash -G sudo,docker \
+        -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' \
+        admin || true
+
+      # --- NOPASSWD sudo ---
       echo 'safeschool ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/safeschool
       chmod 0440 /target/etc/sudoers.d/safeschool
-    - |
       echo 'admin ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/admin
       chmod 0440 /target/etc/sudoers.d/admin
 
-    # --- Create SafeSchool directories ---
-    - curtin in-target --target=/target -- mkdir -p /opt/safeschool
-    - curtin in-target --target=/target -- mkdir -p /etc/safeschool
-    - curtin in-target --target=/target -- mkdir -p /var/log/safeschool
-    - curtin in-target --target=/target -- mkdir -p /opt/safeschool/backups/daily
-    - curtin in-target --target=/target -- mkdir -p /opt/safeschool/backups/weekly
+      # --- Create directories ---
+      mkdir -p /target/opt/safeschool/{backups/daily,backups/weekly,deploy/edge,docker-images}
+      mkdir -p /target/etc/safeschool
+      mkdir -p /target/var/log/safeschool
 
-    # --- Copy scripts from installer media ---
-    - |
+      # --- Copy scripts from installer media ---
       for f in first-boot.sh safeschool-motd.sh network-admin.py admin-menu.sh; do
-        if [ -f /cdrom/autoinstall/$f ]; then
-          cp /cdrom/autoinstall/$f /target/opt/safeschool/$f
-          chmod +x /target/opt/safeschool/$f
-        fi
+        [ -f /cdrom/autoinstall/$f ] && cp /cdrom/autoinstall/$f /target/opt/safeschool/$f && chmod +x /target/opt/safeschool/$f || true
       done
 
-    # --- Copy embedded Docker images from installer media ---
-    - |
+      # --- Copy embedded Docker images ---
       if [ -d /cdrom/autoinstall/docker-images ]; then
-        mkdir -p /target/opt/safeschool/docker-images
         cp -r /cdrom/autoinstall/docker-images/* /target/opt/safeschool/docker-images/
+        echo "Copied Docker images: $(ls /cdrom/autoinstall/docker-images/)"
+      else
+        echo "WARNING: No embedded Docker images found at /cdrom/autoinstall/docker-images"
       fi
 
-    # --- Copy deploy/edge files from installer media ---
-    - |
+      # --- Copy deploy/edge files ---
       if [ -d /cdrom/autoinstall/deploy-edge ]; then
-        mkdir -p /target/opt/safeschool/deploy/edge
         cp -r /cdrom/autoinstall/deploy-edge/* /target/opt/safeschool/deploy/edge/
+        echo "Copied deploy files: $(ls /cdrom/autoinstall/deploy-edge/)"
+      else
+        echo "WARNING: No deploy-edge files found at /cdrom/autoinstall/deploy-edge"
       fi
 
-    # --- Install first-boot systemd service (pre-generated file, no heredoc) ---
-    - |
+      # --- Install first-boot systemd service ---
       if [ -f /cdrom/autoinstall/safeschool-first-boot.service ]; then
         cp /cdrom/autoinstall/safeschool-first-boot.service /target/etc/systemd/system/
+        chroot /target systemctl enable safeschool-first-boot.service || true
+      else
+        echo "WARNING: safeschool-first-boot.service not found on installer media"
       fi
-    - curtin in-target --target=/target -- systemctl enable safeschool-first-boot.service
 
-    # --- Install MOTD placeholder (pre-generated file, no heredoc) ---
-    - |
+      # --- Install MOTD ---
       if [ -f /cdrom/autoinstall/99-safeschool-motd ]; then
         cp /cdrom/autoinstall/99-safeschool-motd /target/etc/update-motd.d/99-safeschool
         chmod +x /target/etc/update-motd.d/99-safeschool
       fi
-    - chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
-    - chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true
+      chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
+      chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true
 
-    # --- Set ownership ---
-    - curtin in-target --target=/target -- chown -R safeschool:safeschool /opt/safeschool
-    - curtin in-target --target=/target -- chown -R safeschool:safeschool /etc/safeschool
-    - curtin in-target --target=/target -- chown -R safeschool:safeschool /var/log/safeschool
+      # --- Set ownership ---
+      chroot /target chown -R safeschool:safeschool /opt/safeschool || true
+      chroot /target chown -R safeschool:safeschool /etc/safeschool || true
+      chroot /target chown -R safeschool:safeschool /var/log/safeschool || true
+
+      echo "=== SafeSchool late-commands finished at $(date) ==="
