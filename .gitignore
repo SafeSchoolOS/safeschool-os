@@ -73,3 +73,4 @@ gh_cli/
 *.key
 credentials.json
 service-account.json
+deploy/edge/image/safeschool-edge-key
