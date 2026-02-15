@@ -97,7 +97,7 @@ export function AuditLogPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Filters */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-2">

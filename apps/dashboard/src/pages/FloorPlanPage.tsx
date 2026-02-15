@@ -215,7 +215,7 @@ export function FloorPlanPage() {
   const isAdmin = user?.role === 'SITE_ADMIN' || user?.role === 'SUPER_ADMIN';
 
   return (
-    <div className="p-6">
+    <div className="p-2 sm:p-6">
       {/* Building/Floor selectors */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
@@ -286,9 +286,9 @@ export function FloorPlanPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-12 gap-4 sm:gap-6">
         {/* Floor Plan SVG */}
-        <div className="col-span-9">
+        <div className="col-span-12 lg:col-span-9">
           <div className="bg-gray-800 rounded-xl p-4">
             <svg ref={svgRef} viewBox="0 0 820 280" className="w-full h-auto"
               onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
@@ -393,7 +393,7 @@ export function FloorPlanPage() {
         </div>
 
         {/* Side Panel */}
-        <div className="col-span-3 space-y-4">
+        <div className="col-span-12 lg:col-span-3 space-y-4">
           {activeAlerts.length > 0 && (
             <div className="bg-red-900/30 border border-red-800 rounded-xl p-4">
               <h3 className="text-red-400 font-bold mb-2">Active Alerts</h3>

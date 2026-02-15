@@ -244,7 +244,7 @@ export function CompliancePage() {
   const siteName = sites?.[0]?.name || 'Site';
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h2 className="text-xl font-bold mb-1">Alyssa's Law Compliance Report</h2>

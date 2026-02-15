@@ -119,7 +119,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8">
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       {/* User Profile Section */}
       <section className="bg-gray-800 rounded-xl border border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-white mb-4">User Profile</h2>

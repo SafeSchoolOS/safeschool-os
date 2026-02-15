@@ -31,7 +31,7 @@ export function CommandCenter() {
   }, [trainingMode]);
 
   return (
-    <div className="p-6 grid grid-cols-12 gap-6">
+    <div className="p-3 sm:p-6 grid grid-cols-12 gap-4 sm:gap-6">
       {/* Training mode toggle */}
       <div className="col-span-12 flex items-center justify-between">
         <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -64,7 +64,7 @@ export function CommandCenter() {
       )}
 
       {/* Left column: Map + Alert Creation */}
-      <div className="col-span-8 space-y-6">
+      <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
         {/* PANIC Button */}
         {site && <CreateAlertButton siteId={siteId!} buildings={site.buildings || []} trainingMode={trainingMode} />}
 
@@ -76,7 +76,7 @@ export function CommandCenter() {
       </div>
 
       {/* Right column: Door Status + Lockdown + Notifications */}
-      <div className="col-span-4 space-y-6">
+      <div className="col-span-12 lg:col-span-4 space-y-4 sm:space-y-6">
         <LockdownControls siteId={siteId} buildings={site?.buildings || []} trainingMode={trainingMode} />
         <DoorStatusGrid siteId={siteId} />
         <WeatherAlertWidget alerts={weatherAlerts} loading={weatherLoading} />

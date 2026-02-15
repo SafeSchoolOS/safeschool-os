@@ -78,7 +78,7 @@ export function ThreatAssessmentPage() {
   });
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Top Actions */}
       <div className="flex items-center justify-end mb-6">
         <button

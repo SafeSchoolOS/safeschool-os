@@ -130,7 +130,7 @@ export function DrillsPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Top Actions */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

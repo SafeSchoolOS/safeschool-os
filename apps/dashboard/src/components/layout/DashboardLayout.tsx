@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
@@ -72,7 +72,9 @@ export function DashboardLayout() {
   const { data: activeVisitors } = useActiveVisitors();
   const { data: buses } = useBuses();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Desktop: expanded by default. Mobile: closed by default.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const isParent = user?.role === 'PARENT';
   const siteId = user?.siteIds[0];
@@ -80,6 +82,25 @@ export function DashboardLayout() {
   const activeBusCount = (buses || []).filter((b: any) => b.isActive).length;
 
   const { connectionState } = useWebSocket(siteId);
+
+  // Track screen size
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      setIsMobile(e.matches);
+      if (!e.matches) setSidebarOpen(true); // auto-expand on desktop
+    };
+    onChange(mq);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [location.pathname, isMobile]);
+
+  const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
 
   // Find current page title
   const navItems = isParent ? PARENT_NAV_ITEMS : NAV_SECTIONS.flatMap((s) => s.items);
@@ -89,91 +110,123 @@ export function DashboardLayout() {
   const themeIcon = theme === 'dark' ? MoonIcon : theme === 'light' ? SunIcon : MonitorIcon;
   const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
 
+  // Render nav items (shared between mobile overlay and desktop sidebar)
+  const renderNav = () => (
+    <nav className="flex-1 overflow-y-auto py-2">
+      {isParent ? (
+        <div className="space-y-1">
+          {PARENT_NAV_ITEMS.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${
+                  isActive
+                    ? 'bg-blue-600/20 text-blue-400'
+                    : 'dark:text-gray-400 text-gray-600 dark:hover:text-white hover:text-gray-900 dark:hover:bg-gray-700/50 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                </svg>
+                {(sidebarOpen || isMobile) && <span className="truncate">{item.label}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="mb-2">
+            {(sidebarOpen || isMobile) && (
+              <div className="px-4 py-1 text-xs font-semibold dark:text-gray-500 text-gray-400 uppercase tracking-wider">
+                {section.title}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${
+                    isActive
+                      ? 'bg-blue-600/20 text-blue-400'
+                      : 'dark:text-gray-400 text-gray-600 dark:hover:text-white hover:text-gray-900 dark:hover:bg-gray-700/50 hover:bg-gray-100'
+                  }`}
+                  title={!sidebarOpen && !isMobile ? item.label : undefined}
+                >
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                  </svg>
+                  {(sidebarOpen || isMobile) && <span className="truncate">{item.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        ))
+      )}
+    </nav>
+  );
+
   return (
     <div className="min-h-screen dark:bg-gray-900 bg-gray-100 dark:text-white text-gray-900 flex">
-      {/* Sidebar */}
+      {/* Mobile sidebar overlay */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — desktop: static, mobile: slide-in overlay */}
       <aside
-        className={`${sidebarOpen ? 'w-56' : 'w-16'} dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border-r flex flex-col transition-all duration-200 flex-shrink-0`}
+        className={`
+          ${isMobile
+            ? `fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+            : `${sidebarOpen ? 'w-56' : 'w-16'} transition-all duration-200 flex-shrink-0`
+          }
+          dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border-r flex flex-col
+        `}
       >
         {/* Sidebar Header */}
         <div className="h-14 flex items-center justify-between px-4 dark:border-gray-700 border-gray-200 border-b">
-          {sidebarOpen && (
+          {(sidebarOpen || isMobile) && (
             <Link to={isParent ? '/parent' : '/'} className="text-lg font-bold dark:text-white text-gray-900 truncate">
               SafeSchool
             </Link>
           )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-400 text-gray-500 dark:hover:text-white hover:text-gray-900 transition-colors"
-            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              {sidebarOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              )}
-            </svg>
-          </button>
+          {/* Desktop collapse toggle (hidden on mobile — mobile uses X or backdrop) */}
+          {!isMobile && (
+            <button
+              onClick={toggleSidebar}
+              className="p-1.5 rounded dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-400 text-gray-500 dark:hover:text-white hover:text-gray-900 transition-colors"
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                {sidebarOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                )}
+              </svg>
+            </button>
+          )}
+          {/* Mobile close button */}
+          {isMobile && (
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1.5 rounded dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-400 text-gray-500 dark:hover:text-white hover:text-gray-900 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-2">
-          {isParent ? (
-            <div className="space-y-1">
-              {PARENT_NAV_ITEMS.map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-4 py-2 mx-2 rounded-lg text-sm transition-colors ${
-                      isActive
-                        ? 'bg-blue-600/20 text-blue-400'
-                        : 'dark:text-gray-400 text-gray-600 dark:hover:text-white hover:text-gray-900 dark:hover:bg-gray-700/50 hover:bg-gray-100'
-                    }`}
-                    title={!sidebarOpen ? item.label : undefined}
-                  >
-                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                    </svg>
-                    {sidebarOpen && <span className="truncate">{item.label}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            NAV_SECTIONS.map((section) => (
-              <div key={section.title} className="mb-2">
-                {sidebarOpen && (
-                  <div className="px-4 py-1 text-xs font-semibold dark:text-gray-500 text-gray-400 uppercase tracking-wider">
-                    {section.title}
-                  </div>
-                )}
-                {section.items.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`flex items-center gap-3 px-4 py-2 mx-2 rounded-lg text-sm transition-colors ${
-                        isActive
-                          ? 'bg-blue-600/20 text-blue-400'
-                          : 'dark:text-gray-400 text-gray-600 dark:hover:text-white hover:text-gray-900 dark:hover:bg-gray-700/50 hover:bg-gray-100'
-                      }`}
-                      title={!sidebarOpen ? item.label : undefined}
-                    >
-                      <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                      </svg>
-                      {sidebarOpen && <span className="truncate">{item.label}</span>}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))
-          )}
-        </nav>
+        {renderNav()}
 
         {/* Parent: Sign Out in sidebar */}
         {isParent && (
@@ -185,13 +238,13 @@ export function DashboardLayout() {
               <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
               </svg>
-              {sidebarOpen && <span>Sign Out</span>}
+              <span>Sign Out</span>
             </button>
           </div>
         )}
 
         {/* Sidebar Footer */}
-        {sidebarOpen && (
+        {(sidebarOpen || isMobile) && (
           <div className="dark:border-gray-700 border-gray-200 border-t p-4">
             <div className="text-xs dark:text-gray-500 text-gray-400 truncate">{user?.email}</div>
             <div className="text-xs dark:text-gray-600 text-gray-500">{user?.role}</div>
@@ -202,26 +255,38 @@ export function DashboardLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="h-14 dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border-b px-6 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold">{pageTitle}</h1>
-            {site && <span className="text-sm dark:text-gray-500 text-gray-400">{site.name}</span>}
+        <header className="h-14 dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border-b px-3 sm:px-6 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            {/* Mobile hamburger */}
+            {isMobile && (
+              <button
+                onClick={toggleSidebar}
+                className="p-1.5 -ml-1 rounded dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-400 text-gray-500 dark:hover:text-white hover:text-gray-900 transition-colors"
+                aria-label="Open menu"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            )}
+            <h1 className="text-base sm:text-lg font-semibold truncate">{pageTitle}</h1>
+            {site && <span className="text-sm dark:text-gray-500 text-gray-400 hidden sm:inline">{site.name}</span>}
           </div>
-          <div className="flex items-center gap-5">
-            {/* Status Indicators -- hidden for parent users */}
+          <div className="flex items-center gap-2 sm:gap-5">
+            {/* Status Indicators — hidden on mobile and for parent users */}
             {!isParent && (
               <>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="hidden md:flex items-center gap-2 text-sm">
                   <span className="w-2 h-2 bg-green-500 rounded-full" />
                   <span className="dark:text-gray-400 text-gray-500">Visitors:</span>
                   <span className="font-medium">{activeVisitors?.length || 0}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="hidden md:flex items-center gap-2 text-sm">
                   <span className="w-2 h-2 bg-yellow-500 rounded-full" />
                   <span className="dark:text-gray-400 text-gray-500">Buses:</span>
                   <span className="font-medium">{activeBusCount}</span>
                 </div>
-                <div className="h-6 w-px dark:bg-gray-700 bg-gray-200" />
+                <div className="hidden md:block h-6 w-px dark:bg-gray-700 bg-gray-200" />
               </>
             )}
 
@@ -236,11 +301,11 @@ export function DashboardLayout() {
               </svg>
             </button>
 
-            <div className="h-6 w-px dark:bg-gray-700 bg-gray-200" />
-            <span className="text-sm dark:text-gray-400 text-gray-500">{user?.name}</span>
+            <div className="hidden sm:block h-6 w-px dark:bg-gray-700 bg-gray-200" />
+            <span className="text-sm dark:text-gray-400 text-gray-500 hidden sm:inline truncate max-w-[120px]">{user?.name}</span>
             <button
               onClick={logout}
-              className="text-sm dark:text-gray-500 text-gray-400 dark:hover:text-white hover:text-gray-900 transition-colors"
+              className="text-sm dark:text-gray-500 text-gray-400 dark:hover:text-white hover:text-gray-900 transition-colors whitespace-nowrap"
             >
               Sign Out
             </button>

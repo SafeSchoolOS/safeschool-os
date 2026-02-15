@@ -270,7 +270,7 @@ export function ReportsPage() {
     : [];
 
   return (
-    <div className="p-6" ref={printRef}>
+    <div className="p-3 sm:p-6" ref={printRef}>
       {/* Report Type Selector + Actions */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex gap-2">

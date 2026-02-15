@@ -103,7 +103,7 @@ export function GrantsPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Module Selector */}
       <div className="mb-6">
         <h2 className="text-sm font-medium text-gray-400 mb-2">Select modules to find matching grants:</h2>

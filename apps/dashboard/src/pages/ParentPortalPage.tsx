@@ -341,7 +341,7 @@ export function ParentPortalPage() {
   if (!data) return null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-3 sm:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="mb-2">
         <h1 className="text-2xl font-bold text-white">Parent Portal</h1>

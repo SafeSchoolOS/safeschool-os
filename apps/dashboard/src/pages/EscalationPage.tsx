@@ -145,7 +145,7 @@ export function EscalationPage() {
   const canSubmit = form.name && form.alertLevel && form.delayMinutes >= 0 && form.action && !isSubmitting;
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -171,7 +171,7 @@ export function EscalationPage() {
       {showForm && (
         <div className="bg-gray-800 rounded-lg p-5 mb-6">
           <h3 className="font-semibold mb-4">{editingRule ? 'Edit Rule' : 'New Escalation Rule'}</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {/* Name */}
             <div>
               <label className="block text-xs text-gray-400 mb-1">Rule Name</label>

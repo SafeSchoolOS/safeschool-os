@@ -84,7 +84,7 @@ export function SocialMediaPage() {
   });
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
         {/* Dashboard Stats */}
         {dashboard && (
           <div className="grid grid-cols-4 gap-4 mb-6">
