@@ -56,7 +56,7 @@ identity:
   username: safeschool
   # SHA-512 hash for password: safeschool
   # Generate a new hash with: openssl passwd -6
-  password: "$6$safeschool123$PInsGxgNlSm.a7thmobVdtG59rlrFqeCElJuMEe0mi9OXiPFLB6WQfNLCcUxQjKHE90cu1maQqpqXkKHArxjD1"
+  password: '$6$h.z5izS8L5S6ey.L$ALU4MoWu.dBHgY3WM0Lz07qIfp/9.LwhzcrDxBCzFc06MlVCq8q4QwPXfhR.HT/mlrqSCDWzTLQpP9TSbqaxP1'
 
 # -- SSH -----------------------------------------------------------------------
 ssh:
@@ -72,7 +72,7 @@ apt:
 # -- Packages ------------------------------------------------------------------
 packages:
   - docker.io
-  - docker-compose-plugin
+  - docker-compose-v2
   - curl
   - wget
   - git
@@ -258,25 +258,11 @@ late-commands:
     NETPLAN
   - chmod 600 /target/etc/netplan/99-safeschool-static.yaml.pending
 
-  # --- Create first-boot systemd service ---
+  # --- Install first-boot systemd service (pre-generated file, no heredoc) ---
   - |
-    cat > /target/etc/systemd/system/safeschool-first-boot.service <<'FBSVC'
-    [Unit]
-    Description=SafeSchool Edge First Boot Provisioning
-    After=network-online.target docker.service
-    Wants=network-online.target
-    ConditionPathExists=/opt/safeschool/first-boot.sh
-
-    [Service]
-    Type=oneshot
-    ExecStart=/bin/bash /opt/safeschool/first-boot.sh
-    RemainAfterExit=false
-    StandardOutput=journal+console
-    StandardError=journal+console
-
-    [Install]
-    WantedBy=multi-user.target
-    FBSVC
+    if [ -f /cdrom/autoinstall/safeschool-first-boot.service ]; then
+      cp /cdrom/autoinstall/safeschool-first-boot.service /target/etc/systemd/system/
+    fi
   - curtin in-target --target=/target -- systemctl enable safeschool-first-boot.service
 
   # --- Enable Docker to start on boot ---
@@ -287,16 +273,12 @@ late-commands:
   - curtin in-target --target=/target -- chown -R safeschool:safeschool /etc/safeschool
   - curtin in-target --target=/target -- chown -R safeschool:safeschool /var/log/safeschool
 
-  # --- Set up MOTD banner placeholder ---
+  # --- Install MOTD placeholder (pre-generated file, no heredoc) ---
   - |
-    cat > /target/etc/update-motd.d/99-safeschool <<'MOTD'
-    #!/bin/bash
-    echo ""
-    echo "  SafeSchool Edge -- first boot provisioning pending..."
-    echo "  The system will configure itself on next login."
-    echo ""
-    MOTD
-  - chmod +x /target/etc/update-motd.d/99-safeschool
+    if [ -f /cdrom/autoinstall/99-safeschool-motd ]; then
+      cp /cdrom/autoinstall/99-safeschool-motd /target/etc/update-motd.d/99-safeschool
+      chmod +x /target/etc/update-motd.d/99-safeschool
+    fi
   # Disable default Ubuntu MOTD components that add noise
   - chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
   - chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true

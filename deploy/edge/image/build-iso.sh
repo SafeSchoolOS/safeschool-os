@@ -120,6 +120,11 @@ chmod +x "$AUTOINSTALL_DIR/safeschool-motd.sh"
 chmod +x "$AUTOINSTALL_DIR/network-admin.py"
 chmod +x "$AUTOINSTALL_DIR/admin-menu.sh"
 
+# Copy pre-generated config files (avoids heredocs in late-commands)
+cp /build/safeschool-first-boot.service "$AUTOINSTALL_DIR/safeschool-first-boot.service"
+cp /build/99-safeschool-motd "$AUTOINSTALL_DIR/99-safeschool-motd"
+ok "Pre-generated config files copied (systemd service, MOTD)."
+
 # Also place user-data/meta-data in server/ directory (some installers look here)
 if [ -d "${EXTRACT}/server" ]; then
     cp /build/user-data "${EXTRACT}/server/user-data"

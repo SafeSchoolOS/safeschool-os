@@ -1,0 +1,15 @@
+[Unit]
+Description=SafeSchool Edge First Boot Provisioning
+After=network-online.target docker.service
+Wants=network-online.target
+ConditionPathExists=/opt/safeschool/first-boot.sh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/safeschool/first-boot.sh
+RemainAfterExit=false
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

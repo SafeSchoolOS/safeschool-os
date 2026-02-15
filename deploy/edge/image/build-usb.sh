@@ -262,6 +262,16 @@ inject_autoinstall() {
         fi
     done
 
+    # Copy pre-generated config files (avoids heredocs in late-commands)
+    for config_file in safeschool-first-boot.service 99-safeschool-motd; do
+        if [[ -f "${SCRIPT_DIR}/${config_file}" ]]; then
+            cp "${SCRIPT_DIR}/${config_file}" "$autoinstall_dir/${config_file}"
+            log_success "Copied ${config_file} to ISO."
+        else
+            log_warn "${config_file} not found at ${SCRIPT_DIR}/${config_file}"
+        fi
+    done
+
     # Copy embedded Docker images (if built by CI or locally)
     if [[ -d "${SCRIPT_DIR}/docker-images" ]]; then
         log_info "Embedding Docker images into ISO..."

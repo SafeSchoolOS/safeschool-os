@@ -33,5 +33,60 @@ autoinstall:
     - ca-certificates
 
   late-commands:
+    # --- Docker group and enable ---
     - curtin in-target --target=/target -- usermod -aG docker safeschool
     - curtin in-target --target=/target -- systemctl enable docker
+
+    # --- Create admin user (admin/admin) for initial setup ---
+    - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' admin
+
+    # --- Create SafeSchool directories ---
+    - curtin in-target --target=/target -- mkdir -p /opt/safeschool
+    - curtin in-target --target=/target -- mkdir -p /etc/safeschool
+    - curtin in-target --target=/target -- mkdir -p /var/log/safeschool
+    - curtin in-target --target=/target -- mkdir -p /opt/safeschool/backups/daily
+    - curtin in-target --target=/target -- mkdir -p /opt/safeschool/backups/weekly
+
+    # --- Copy scripts from installer media ---
+    - |
+      for f in first-boot.sh safeschool-motd.sh network-admin.py admin-menu.sh; do
+        if [ -f /cdrom/autoinstall/$f ]; then
+          cp /cdrom/autoinstall/$f /target/opt/safeschool/$f
+          chmod +x /target/opt/safeschool/$f
+        fi
+      done
+
+    # --- Copy embedded Docker images from installer media ---
+    - |
+      if [ -d /cdrom/autoinstall/docker-images ]; then
+        mkdir -p /target/opt/safeschool/docker-images
+        cp -r /cdrom/autoinstall/docker-images/* /target/opt/safeschool/docker-images/
+      fi
+
+    # --- Copy deploy/edge files from installer media ---
+    - |
+      if [ -d /cdrom/autoinstall/deploy-edge ]; then
+        mkdir -p /target/opt/safeschool/deploy/edge
+        cp -r /cdrom/autoinstall/deploy-edge/* /target/opt/safeschool/deploy/edge/
+      fi
+
+    # --- Install first-boot systemd service (pre-generated file, no heredoc) ---
+    - |
+      if [ -f /cdrom/autoinstall/safeschool-first-boot.service ]; then
+        cp /cdrom/autoinstall/safeschool-first-boot.service /target/etc/systemd/system/
+      fi
+    - curtin in-target --target=/target -- systemctl enable safeschool-first-boot.service
+
+    # --- Install MOTD placeholder (pre-generated file, no heredoc) ---
+    - |
+      if [ -f /cdrom/autoinstall/99-safeschool-motd ]; then
+        cp /cdrom/autoinstall/99-safeschool-motd /target/etc/update-motd.d/99-safeschool
+        chmod +x /target/etc/update-motd.d/99-safeschool
+      fi
+    - chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
+    - chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true
+
+    # --- Set ownership ---
+    - curtin in-target --target=/target -- chown -R safeschool:safeschool /opt/safeschool
+    - curtin in-target --target=/target -- chown -R safeschool:safeschool /etc/safeschool
+    - curtin in-target --target=/target -- chown -R safeschool:safeschool /var/log/safeschool
