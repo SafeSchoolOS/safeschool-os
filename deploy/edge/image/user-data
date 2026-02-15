@@ -9,11 +9,13 @@ autoinstall:
   identity:
     hostname: safeschoolos
     username: safeschool
-    password: '$6$safeschool123$PInsGxgNlSm.a7thmobVdtG59rlrFqeCElJuMEe0mi9OXiPFLB6WQfNLCcUxQjKHE90cu1maQqpqXkKHArxjD1'
+    password: '$6$h.z5izS8L5S6ey.L$ALU4MoWu.dBHgY3WM0Lz07qIfp/9.LwhzcrDxBCzFc06MlVCq8q4QwPXfhR.HT/mlrqSCDWzTLQpP9TSbqaxP1'
 
   ssh:
     install-server: true
     allow-pw: true
+    authorized-keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOkkRNjHpikLaDTxYfBbH4skE3axZGEzr6VAoH4Z+mAS safeschool-edge
 
   storage:
     layout:
