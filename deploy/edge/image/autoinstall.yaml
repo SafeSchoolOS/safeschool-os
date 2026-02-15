@@ -54,9 +54,9 @@ swap:
 identity:
   hostname: safeschoolos
   username: safeschool
-  # SHA-512 hash — password MUST be changed on first login (enforced by chage -d 0)
+  # SHA-512 hash for password: safeschool
   # Generate a new hash with: openssl passwd -6
-  password: "$6$rounds=4096$sZxRz0Kqm5FhGxkL$vvBM5lYJJBKeCQXPtJ5zOqVN5rXUoNxKbV3aGdJQ0qzX7KfKbC7m3wKF3FN8vJN5cZkZV7xPOqMxRJmQe0mK01"
+  password: "$6$safeschool123$PInsGxgNlSm.a7thmobVdtG59rlrFqeCElJuMEe0mi9OXiPFLB6WQfNLCcUxQjKHE90cu1maQqpqXkKHArxjD1"
 
 # -- SSH -----------------------------------------------------------------------
 ssh:
@@ -109,14 +109,11 @@ late-commands:
   - curtin in-target --target=/target -- usermod -aG docker safeschool
 
   # --- Create admin user (admin/admin) for initial setup and network config ---
-  - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker admin
-  - curtin in-target --target=/target -- bash -c "echo 'admin:admin' | chpasswd"
+  # Password hash is for: admin (generated with openssl passwd -6)
+  - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' admin
   - |
     echo 'admin ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/admin
     chmod 440 /target/etc/sudoers.d/admin
-
-  # --- Force password change on first login for safeschool user ---
-  - curtin in-target --target=/target -- chage -d 0 safeschool
 
   # --- Set hostname ---
   - echo "safeschoolos" > /target/etc/hostname
