@@ -4,9 +4,9 @@ import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { requireMinRole } from '../middleware/rbac.js';
 
-// Ensure floor plan upload directory exists at module load
+// Ensure floor plan upload directory exists at module load (best-effort; may fail in CI/test)
 const FLOOR_PLAN_DIR = process.env.FLOOR_PLAN_DIR || '/app/data/floor-plans';
-mkdirSync(FLOOR_PLAN_DIR, { recursive: true });
+try { mkdirSync(FLOOR_PLAN_DIR, { recursive: true }); } catch { /* created lazily at upload time */ }
 
 const siteRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/sites — User's sites

@@ -7,7 +7,7 @@ import { sanitizeText } from '../utils/sanitize.js';
 import { createBadgePrinter } from '@safeschool/badge-printing';
 
 const STUDENT_PHOTO_DIR = process.env.STUDENT_PHOTO_DIR || '/app/data/students';
-mkdirSync(STUDENT_PHOTO_DIR, { recursive: true });
+try { mkdirSync(STUDENT_PHOTO_DIR, { recursive: true }); } catch { /* created lazily at upload time */ }
 
 const ALLOWED_PHOTO_TYPES: Record<string, string> = {
   'image/png': 'png',
