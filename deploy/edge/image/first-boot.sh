@@ -243,7 +243,7 @@ log "Waiting for services to become healthy..."
 MAX_HEALTH_WAIT=180
 HEALTH_WAITED=0
 while [ $HEALTH_WAITED -lt $MAX_HEALTH_WAIT ]; do
-    if curl -sf http://localhost:3000/health &>/dev/null; then
+    if curl -sf http://127.0.0.1:3443/health &>/dev/null; then
         log "API health check passed."
         break
     fi
@@ -275,7 +275,7 @@ RemainAfterExit=yes
 WorkingDirectory=${INSTALL_DIR}
 ExecStart=/usr/bin/docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} up -d
 ExecStop=/usr/bin/docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} down
-ExecReload=/usr/bin/docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} pull && /usr/bin/docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} up -d
+ExecReload=/bin/bash -c '/usr/bin/docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} pull && /usr/bin/docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} up -d'
 TimeoutStartSec=300
 Restart=on-failure
 RestartSec=30
@@ -488,7 +488,7 @@ NASVC
 
     # Verify it started
     sleep 2
-    if curl -sf http://localhost:9090/ &>/dev/null; then
+    if curl -sf http://127.0.0.1:9090/ &>/dev/null; then
         log "Network Admin web UI is running on port 9090."
     else
         log "WARNING: Network Admin web UI may not have started yet."
@@ -522,9 +522,9 @@ echo "  Hostname: $(hostname)"
 echo "  IP:       ${IP}"
 echo "  Uptime:   $(uptime -p)"
 echo ""
-echo "  Dashboard: https://${IP}"
-echo "  Kiosk:     https://${IP}:8443"
-echo "  API:       https://${IP}:3443"
+echo "  Dashboard: http://${IP}"
+echo "  Kiosk:     http://${IP}:8443"
+echo "  API:       http://${IP}:3443"
 echo ""
 echo "  Run 'safeschool status' for service info."
 echo "  ======================================"
@@ -626,9 +626,9 @@ cmd_status() {
 
     # API health
     echo -e "${BOLD}API Health:${NC}"
-    if curl -sf http://localhost:3000/health &>/dev/null; then
+    if curl -sf http://127.0.0.1:3443/health &>/dev/null; then
         local health
-        health=$(curl -sf http://localhost:3000/health)
+        health=$(curl -sf http://127.0.0.1:3443/health)
         echo -e "  ${GREEN}Healthy${NC}: ${health}"
     else
         echo -e "  ${RED}Unhealthy or unreachable${NC}"
@@ -642,9 +642,9 @@ cmd_status() {
 
     # URLs
     echo -e "${BOLD}URLs:${NC}"
-    echo "  Dashboard: https://${ip}"
-    echo "  Kiosk:     https://${ip}:8443"
-    echo "  API:       https://${ip}:3443"
+    echo "  Dashboard: http://${ip}"
+    echo "  Kiosk:     http://${ip}:8443"
+    echo "  API:       http://${ip}:3443"
     echo ""
 }
 
@@ -747,7 +747,7 @@ cmd_version() {
 
 cmd_health() {
     echo "Checking API health..."
-    if curl -sf http://localhost:3000/health; then
+    if curl -sf http://127.0.0.1:3443/health; then
         echo ""
         echo -e "${GREEN}API is healthy.${NC}"
     else
@@ -1056,9 +1056,9 @@ ADMIN_TOKEN_DISPLAY=$(cat /etc/safeschool/admin-token 2>/dev/null || echo "unkno
 
 log_section "SafeSchool Edge -- First Boot Complete"
 log ""
-log "  Dashboard:     https://${IP}"
-log "  Kiosk:         https://${IP}:8443"
-log "  API:           https://${IP}:3443"
+log "  Dashboard:     http://${IP}"
+log "  Kiosk:         http://${IP}:8443"
+log "  API:           http://${IP}:3443"
 log "  Network Admin: http://${IP}:9090"
 log ""
 log "  Admin Token:   ${ADMIN_TOKEN_DISPLAY}"

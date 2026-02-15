@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useKioskMode } from '../hooks/useKioskMode';
 import { kioskApi } from '../api/client';
 
 export function CheckOutPage() {
-  useKioskMode();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -34,20 +32,25 @@ export function CheckOutPage() {
     }
   };
 
-  // Filter locally as user types
+  // Filter locally as user types (debounced 300ms)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
-    if (!query.trim()) {
-      setFilteredVisitors(allVisitors);
-    } else {
-      const q = query.toLowerCase();
-      setFilteredVisitors(
-        allVisitors.filter(
-          (v: any) =>
-            `${v.firstName} ${v.lastName}`.toLowerCase().includes(q) ||
-            v.badgeNumber?.toLowerCase().includes(q),
-        ),
-      );
-    }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (!query.trim()) {
+        setFilteredVisitors(allVisitors);
+      } else {
+        const q = query.toLowerCase();
+        setFilteredVisitors(
+          allVisitors.filter(
+            (v: any) =>
+              `${v.firstName} ${v.lastName}`.toLowerCase().includes(q) ||
+              v.badgeNumber?.toLowerCase().includes(q),
+          ),
+        );
+      }
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
   }, [query, allVisitors]);
 
   const handleCheckOut = async (id: string, name: string) => {

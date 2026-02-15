@@ -23,63 +23,37 @@ class ApiClient {
     return localStorage.getItem('safeschool_token');
   }
 
-  async get(url: string, token?: string | null): Promise<any> {
+  private async request(method: string, url: string, body?: any, token?: string | null): Promise<any> {
     const authToken = token ?? await this.getToken();
-    const res = await fetch(`${API_BASE}${url}`, {
-      headers: this.getHeaders(authToken),
-    });
-    if (!res.ok) throw new Error(`GET ${url}: ${res.status}`);
-    return res.json();
-  }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
 
-  async post(url: string, body: any, token?: string | null): Promise<any> {
-    const authToken = token ?? await this.getToken();
-    const res = await fetch(`${API_BASE}${url}`, {
-      method: 'POST',
-      headers: this.getHeaders(authToken),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `POST ${url}: ${res.status}`);
+    try {
+      const res = await fetch(`${API_BASE}${url}`, {
+        method,
+        headers: this.getHeaders(authToken),
+        body: body != null ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `${method} ${url}: ${res.status}`);
+      }
+      return res.json();
+    } catch (e: any) {
+      clearTimeout(timeout);
+      if (e.name === 'AbortError') throw new Error(`${method} ${url}: request timed out`);
+      throw e;
     }
-    return res.json();
   }
 
-  async put(url: string, body: any, token?: string | null): Promise<any> {
-    const authToken = token ?? await this.getToken();
-    const res = await fetch(`${API_BASE}${url}`, {
-      method: 'PUT',
-      headers: this.getHeaders(authToken),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `PUT ${url}: ${res.status}`);
-    }
-    return res.json();
-  }
-
-  async patch(url: string, body: any, token?: string | null): Promise<any> {
-    const authToken = token ?? await this.getToken();
-    const res = await fetch(`${API_BASE}${url}`, {
-      method: 'PATCH',
-      headers: this.getHeaders(authToken),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`PATCH ${url}: ${res.status}`);
-    return res.json();
-  }
-
-  async delete(url: string, token?: string | null): Promise<any> {
-    const authToken = token ?? await this.getToken();
-    const res = await fetch(`${API_BASE}${url}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(authToken),
-    });
-    if (!res.ok) throw new Error(`DELETE ${url}: ${res.status}`);
-    return res.json();
-  }
+  get(url: string, token?: string | null) { return this.request('GET', url, undefined, token); }
+  post(url: string, body: any, token?: string | null) { return this.request('POST', url, body, token); }
+  put(url: string, body: any, token?: string | null) { return this.request('PUT', url, body, token); }
+  patch(url: string, body: any, token?: string | null) { return this.request('PATCH', url, body, token); }
+  delete(url: string, token?: string | null) { return this.request('DELETE', url, undefined, token); }
 }
 
 export const apiClient = new ApiClient();

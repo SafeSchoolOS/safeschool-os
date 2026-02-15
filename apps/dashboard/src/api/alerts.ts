@@ -5,7 +5,7 @@ export function useAlerts(siteId?: string) {
   return useQuery({
     queryKey: ['alerts', siteId],
     queryFn: () => apiClient.get(`/api/v1/alerts${siteId ? `?siteId=${siteId}` : ''}`),
-    refetchInterval: 10000,
+    refetchInterval: 10_000,
   });
 }
 

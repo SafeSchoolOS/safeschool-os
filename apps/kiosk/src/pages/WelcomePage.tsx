@@ -15,8 +15,15 @@ export function WelcomePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(interval);
+    // Update once per minute instead of per second to save CPU/battery on kiosk hardware
+    const tick = () => setCurrentTime(new Date());
+    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000;
+    const timeout = setTimeout(() => {
+      tick();
+      interval = setInterval(tick, 60_000);
+    }, msUntilNextMinute);
+    let interval: ReturnType<typeof setInterval>;
+    return () => { clearTimeout(timeout); clearInterval(interval); };
   }, []);
 
   const handleLanguageChange = (langCode: string) => {

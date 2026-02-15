@@ -14,7 +14,15 @@ import './index.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 5000 },
+    queries: {
+      retry: (failureCount, error: any) => {
+        if (error?.message?.includes('401') || error?.message?.includes('403')) return false;
+        return failureCount < 2;
+      },
+      staleTime: 30_000,
+      gcTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+    },
   },
 });
 

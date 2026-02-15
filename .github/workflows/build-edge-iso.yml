@@ -76,6 +76,13 @@ jobs:
             .
           echo "::endgroup::"
 
+          echo "::group::Pulling infrastructure images"
+          docker pull postgres:16-alpine
+          docker pull redis:7-alpine
+          docker pull caddy:2-alpine
+          docker pull containrrr/watchtower
+          echo "::endgroup::"
+
       - name: Export Docker images as tarballs
         run: |
           mkdir -p deploy/edge/image/docker-images
@@ -93,6 +100,22 @@ jobs:
 
           echo "::group::Saving Admin image"
           docker save ghcr.io/bwattendorf/safeschool/admin:latest | gzip > deploy/edge/image/docker-images/admin.tar.gz
+          echo "::endgroup::"
+
+          echo "::group::Saving Postgres image"
+          docker save postgres:16-alpine | gzip > deploy/edge/image/docker-images/postgres.tar.gz
+          echo "::endgroup::"
+
+          echo "::group::Saving Redis image"
+          docker save redis:7-alpine | gzip > deploy/edge/image/docker-images/redis.tar.gz
+          echo "::endgroup::"
+
+          echo "::group::Saving Caddy image"
+          docker save caddy:2-alpine | gzip > deploy/edge/image/docker-images/caddy.tar.gz
+          echo "::endgroup::"
+
+          echo "::group::Saving Watchtower image"
+          docker save containrrr/watchtower | gzip > deploy/edge/image/docker-images/watchtower.tar.gz
           echo "::endgroup::"
 
           echo "Embedded image sizes:"
@@ -208,7 +231,7 @@ jobs:
             1. Flash ISO to USB with [Rufus](https://rufus.ie/) (Windows) or `dd` (Linux/Mac)
             2. Boot the target mini PC from USB
             3. Installation is fully automated (~15-20 min)
-            4. SSH in: `ssh safeschool@<IP>` (password: `SafeSchool2026!`)
+            4. SSH in: `ssh safeschool@<IP>` (password: `safeschool`)
             5. Configure: `sudo safeschool config`
 
             ### Build Info

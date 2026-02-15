@@ -2,12 +2,14 @@
 Description=SafeSchool Edge First Boot Provisioning
 After=network-online.target docker.service
 Wants=network-online.target
+Requires=docker.service
 ConditionPathExists=/opt/safeschool/first-boot.sh
 
 [Service]
 Type=oneshot
 ExecStart=/bin/bash /opt/safeschool/first-boot.sh
 RemainAfterExit=false
+TimeoutStartSec=900
 StandardOutput=journal+console
 StandardError=journal+console
 

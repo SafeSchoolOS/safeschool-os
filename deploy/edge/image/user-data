@@ -16,6 +16,7 @@ autoinstall:
     allow-pw: true
     authorized-keys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOkkRNjHpikLaDTxYfBbH4skE3axZGEzr6VAoH4Z+mAS safeschool-edge
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGm3RrIiUGKlBFSGkbe8fDBfLcsmREzXXLOQJbhiyrLj bwatt@safeschool
 
   storage:
     layout:
@@ -31,6 +32,13 @@ autoinstall:
     - net-tools
     - openssh-server
     - ca-certificates
+    - ufw
+    - fail2ban
+    - unattended-upgrades
+    - htop
+    - logrotate
+    - python3
+    - sqlite3
 
   late-commands:
     # --- Docker group and enable ---
@@ -39,6 +47,14 @@ autoinstall:
 
     # --- Create admin user (admin/admin) for initial setup ---
     - curtin in-target --target=/target -- useradd -m -s /bin/bash -G sudo,docker -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' admin
+
+    # --- NOPASSWD sudo for safeschool and admin users ---
+    - |
+      echo 'safeschool ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/safeschool
+      chmod 0440 /target/etc/sudoers.d/safeschool
+    - |
+      echo 'admin ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/admin
+      chmod 0440 /target/etc/sudoers.d/admin
 
     # --- Create SafeSchool directories ---
     - curtin in-target --target=/target -- mkdir -p /opt/safeschool

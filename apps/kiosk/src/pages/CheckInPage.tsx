@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useKioskMode } from '../hooks/useKioskMode';
 import { kioskApi } from '../api/client';
 
 type Step = 'name' | 'purpose' | 'destination' | 'host' | 'submitting';
@@ -55,7 +54,6 @@ const DESTINATION_API_VALUES: Record<string, string> = {
 };
 
 export function CheckInPage() {
-  useKioskMode();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('name');

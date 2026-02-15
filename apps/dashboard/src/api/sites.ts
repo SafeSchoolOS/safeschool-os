@@ -5,6 +5,7 @@ export function useSites() {
   return useQuery({
     queryKey: ['sites'],
     queryFn: () => apiClient.get('/api/v1/sites'),
+    staleTime: Infinity,
   });
 }
 

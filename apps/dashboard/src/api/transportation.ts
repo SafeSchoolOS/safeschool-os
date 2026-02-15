@@ -5,7 +5,7 @@ export function useBuses(siteId?: string) {
   return useQuery({
     queryKey: ['buses', siteId],
     queryFn: () => apiClient.get(`/api/v1/transportation/buses`),
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
   });
 }
 

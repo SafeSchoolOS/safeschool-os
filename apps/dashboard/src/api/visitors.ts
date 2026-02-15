@@ -5,7 +5,7 @@ export function useVisitors(siteId?: string, status?: string) {
   return useQuery({
     queryKey: ['visitors', siteId, status],
     queryFn: () => apiClient.get(`/api/v1/visitors?${siteId ? `siteId=${siteId}&` : ''}${status ? `status=${status}` : ''}`),
-    refetchInterval: 15000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -13,7 +13,7 @@ export function useActiveVisitors() {
   return useQuery({
     queryKey: ['visitors', 'active'],
     queryFn: () => apiClient.get('/api/v1/visitors/active'),
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
   });
 }
 

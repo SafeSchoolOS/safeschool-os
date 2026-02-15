@@ -1,11 +1,16 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useKioskMode } from '../hooks/useKioskMode';
 
 export function DeniedPage() {
-  useKioskMode(15000);
   const { t } = useTranslation();
   const navigate = useNavigate();
+
+  // Auto-redirect back to welcome after 15s
+  useEffect(() => {
+    const timer = setTimeout(() => navigate('/'), 15_000);
+    return () => clearTimeout(timer);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-red-950 to-red-950/90 flex flex-col items-center justify-center text-white p-8">
