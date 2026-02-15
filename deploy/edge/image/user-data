@@ -87,10 +87,10 @@ autoinstall:
         echo "WARNING: No embedded Docker images found at /cdrom/autoinstall/docker-images"
       fi
 
-      # --- Copy deploy/edge files ---
+      # --- Copy deploy/edge files (use /. to include dotfiles like .env.example) ---
       if [ -d /cdrom/autoinstall/deploy-edge ]; then
-        cp -r /cdrom/autoinstall/deploy-edge/* /target/opt/safeschool/deploy/edge/
-        echo "Copied deploy files: $(ls /cdrom/autoinstall/deploy-edge/)"
+        cp -a /cdrom/autoinstall/deploy-edge/. /target/opt/safeschool/deploy/edge/
+        echo "Copied deploy files: $(ls -a /cdrom/autoinstall/deploy-edge/)"
       else
         echo "WARNING: No deploy-edge files found at /cdrom/autoinstall/deploy-edge"
       fi
