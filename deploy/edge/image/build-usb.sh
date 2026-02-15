@@ -403,9 +403,11 @@ rebuild_iso() {
 
     # Build the xorriso command with proper BIOS + UEFI hybrid boot support
     # Flags based on: https://github.com/maka00/ubuntu2404-autoinstall
+    # -overburn: allow ISO > default 2.88 GB media limit (we embed Docker images)
     xorriso -as mkisofs \
         -r -V "SafeSchool Edge Installer" \
         -o "$output_path" \
+        -overburn \
         --grub2-mbr "$mbr_img" \
         --protective-msdos-label \
         -partition_cyl_align off \
@@ -432,6 +434,7 @@ rebuild_iso() {
         xorriso -as mkisofs \
             -r -V "SafeSchool Edge Installer" \
             -o "$output_path" \
+            -overburn \
             --grub2-mbr "$mbr_img" \
             --protective-msdos-label \
             --mbr-force-bootable \

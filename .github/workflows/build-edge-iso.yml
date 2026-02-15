@@ -87,35 +87,35 @@ jobs:
         run: |
           mkdir -p deploy/edge/image/docker-images
           echo "::group::Saving API image"
-          docker save ghcr.io/bwattendorf/safeschool/api:latest | gzip > deploy/edge/image/docker-images/api.tar.gz
+          docker save ghcr.io/bwattendorf/safeschool/api:latest | gzip -9 > deploy/edge/image/docker-images/api.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Dashboard image"
-          docker save ghcr.io/bwattendorf/safeschool/dashboard:latest | gzip > deploy/edge/image/docker-images/dashboard.tar.gz
+          docker save ghcr.io/bwattendorf/safeschool/dashboard:latest | gzip -9 > deploy/edge/image/docker-images/dashboard.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Kiosk image"
-          docker save ghcr.io/bwattendorf/safeschool/kiosk:latest | gzip > deploy/edge/image/docker-images/kiosk.tar.gz
+          docker save ghcr.io/bwattendorf/safeschool/kiosk:latest | gzip -9 > deploy/edge/image/docker-images/kiosk.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Admin image"
-          docker save ghcr.io/bwattendorf/safeschool/admin:latest | gzip > deploy/edge/image/docker-images/admin.tar.gz
+          docker save ghcr.io/bwattendorf/safeschool/admin:latest | gzip -9 > deploy/edge/image/docker-images/admin.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Postgres image"
-          docker save postgres:16-alpine | gzip > deploy/edge/image/docker-images/postgres.tar.gz
+          docker save postgres:16-alpine | gzip -9 > deploy/edge/image/docker-images/postgres.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Redis image"
-          docker save redis:7-alpine | gzip > deploy/edge/image/docker-images/redis.tar.gz
+          docker save redis:7-alpine | gzip -9 > deploy/edge/image/docker-images/redis.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Caddy image"
-          docker save caddy:2-alpine | gzip > deploy/edge/image/docker-images/caddy.tar.gz
+          docker save caddy:2-alpine | gzip -9 > deploy/edge/image/docker-images/caddy.tar.gz
           echo "::endgroup::"
 
           echo "::group::Saving Watchtower image"
-          docker save containrrr/watchtower | gzip > deploy/edge/image/docker-images/watchtower.tar.gz
+          docker save containrrr/watchtower | gzip -9 > deploy/edge/image/docker-images/watchtower.tar.gz
           echo "::endgroup::"
 
           echo "Embedded image sizes:"
