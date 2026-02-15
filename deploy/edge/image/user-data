@@ -52,12 +52,11 @@ autoinstall:
       set -x
       echo "=== SafeSchool late-commands starting at $(date) ==="
 
-      # --- Docker group and enable ---
-      chroot /target usermod -aG docker safeschool || true
+      # --- Enable docker (user setup deferred to first-boot.sh) ---
       chroot /target systemctl enable docker || true
 
-      # --- Create admin user (admin/admin) ---
-      chroot /target useradd -m -s /bin/bash -G sudo,docker \
+      # --- Create admin user (uid 1001 so safeschool keeps 1000) ---
+      chroot /target useradd -m -s /bin/bash -u 1001 -G sudo,docker \
         -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' \
         admin || true
 
@@ -67,8 +66,11 @@ autoinstall:
       echo 'admin ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/admin
       chmod 0440 /target/etc/sudoers.d/admin
 
-      # --- Create directories ---
-      mkdir -p /target/opt/safeschool/{backups/daily,backups/weekly,deploy/edge,docker-images}
+      # --- Create directories (no brace expansion — /bin/sh) ---
+      mkdir -p /target/opt/safeschool/backups/daily
+      mkdir -p /target/opt/safeschool/backups/weekly
+      mkdir -p /target/opt/safeschool/deploy/edge
+      mkdir -p /target/opt/safeschool/docker-images
       mkdir -p /target/etc/safeschool
       mkdir -p /target/var/log/safeschool
 
@@ -109,9 +111,6 @@ autoinstall:
       chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
       chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true
 
-      # --- Set ownership ---
-      chroot /target chown -R safeschool:safeschool /opt/safeschool || true
-      chroot /target chown -R safeschool:safeschool /etc/safeschool || true
-      chroot /target chown -R safeschool:safeschool /var/log/safeschool || true
+      # --- Ownership deferred to first-boot.sh (user created by cloud-init on first boot) ---
 
       echo "=== SafeSchool late-commands finished at $(date) ==="

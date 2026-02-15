@@ -48,6 +48,17 @@ log "Hostname: $(hostname)"
 log "Kernel: $(uname -r)"
 
 # ==============================================================================
+# Step 0: Fix user/group setup deferred from autoinstall late-commands
+# ==============================================================================
+# The safeschool user is created by cloud-init on first boot, AFTER late-commands
+# run. So docker group membership and file ownership must be done here.
+log_section "Step 0/20: Finalizing user and ownership setup"
+usermod -aG docker safeschool 2>/dev/null && log "Added safeschool to docker group" || log "safeschool already in docker group or user missing"
+chown -R safeschool:safeschool /opt/safeschool 2>/dev/null || true
+chown -R safeschool:safeschool /etc/safeschool 2>/dev/null || true
+chown -R safeschool:safeschool /var/log/safeschool 2>/dev/null || true
+
+# ==============================================================================
 # Step 1: Wait for network connectivity (DHCP is active during first boot)
 # ==============================================================================
 log_section "Step 1/20: Waiting for network connectivity"
