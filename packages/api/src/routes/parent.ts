@@ -44,9 +44,9 @@ const parentRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      // Build children data with bus info
-      const children = parentContacts.map((pc) => {
-        const sc = pc.studentCard;
+      // Build children data with bus info (only for contacts linked to a transport card)
+      const children = parentContacts.filter((pc) => pc.studentCard).map((pc) => {
+        const sc = pc.studentCard!;
         const latestEvent = sc.ridershipEvents[0] || null;
         // Get the bus number from the route assignment or from the latest ridership event
         const routeAssignment = sc.stopAssignments[0]?.stop?.route;
