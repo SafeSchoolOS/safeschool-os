@@ -95,8 +95,10 @@ services:
       - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
       - VISITOR_SCREENING_ADAPTER=console
       - TRANSPORT_TRACKING_ENABLED=${TRANSPORT_TRACKING_ENABLED:-false}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
     volumes:
       - edge_data:/app/data
+      - /etc/safeschool:/etc/safeschool
     depends_on:
       migrate:
         condition: service_completed_successfully
