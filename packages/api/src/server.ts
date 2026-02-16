@@ -42,6 +42,7 @@ import weatherRoutes from './routes/weather.js';
 import fleetRoutes from './routes/fleet.js';
 import cardholderRoutes from './routes/cardholders.js';
 import studentRoutes from './routes/students.js';
+import userRoutes from './routes/users.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import wsHandler from './ws/handler.js';
 
@@ -218,6 +219,7 @@ export async function buildServer() {
   await app.register(fleetRoutes, { prefix: '/api/v1/fleet' });
   await app.register(cardholderRoutes, { prefix: '/api/v1/cardholders' });
   await app.register(studentRoutes, { prefix: '/api/v1/students' });
+  await app.register(userRoutes, { prefix: '/api/v1/users' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });

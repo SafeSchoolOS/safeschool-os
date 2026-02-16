@@ -25,6 +25,7 @@ const FleetPage = lazy(() => import('./pages/FleetPage').then(m => ({ default: m
 const CardholderPage = lazy(() => import('./pages/CardholderPage').then(m => ({ default: m.CardholderPage })));
 const StudentPage = lazy(() => import('./pages/StudentPage').then(m => ({ default: m.StudentPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
 
 function PageLoader() {
   return (
@@ -91,6 +92,7 @@ export function App() {
         <Route path="/students" element={<LazyRoute><StudentPage /></LazyRoute>} />
         <Route path="/fleet" element={<LazyRoute><FleetPage /></LazyRoute>} />
         <Route path="/onboarding" element={<LazyRoute><OnboardingPage /></LazyRoute>} />
+        <Route path="/users" element={<LazyRoute><UsersPage /></LazyRoute>} />
         <Route path="/settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
       </Route>
     </Routes>
