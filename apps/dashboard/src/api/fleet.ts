@@ -66,3 +66,31 @@ export function useUpgradeAll() {
     },
   });
 }
+
+export interface FleetRelease {
+  tag: string;
+  name: string;
+  published: string;
+  prerelease: boolean;
+  body: string;
+  assets: number;
+}
+
+export function useFleetReleases() {
+  return useQuery<{ releases: FleetRelease[]; error?: string }>({
+    queryKey: ['fleet', 'releases'],
+    queryFn: () => apiClient.get('/api/v1/fleet/releases'),
+    staleTime: 60_000,
+  });
+}
+
+export function useUpgradeSelected() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ deviceIds, targetVersion }: { deviceIds: string[]; targetVersion: string }) =>
+      apiClient.post('/api/v1/fleet/upgrade-selected', { deviceIds, targetVersion }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fleet'] });
+    },
+  });
+}

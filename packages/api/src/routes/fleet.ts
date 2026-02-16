@@ -84,6 +84,64 @@ export default async function fleetRoutes(app: FastifyInstance) {
     return { updated: result.count, targetVersion };
   });
 
+  // GET /api/v1/fleet/releases — list available GitHub releases for upgrade
+  app.get('/releases', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (_request: FastifyRequest, reply: FastifyReply) => {
+    const GITHUB_REPO = 'bwattendorf/safeSchool';
+    const token = process.env.GITHUB_TOKEN;
+    try {
+      const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=10`;
+      const headers: Record<string, string> = {
+        'User-Agent': 'SafeSchool-Edge',
+        'Accept': 'application/vnd.github.v3+json',
+      };
+      if (token) headers['Authorization'] = `token ${token}`;
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+      if (!res.ok) {
+        const body = await res.text();
+        return { releases: [], error: `GitHub API ${res.status}: ${body.slice(0, 200)}` };
+      }
+      const data = await res.json() as any[];
+      const releases = data.map((r: any) => ({
+        tag: r.tag_name,
+        name: r.name || r.tag_name,
+        published: r.published_at,
+        prerelease: r.prerelease,
+        body: (r.body || '').slice(0, 500),
+        assets: r.assets?.length || 0,
+      }));
+      return { releases };
+    } catch (err: any) {
+      reply.code(200);
+      return { releases: [], error: err.message };
+    }
+  });
+
+  // POST /api/v1/fleet/upgrade-selected — push upgrade to specific device IDs
+  app.post('/upgrade-selected', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { deviceIds, targetVersion } = request.body as { deviceIds: string[]; targetVersion: string };
+
+    if (!targetVersion || typeof targetVersion !== 'string') {
+      return reply.code(400).send({ error: 'targetVersion is required' });
+    }
+    if (!Array.isArray(deviceIds) || deviceIds.length === 0) {
+      return reply.code(400).send({ error: 'deviceIds must be a non-empty array' });
+    }
+
+    const result = await app.prisma.edgeDevice.updateMany({
+      where: {
+        id: { in: deviceIds },
+        upgradeStatus: { in: ['IDLE', 'FAILED'] },
+      },
+      data: {
+        targetVersion,
+        upgradeStatus: 'PENDING',
+        upgradeError: null,
+      },
+    });
+
+    return { updated: result.count, targetVersion };
+  });
+
   // GET /api/v1/fleet/summary — fleet overview stats
   app.get('/summary', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const devices = await app.prisma.edgeDevice.findMany({
