@@ -7,7 +7,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/fleet/devices — list all edge devices
-  app.get('/devices', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/devices', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const devices = await app.prisma.edgeDevice.findMany({
       include: { site: { select: { id: true, name: true, district: true } } },
       orderBy: { lastHeartbeatAt: 'desc' },
@@ -16,7 +16,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/fleet/devices/:id — single device detail
-  app.get('/devices/:id', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/devices/:id', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const device = await app.prisma.edgeDevice.findUnique({
       where: { id },
@@ -29,7 +29,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/fleet/devices/:id/upgrade — push upgrade to single device
-  app.post('/devices/:id/upgrade', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/devices/:id/upgrade', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const { targetVersion } = request.body as { targetVersion: string };
 
@@ -59,7 +59,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/fleet/upgrade-all — push upgrade to all IDLE devices
-  app.post('/upgrade-all', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/upgrade-all', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { targetVersion } = request.body as { targetVersion: string };
 
     if (!targetVersion || typeof targetVersion !== 'string') {
@@ -85,7 +85,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/fleet/releases — list available GitHub releases for upgrade
-  app.get('/releases', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (_request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/releases', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (_request: FastifyRequest, reply: FastifyReply) => {
     const GITHUB_REPO = 'bwattendorf/safeSchool';
     const token = process.env.GITHUB_TOKEN;
     try {
@@ -117,7 +117,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // POST /api/v1/fleet/upgrade-selected — push upgrade to specific device IDs
-  app.post('/upgrade-selected', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/upgrade-selected', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { deviceIds, targetVersion } = request.body as { deviceIds: string[]; targetVersion: string };
 
     if (!targetVersion || typeof targetVersion !== 'string') {
@@ -143,7 +143,7 @@ export default async function fleetRoutes(app: FastifyInstance) {
   });
 
   // GET /api/v1/fleet/summary — fleet overview stats
-  app.get('/summary', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/summary', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const devices = await app.prisma.edgeDevice.findMany({
       select: {
         currentVersion: true,
