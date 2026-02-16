@@ -1580,6 +1580,8 @@ enum TimelineActionType {
   MESSAGE_SENT
   MESSAGE_RECEIVED
   FALSE_ALARM_DECLARED
+  STATUS_CHANGE
+  MANUAL_ENTRY
 }
 
 model IncidentAgency {
