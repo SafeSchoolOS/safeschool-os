@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { useCardholders, useCreateCardholder, useProvisionCredential, useRevokeCredential, useAccessZones, useCreateZone } from '../api/cardholders';
-import { CARD_FORMATS } from '@safeschool/core';
+
+const CARD_FORMATS = [
+  { value: 'H10301', label: '26-bit Wiegand (H10301)', bits: 26 },
+  { value: 'H10304', label: '37-bit (H10304)', bits: 37 },
+  { value: 'CORP1000', label: 'Corporate 1000 (35-bit)', bits: 35 },
+  { value: 'ICLASS', label: 'HID iCLASS', bits: null },
+  { value: 'MIFARE', label: 'MIFARE Classic', bits: null },
+  { value: 'SEOS', label: 'HID SEOS', bits: null },
+  { value: 'DESFIRE', label: 'MIFARE DESFire', bits: null },
+  { value: 'CUSTOM', label: 'Custom', bits: null },
+] as const;
 
 const PERSON_TYPES = ['ALL', 'STAFF', 'STUDENT', 'WORKER', 'VISITOR'] as const;
 const CREDENTIAL_TYPES = ['PHYSICAL_CARD', 'MOBILE', 'TEMPORARY_CARD', 'FOB'] as const;
