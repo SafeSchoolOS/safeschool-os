@@ -15,6 +15,14 @@ export { BrivoAdapter } from './adapters/brivo.js';
 export { VerkadaAdapter } from './adapters/verkada.js';
 export { S2NetBoxAdapter } from './adapters/s2-netbox.js';
 export { AssaAbloyAdapter } from './adapters/assa-abloy.js';
+export { BadgeGuardClient } from './adapters/badgeguard-client.js';
+export type {
+  BadgeGuardConfig,
+  BadgeGuardEvent,
+  BadgeGuardAlert,
+  BadgeGuardAnalytics,
+  BadgeGuardComplianceReport,
+} from './adapters/badgeguard-client.js';
 
 import type { AccessControlAdapter, CredentialManagementAdapter } from '@safeschool/core';
 import { SicunetAdapter } from './adapters/sicunet.js';

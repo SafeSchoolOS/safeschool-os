@@ -1,3 +1,5 @@
+import { queueCheckin } from '../services/offline-store';
+
 const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
   : '/api/v1';
@@ -23,23 +25,33 @@ async function request(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `${method} ${path}: ${res.status}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `${method} ${path}: ${res.status}`);
+    }
+
+    return res.json();
+  } catch (err: any) {
+    // If offline and this is a check-in POST, queue it locally
+    if (!navigator.onLine && method === 'POST' && path.includes('/visitors') && body) {
+      const offlineId = await queueCheckin(body as any);
+      return { id: offlineId, status: 'PENDING_SYNC', offline: true };
+    }
+    throw err;
   }
-
-  return res.json();
 }
 
 /**
  * Shared API client for kiosk visitor check-in flow.
  * Uses the kiosk token from localStorage.
+ * Falls back to offline storage when network is unavailable.
  */
 export const kioskApi = {
   get: (path: string) => request('GET', path),

@@ -1,7 +1,7 @@
 import { Queue, Worker, type Job } from 'bullmq';
 import Redis from 'ioredis';
 import type { PrismaClient } from '@safeschool/db';
-import { renderTemplate, STUDENT_SCAN_SMS, STUDENT_SCAN_PUSH, BUS_ARRIVAL_SMS, BUS_ARRIVAL_PUSH, WEATHER_ALERT_SMS } from '@safeschool/core';
+import { renderTemplate, STUDENT_SCAN_SMS, STUDENT_SCAN_PUSH, BUS_ARRIVAL_SMS, BUS_ARRIVAL_PUSH, WEATHER_ALERT_SMS, VISITOR_QR_EMAIL, VISITOR_HOST_SMS, VISITOR_HOST_EMAIL, VISITOR_HOST_PUSH } from '@safeschool/core';
 import type { SocialMediaAdapter } from '@safeschool/social-media';
 import type { WeatherAdapter } from '@safeschool/weather';
 
@@ -55,6 +55,15 @@ export function createAlertWorker(deps: WorkerDeps): Worker {
           break;
         case 'poll-weather':
           await handlePollWeather(job, deps);
+          break;
+        case 'visitor-qr-notification':
+          await handleVisitorQrNotification(job, deps);
+          break;
+        case 'host-notify':
+          await handleHostNotify(job, deps);
+          break;
+        case 'auto-checkout':
+          await handleAutoCheckout(job, deps);
           break;
         default:
           console.warn(`Unknown job type: ${job.name}`);
@@ -582,5 +591,155 @@ async function handlePollWeather(job: Job, deps: WorkerDeps): Promise<void> {
   } finally {
     await alertQueue.close();
     redis.disconnect();
+  }
+}
+
+async function handleVisitorQrNotification(job: Job, deps: WorkerDeps): Promise<void> {
+  const { visitorId, siteId, firstName, lastName, email, phone, qrToken, purpose, destination, scheduledAt } = job.data;
+  console.log(`[visitor-qr] Sending QR notification to ${email || phone} for ${firstName} ${lastName}`);
+
+  const site = await deps.prisma.site.findUnique({ where: { id: siteId }, select: { name: true } });
+  const siteName = site?.name || 'School';
+  const qrCodeUrl = `${process.env.API_BASE_URL || 'https://api.safeschool.app'}/api/v1/visitors/qr/${qrToken}`;
+  const scheduledDate = scheduledAt ? new Date(scheduledAt).toLocaleDateString() : 'your scheduled visit';
+
+  const templateVars = {
+    siteName,
+    visitorName: `${firstName} ${lastName}`,
+    scheduledDate,
+    qrCodeUrl,
+    purpose: purpose || '',
+    destination: destination || '',
+  };
+
+  const rendered = renderTemplate(VISITOR_QR_EMAIL, templateVars);
+
+  if (email) {
+    await deps.notifyFn({
+      alertId: `visitor-qr-${visitorId}`,
+      siteId,
+      level: 'CUSTOM',
+      message: rendered.body,
+      recipients: [{ name: `${firstName} ${lastName}`, email }],
+      channels: ['EMAIL'],
+      subject: rendered.subject,
+    });
+    console.log(`[visitor-qr] Sent QR email to ${email}`);
+  }
+
+  if (phone) {
+    await deps.notifyFn({
+      alertId: `visitor-qr-${visitorId}`,
+      siteId,
+      level: 'CUSTOM',
+      message: `Your visit to ${siteName} is confirmed. Show this link at check-in: ${qrCodeUrl}`,
+      recipients: [{ name: `${firstName} ${lastName}`, phone }],
+      channels: ['SMS'],
+    });
+    console.log(`[visitor-qr] Sent QR SMS to ${phone}`);
+  }
+}
+
+async function handleHostNotify(job: Job, deps: WorkerDeps): Promise<void> {
+  const { visitorId, siteId, hostUserId, visitorName, purpose, destination, visitorType } = job.data;
+  console.log(`[host-notify] Notifying host ${hostUserId} about visitor ${visitorName}`);
+
+  const host = await deps.prisma.user.findUnique({
+    where: { id: hostUserId },
+    select: { name: true, email: true, phone: true },
+  });
+  if (!host) {
+    console.log(`[host-notify] Host user ${hostUserId} not found`);
+    return;
+  }
+
+  const site = await deps.prisma.site.findUnique({ where: { id: siteId }, select: { name: true } });
+  const siteName = site?.name || 'School';
+  const timestamp = new Date().toLocaleTimeString();
+
+  const channels: string[] = [];
+  if (host.phone) channels.push('SMS');
+  if (host.email) channels.push('EMAIL');
+  channels.push('PUSH');
+
+  if (channels.includes('SMS') && host.phone) {
+    const smsRendered = renderTemplate(VISITOR_HOST_SMS, { visitorName, siteName, purpose, destination });
+    await deps.notifyFn({
+      alertId: `host-notify-${visitorId}`,
+      siteId,
+      level: 'CUSTOM',
+      message: smsRendered.body,
+      recipients: [{ name: host.name, phone: host.phone }],
+      channels: ['SMS'],
+    });
+  }
+
+  if (channels.includes('EMAIL') && host.email) {
+    const emailRendered = renderTemplate(VISITOR_HOST_EMAIL, {
+      visitorName,
+      siteName,
+      visitorType: visitorType || 'VISITOR',
+      purpose,
+      destination,
+      timestamp,
+    });
+    await deps.notifyFn({
+      alertId: `host-notify-${visitorId}`,
+      siteId,
+      level: 'CUSTOM',
+      message: emailRendered.body,
+      recipients: [{ name: host.name, email: host.email }],
+      channels: ['EMAIL'],
+      subject: emailRendered.subject,
+    });
+  }
+
+  console.log(`[host-notify] Notified ${host.name} via ${channels.join(',')} about ${visitorName}`);
+}
+
+async function handleAutoCheckout(job: Job, deps: WorkerDeps): Promise<void> {
+  console.log('[auto-checkout] Running auto-checkout check...');
+
+  const settings = await deps.prisma.siteVisitorSettings.findMany({
+    where: { autoCheckoutEnabled: true },
+    include: { site: { select: { id: true, name: true, timezone: true } } },
+  });
+
+  for (const setting of settings) {
+    const siteId = setting.siteId;
+    const timezone = setting.site.timezone || 'America/New_York';
+
+    // Check if current time in site timezone is past the auto-checkout time
+    const now = new Date();
+    const siteTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    const [hours, minutes] = setting.autoCheckoutTime.split(':').map(Number);
+    const checkoutTime = new Date(siteTime);
+    checkoutTime.setHours(hours, minutes, 0, 0);
+
+    if (siteTime < checkoutTime) continue;
+
+    // Check out all CHECKED_IN visitors
+    const checkedInVisitors = await deps.prisma.visitor.findMany({
+      where: { siteId, status: 'CHECKED_IN' },
+      select: { id: true },
+    });
+
+    if (checkedInVisitors.length === 0) continue;
+
+    const result = await deps.prisma.visitor.updateMany({
+      where: { siteId, status: 'CHECKED_IN' },
+      data: { status: 'CHECKED_OUT', checkedOutAt: now },
+    });
+
+    await deps.prisma.auditLog.create({
+      data: {
+        siteId,
+        action: 'VISITOR_AUTO_CHECKOUT',
+        entity: 'Visitor',
+        details: { count: result.count, autoCheckoutTime: setting.autoCheckoutTime },
+      },
+    });
+
+    console.log(`[auto-checkout] Checked out ${result.count} visitors at ${setting.site.name}`);
   }
 }

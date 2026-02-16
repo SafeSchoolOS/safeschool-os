@@ -44,6 +44,9 @@ const doorRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
+    // Queue event for BadgeGuard analytics (non-blocking)
+    queueBadgeGuardEvent(fastify, door, 'LOCK', request.jwtUser).catch(() => {});
+
     return updated;
   });
 
@@ -70,8 +73,49 @@ const doorRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
+    // Queue event for BadgeGuard analytics (non-blocking)
+    queueBadgeGuardEvent(fastify, door, 'UNLOCK', request.jwtUser).catch(() => {});
+
     return updated;
   });
 };
+
+/**
+ * Queue a door event for BadgeGuard analytics if integration is enabled.
+ * Stores events in a Redis list for periodic batch push.
+ */
+async function queueBadgeGuardEvent(
+  fastify: any,
+  door: any,
+  eventType: string,
+  user: any,
+) {
+  const integration = await fastify.prisma.badgeGuardIntegration.findUnique({
+    where: { siteId: door.siteId },
+  });
+  if (!integration || !integration.enabled) return;
+
+  const building = await fastify.prisma.building.findUnique({
+    where: { id: door.buildingId },
+    select: { name: true },
+  });
+
+  const event = {
+    doorId: door.id,
+    doorName: door.name,
+    eventType,
+    timestamp: new Date().toISOString(),
+    userId: user.id,
+    userName: user.name,
+    buildingName: building?.name,
+    floor: door.floor,
+    zone: door.zone,
+  };
+
+  await fastify.redis.rpush(
+    `badgeguard:events:${door.siteId}`,
+    JSON.stringify(event),
+  );
+}
 
 export default doorRoutes;

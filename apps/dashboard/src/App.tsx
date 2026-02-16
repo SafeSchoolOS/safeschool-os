@@ -26,6 +26,11 @@ const CardholderPage = lazy(() => import('./pages/CardholderPage').then(m => ({ 
 const StudentPage = lazy(() => import('./pages/StudentPage').then(m => ({ default: m.StudentPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
+const BadgeKioskSettingsPage = lazy(() => import('./pages/BadgeKioskSettingsPage').then(m => ({ default: m.BadgeKioskSettingsPage })));
+const AccessAnalyticsPage = lazy(() => import('./pages/AccessAnalyticsPage').then(m => ({ default: m.AccessAnalyticsPage })));
+const BadgeGuardSettingsPage = lazy(() => import('./pages/BadgeGuardSettingsPage').then(m => ({ default: m.BadgeGuardSettingsPage })));
+const VisitorSettingsPage = lazy(() => import('./pages/VisitorSettingsPage').then(m => ({ default: m.VisitorSettingsPage })));
+const VisitorAnalyticsPage = lazy(() => import('./pages/VisitorAnalyticsPage').then(m => ({ default: m.VisitorAnalyticsPage })));
 
 function PageLoader() {
   return (
@@ -94,6 +99,11 @@ export function App() {
         <Route path="/onboarding" element={<LazyRoute><OnboardingPage /></LazyRoute>} />
         <Route path="/users" element={<LazyRoute><UsersPage /></LazyRoute>} />
         <Route path="/settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
+        <Route path="/badgekiosk" element={<LazyRoute><BadgeKioskSettingsPage /></LazyRoute>} />
+        <Route path="/access-analytics" element={<LazyRoute><AccessAnalyticsPage /></LazyRoute>} />
+        <Route path="/access-analytics/settings" element={<LazyRoute><BadgeGuardSettingsPage /></LazyRoute>} />
+        <Route path="/visitor-settings" element={<LazyRoute><VisitorSettingsPage /></LazyRoute>} />
+        <Route path="/visitor-analytics" element={<LazyRoute><VisitorAnalyticsPage /></LazyRoute>} />
       </Route>
     </Routes>
   );

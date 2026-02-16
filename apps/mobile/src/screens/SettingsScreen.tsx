@@ -1,8 +1,13 @@
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Image } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
+import { API_BASE } from '../config';
 
 export function SettingsScreen() {
   const { user, logout } = useAuth();
+  const siteId = user?.siteIds?.[0];
+  const logoUrl = siteId ? `${API_BASE.replace('/api/v1', '')}/api/v1/sites/${siteId}/logo` : null;
+  const [logoError, setLogoError] = useState(false);
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -23,6 +28,18 @@ export function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* School Logo */}
+        {logoUrl && !logoError && (
+          <View style={styles.logoContainer}>
+            <Image
+              source={{ uri: logoUrl }}
+              style={styles.schoolLogo}
+              resizeMode="contain"
+              onError={() => setLogoError(true)}
+            />
+          </View>
+        )}
+
         {/* User Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarCircle}>
@@ -125,6 +142,15 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  schoolLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
   },
   profileCard: {
     backgroundColor: '#1f2937',

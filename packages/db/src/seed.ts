@@ -93,6 +93,44 @@ const IDS = {
     emilyStaff: '00000000-0000-4000-a000-00000000a001',
     tonyWorker: '00000000-0000-4000-a000-00000000a002',
   },
+  // First Responder Module IDs
+  agencies: {
+    cranstonPd: '00000000-0000-4000-a000-00000000b001',
+    cranstonFd: '00000000-0000-4000-a000-00000000b002',
+    cranstonEms: '00000000-0000-4000-a000-00000000b003',
+  },
+  responderUsers: {
+    sgtSmith: '00000000-0000-4000-a000-00000000c001',
+    ofrJones: '00000000-0000-4000-a000-00000000c002',
+    dispatcherLee: '00000000-0000-4000-a000-00000000c003',
+    invBrown: '00000000-0000-4000-a000-00000000c004',
+  },
+  schoolAgencyLinks: {
+    lincolnCpd: '00000000-0000-4000-a000-00000000d001',
+    lincolnCfd: '00000000-0000-4000-a000-00000000d002',
+  },
+  frReunificationSites: {
+    communityCenter: '00000000-0000-4000-a000-00000000e001',
+    churchParking: '00000000-0000-4000-a000-00000000e002',
+  },
+  stagingAreas: {
+    eastParking: '00000000-0000-4000-a000-00000000f001',
+    westField: '00000000-0000-4000-a000-00000000f002',
+    northLot: '00000000-0000-4000-a000-00000000f003',
+  },
+  keyHolders: {
+    principal: '00000000-0000-4000-a000-00000000f101',
+    headCustodian: '00000000-0000-4000-a000-00000000f102',
+    safetyDir: '00000000-0000-4000-a000-00000000f103',
+  },
+  hazardLocations: {
+    scienceLab: '00000000-0000-4000-a000-00000000f201',
+    artRoom: '00000000-0000-4000-a000-00000000f202',
+    poolChemicals: '00000000-0000-4000-a000-00000000f203',
+  },
+  gateways: {
+    gatewayA: '00000000-0000-4000-a000-00000000f301',
+  },
 } as const;
 
 async function main() {
@@ -508,6 +546,297 @@ async function main() {
     },
   });
   console.log('  Cardholders: 2 (1 staff, 1 worker)');
+
+  // ============================================================================
+  // First Responder Module Seed Data
+  // ============================================================================
+
+  console.log('\n🚔 Seeding First Responder Module...');
+
+  // Agencies
+  await prisma.agency.upsert({
+    where: { id: IDS.agencies.cranstonPd },
+    update: {},
+    create: {
+      id: IDS.agencies.cranstonPd,
+      name: 'Cranston Police Department',
+      type: 'POLICE',
+      jurisdiction: 'Cranston, NJ',
+      primaryContact: 'Chief Robert Williams',
+      primaryPhone: '+18005551001',
+      primaryEmail: 'chief@cranstonpd.gov',
+      dispatchPhone: '+18005551000',
+      psapId: 'PSAP-NJ-0042',
+      status: 'ACTIVE_AGENCY',
+    },
+  });
+
+  await prisma.agency.upsert({
+    where: { id: IDS.agencies.cranstonFd },
+    update: {},
+    create: {
+      id: IDS.agencies.cranstonFd,
+      name: 'Cranston Fire Department',
+      type: 'FIRE',
+      jurisdiction: 'Cranston, NJ',
+      primaryContact: 'Chief Maria Gonzalez',
+      primaryPhone: '+18005552001',
+      primaryEmail: 'chief@cranstonfd.gov',
+      dispatchPhone: '+18005552000',
+      status: 'ACTIVE_AGENCY',
+    },
+  });
+
+  await prisma.agency.upsert({
+    where: { id: IDS.agencies.cranstonEms },
+    update: {},
+    create: {
+      id: IDS.agencies.cranstonEms,
+      name: 'Cranston EMS',
+      type: 'EMS',
+      jurisdiction: 'Cranston, NJ',
+      primaryContact: 'Director Karen Mitchell',
+      primaryPhone: '+18005553001',
+      primaryEmail: 'director@cranstonems.gov',
+      dispatchPhone: '+18005553000',
+      status: 'PENDING_AGENCY',
+    },
+  });
+  console.log('  Agencies: 3 (PD, FD, EMS)');
+
+  // Responder Users
+  await prisma.responderUser.upsert({
+    where: { id: IDS.responderUsers.sgtSmith },
+    update: {},
+    create: {
+      id: IDS.responderUsers.sgtSmith,
+      agencyId: IDS.agencies.cranstonPd,
+      badgeNumber: 'CPD-1247',
+      firstName: 'James',
+      lastName: 'Smith',
+      email: 'sgt.smith@cranstonpd.gov',
+      phone: '+18005551101',
+      passwordHash: DEV_PASSWORD_HASH,
+      role: 'COMMAND',
+      permissions: [
+        'VIEW_FLOOR_PLANS', 'VIEW_DOOR_STATUS', 'VIEW_CAMERA_FEEDS',
+        'CONTROL_DOORS', 'VIEW_VISITOR_LIST', 'VIEW_STUDENT_ACCOUNTABILITY',
+        'VIEW_INCIDENT_LOGS', 'EXPORT_DATA', 'COMMUNICATE_STAFF', 'VIEW_TIPS',
+      ],
+      status: 'ACTIVE_RESPONDER',
+    },
+  });
+
+  await prisma.responderUser.upsert({
+    where: { id: IDS.responderUsers.ofrJones },
+    update: {},
+    create: {
+      id: IDS.responderUsers.ofrJones,
+      agencyId: IDS.agencies.cranstonPd,
+      badgeNumber: 'CPD-2089',
+      firstName: 'Sarah',
+      lastName: 'Jones',
+      email: 'ofr.jones@cranstonpd.gov',
+      phone: '+18005551102',
+      passwordHash: DEV_PASSWORD_HASH,
+      role: 'PATROL',
+      permissions: [
+        'VIEW_FLOOR_PLANS', 'VIEW_DOOR_STATUS', 'VIEW_CAMERA_FEEDS',
+        'VIEW_VISITOR_LIST', 'VIEW_INCIDENT_LOGS', 'COMMUNICATE_STAFF',
+      ],
+      status: 'ACTIVE_RESPONDER',
+    },
+  });
+
+  await prisma.responderUser.upsert({
+    where: { id: IDS.responderUsers.dispatcherLee },
+    update: {},
+    create: {
+      id: IDS.responderUsers.dispatcherLee,
+      agencyId: IDS.agencies.cranstonPd,
+      badgeNumber: 'CPD-D015',
+      firstName: 'Kevin',
+      lastName: 'Lee',
+      email: 'dispatch.lee@cranstonpd.gov',
+      phone: '+18005551103',
+      passwordHash: DEV_PASSWORD_HASH,
+      role: 'DISPATCH_ROLE',
+      permissions: [
+        'VIEW_FLOOR_PLANS', 'VIEW_DOOR_STATUS', 'VIEW_INCIDENT_LOGS',
+      ],
+      status: 'ACTIVE_RESPONDER',
+    },
+  });
+
+  await prisma.responderUser.upsert({
+    where: { id: IDS.responderUsers.invBrown },
+    update: {},
+    create: {
+      id: IDS.responderUsers.invBrown,
+      agencyId: IDS.agencies.cranstonPd,
+      badgeNumber: 'CPD-3301',
+      firstName: 'Lisa',
+      lastName: 'Brown',
+      email: 'inv.brown@cranstonpd.gov',
+      phone: '+18005551104',
+      passwordHash: DEV_PASSWORD_HASH,
+      role: 'INVESTIGATOR',
+      permissions: [
+        'VIEW_FLOOR_PLANS', 'VIEW_DOOR_STATUS', 'VIEW_CAMERA_FEEDS',
+        'VIEW_INCIDENT_LOGS', 'EXPORT_DATA', 'VIEW_TIPS',
+      ],
+      status: 'ACTIVE_RESPONDER',
+    },
+  });
+  console.log('  Responder Users: 4 (COMMAND, PATROL, DISPATCH, INVESTIGATOR)');
+
+  // School-Agency Links
+  await prisma.schoolAgencyLink.upsert({
+    where: { id: IDS.schoolAgencyLinks.lincolnCpd },
+    update: {},
+    create: {
+      id: IDS.schoolAgencyLinks.lincolnCpd,
+      siteId: IDS.site,
+      agencyId: IDS.agencies.cranstonPd,
+      accessLevel: 'FULL_RESPONSE',
+      approvedBy: IDS.users.admin,
+      approvedAt: new Date(),
+      mouSigned: true,
+      status: 'ACTIVE_LINK',
+    },
+  });
+
+  await prisma.schoolAgencyLink.upsert({
+    where: { id: IDS.schoolAgencyLinks.lincolnCfd },
+    update: {},
+    create: {
+      id: IDS.schoolAgencyLinks.lincolnCfd,
+      siteId: IDS.site,
+      agencyId: IDS.agencies.cranstonFd,
+      accessLevel: 'PRE_INCIDENT',
+      approvedBy: IDS.users.admin,
+      approvedAt: new Date(),
+      mouSigned: true,
+      status: 'ACTIVE_LINK',
+    },
+  });
+  console.log('  School-Agency Links: 2 (PD=FULL_RESPONSE, FD=PRE_INCIDENT)');
+
+  // Reunification Sites
+  await prisma.fRReunificationSite.upsert({
+    where: { id: IDS.frReunificationSites.communityCenter },
+    update: {},
+    create: {
+      id: IDS.frReunificationSites.communityCenter,
+      siteId: IDS.site,
+      name: 'Cranston Community Center',
+      address: '250 Central Ave, Cranston, NJ 07016',
+      isPrimary: true,
+      capacity: 500,
+      distanceFromSchool: '0.3 miles',
+      drivingDirections: 'Exit school east onto Main St, right on Central Ave. Building is on the left.',
+      contactName: 'Rita Moreno',
+      contactPhone: '+18005554001',
+      parkingCapacity: 120,
+      notes: 'Large multipurpose room on first floor. Wheelchair accessible.',
+    },
+  });
+
+  await prisma.fRReunificationSite.upsert({
+    where: { id: IDS.frReunificationSites.churchParking },
+    update: {},
+    create: {
+      id: IDS.frReunificationSites.churchParking,
+      siteId: IDS.site,
+      name: 'First Baptist Church - Fellowship Hall',
+      address: '180 Oak Street, Cranston, NJ 07016',
+      isPrimary: false,
+      capacity: 300,
+      distanceFromSchool: '0.5 miles',
+      drivingDirections: 'Exit school west onto Main St, left on Oak St. Church on the right.',
+      contactName: 'Pastor David Kim',
+      contactPhone: '+18005554002',
+      parkingCapacity: 80,
+      notes: 'Backup site. Fellowship hall can be opened on short notice.',
+    },
+  });
+  console.log('  Reunification Sites: 2 (Community Center=primary, Church=backup)');
+
+  // Staging Areas
+  for (const area of [
+    { id: IDS.stagingAreas.eastParking, name: 'East Parking Lot', type: 'LAW_ENFORCEMENT', description: 'Primary law enforcement staging. Shielded from school windows.', lat: 40.6641, lng: -74.2097 },
+    { id: IDS.stagingAreas.westField, name: 'West Athletic Field', type: 'EMS', description: 'EMS staging with helicopter LZ capability. Open field access from Park Rd.', lat: 40.6638, lng: -74.2112 },
+    { id: IDS.stagingAreas.northLot, name: 'North Staff Lot', type: 'COMMAND_POST', description: 'Incident Command Post location. Power and network access from portable generator.', lat: 40.6645, lng: -74.2105 },
+  ]) {
+    await prisma.stagingArea.upsert({
+      where: { id: area.id },
+      update: {},
+      create: { ...area, siteId: IDS.site },
+    });
+  }
+  console.log('  Staging Areas: 3 (LE, EMS, Command Post)');
+
+  // Key Holders
+  for (const kh of [
+    { id: IDS.keyHolders.principal, name: 'Dr. Margaret Chen', role: 'Principal', phone: '+18005555001', hasKeys: true, hasAccessCard: true, hasAlarmCode: true, priority: 1 },
+    { id: IDS.keyHolders.headCustodian, name: 'Frank Rivera', role: 'Head Custodian', phone: '+18005555002', hasKeys: true, hasAccessCard: true, hasAlarmCode: true, priority: 2 },
+    { id: IDS.keyHolders.safetyDir, name: 'Tom Bradley', role: 'Safety Director', phone: '+18005555003', hasKeys: true, hasAccessCard: true, hasAlarmCode: false, priority: 3 },
+  ]) {
+    await prisma.keyHolder.upsert({
+      where: { id: kh.id },
+      update: {},
+      create: { ...kh, siteId: IDS.site },
+    });
+  }
+  console.log('  Key Holders: 3');
+
+  // Hazard Locations
+  for (const hz of [
+    { id: IDS.hazardLocations.scienceLab, type: 'Chemical storage', locationDescription: 'Room 103 - Science Lab', buildingId: IDS.buildings.main, floor: 1, description: 'Locked chemical cabinet with acids, bases, solvents. MSDS binder on wall.', sdsAvailable: true },
+    { id: IDS.hazardLocations.artRoom, type: 'Art supplies', locationDescription: 'Room 104 - Art Room', buildingId: IDS.buildings.main, floor: 1, description: 'Spray paint, turpentine, kiln. Ventilated storage closet.', sdsAvailable: true },
+    { id: IDS.hazardLocations.poolChemicals, type: 'Pool chemicals', locationDescription: 'Annex Building - Maintenance Closet', buildingId: IDS.buildings.annex, floor: 1, description: 'Chlorine and pH chemicals in locked cage. No pool on site - chemicals stored for district.', sdsAvailable: false },
+  ]) {
+    await prisma.hazardLocation.upsert({
+      where: { id: hz.id },
+      update: {},
+      create: { ...hz, siteId: IDS.site },
+    });
+  }
+  console.log('  Hazard Locations: 3');
+
+  // Gateway (single gateway deployment)
+  await prisma.gateway.upsert({
+    where: { id: IDS.gateways.gatewayA },
+    update: {},
+    create: {
+      id: IDS.gateways.gatewayA,
+      siteId: IDS.site,
+      name: 'Gateway A - Main Building',
+      hostname: 'gw-lincoln-a',
+      ipAddress: '192.168.1.100',
+      macAddress: 'AA:BB:CC:DD:EE:01',
+      hardwareModel: 'Intel NUC 13 Pro',
+      firmwareVersion: '1.0.0',
+      clusterRole: 'SINGLE',
+      clusterMode: 'STANDALONE',
+      clusterState: 'SINGLE_GW',
+      status: 'ONLINE_GW',
+      lastHeartbeatAt: new Date(),
+      lastCloudSyncAt: new Date(),
+      cpuUsage: 12,
+      memoryUsage: 34,
+      diskUsage: 22,
+      uptimeSeconds: BigInt(86400),
+      bleDevicesConnected: 8,
+      networkLatencyMs: 15,
+      primaryConnection: 'ETHERNET',
+      hasBackupCellular: true,
+      cellularSignalStrength: 78,
+    },
+  });
+  console.log('  Gateway: 1 (single, STANDALONE)');
+
+  console.log('\n✅ First Responder Module seed complete!');
 
   console.log('Seed complete!');
 }

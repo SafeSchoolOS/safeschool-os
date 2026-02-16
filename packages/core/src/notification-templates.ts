@@ -341,6 +341,69 @@ This message was sent by SafeSchool OS.`,
   variables: ['siteName', 'location', 'totalStudents', 'timestamp'],
 };
 
+// --- Visitor QR & Host Notification Templates ---
+
+export const VISITOR_QR_EMAIL: NotificationTemplate = {
+  id: 'visitor-qr-email',
+  name: 'Visitor QR Code (Email)',
+  channel: 'email',
+  subject: 'Your Visit to {{siteName}} is Confirmed',
+  body: `Your Visit is Confirmed
+
+Hello {{visitorName}},
+
+Your visit to {{siteName}} on {{scheduledDate}} has been confirmed.
+
+Show the QR code below at the kiosk when you arrive for express check-in:
+
+{{qrCodeUrl}}
+
+Visit Details:
+- Purpose: {{purpose}}
+- Destination: {{destination}}
+
+If you need to cancel or reschedule, please contact the school office.
+
+This message was sent by SafeSchool OS.`,
+  variables: ['siteName', 'visitorName', 'scheduledDate', 'qrCodeUrl', 'purpose', 'destination'],
+};
+
+export const VISITOR_HOST_SMS: NotificationTemplate = {
+  id: 'visitor-host-sms',
+  name: 'Visitor Host Notification (SMS)',
+  channel: 'sms',
+  body: '{{visitorName}} has checked in at {{siteName}} to see you. Purpose: {{purpose}}. Destination: {{destination}}.',
+  variables: ['visitorName', 'siteName', 'purpose', 'destination'],
+};
+
+export const VISITOR_HOST_PUSH: NotificationTemplate = {
+  id: 'visitor-host-push',
+  name: 'Visitor Host Notification (Push)',
+  channel: 'push',
+  body: '{{visitorName}} checked in at {{siteName}}',
+  variables: ['visitorName', 'siteName'],
+};
+
+export const VISITOR_HOST_EMAIL: NotificationTemplate = {
+  id: 'visitor-host-email',
+  name: 'Visitor Host Notification (Email)',
+  channel: 'email',
+  subject: 'Visitor Checked In - {{visitorName}}',
+  body: `Visitor Arrival Notification
+
+{{visitorName}} has checked in at {{siteName}} to see you.
+
+Visitor Details:
+- Name: {{visitorName}}
+- Type: {{visitorType}}
+- Purpose: {{purpose}}
+- Destination: {{destination}}
+- Check-in Time: {{timestamp}}
+
+This message was sent by SafeSchool OS.`,
+  variables: ['visitorName', 'siteName', 'visitorType', 'purpose', 'destination', 'timestamp'],
+};
+
 // --- All templates grouped by category ---
 
 export const NOTIFICATION_TEMPLATES = {
@@ -363,6 +426,10 @@ export const NOTIFICATION_TEMPLATES = {
     VISITOR_CHECKIN_EMAIL,
     VISITOR_FLAGGED_SMS,
     VISITOR_FLAGGED_EMAIL,
+    VISITOR_QR_EMAIL,
+    VISITOR_HOST_SMS,
+    VISITOR_HOST_PUSH,
+    VISITOR_HOST_EMAIL,
   ],
   transportation: [
     BUS_ARRIVAL_SMS,

@@ -59,6 +59,7 @@ model Site {
   latitude       Float
   longitude      Float
   timezone       String   @default("America/New_York")
+  logoUrl        String?  @map("logo_url")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -86,6 +87,24 @@ model Site {
   escalationRules         EscalationRule[]
   notificationPreferences NotificationPreference[]
   edgeDevice              EdgeDevice?
+  // First Responder Module relations
+  schoolAgencyLinks       SchoolAgencyLink[]
+  incidents               Incident[]
+  floorPlans              FloorPlan[]
+  dataPackages            DataPackage[]
+  frReunificationSites    FRReunificationSite[]
+  stagingAreas            StagingArea[]
+  keyHolders              KeyHolder[]
+  hazardLocations         HazardLocation[]
+  frReunificationEvents   FRReunificationEvent[]
+  frTips                  FRTip[]
+  gateways                Gateway[]
+  gatewayFailoverEvents   GatewayFailoverEvent[]
+  badgeKioskIntegration   BadgeKioskIntegration?
+  badgeGuardIntegration   BadgeGuardIntegration?
+  visitorPolicies         VisitorPolicy[]
+  visitorGroups           VisitorGroup[]
+  visitorSettings         SiteVisitorSettings?
 
   @@index([organizationId])
   @@map("sites")
@@ -100,10 +119,11 @@ model Building {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  site     Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  rooms    Room[]
-  doors    Door[]
-  students Student[]
+  site       Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  rooms      Room[]
+  doors      Door[]
+  students   Student[]
+  floorPlans FloorPlan[]
 
   @@map("buildings")
 }
@@ -163,6 +183,7 @@ model User {
   lockdownsInitiated      LockdownCommand[]        @relation("LockdownInitiatedBy")
   auditLogs               AuditLog[]
   hostedVisitors          Visitor[]                @relation("VisitorHost")
+  hostedVisitorGroups     VisitorGroup[]           @relation("VisitorGroupHost")
   notificationPreferences NotificationPreference[]
   cardholder              Cardholder?
 
@@ -419,11 +440,22 @@ model Visitor {
   checkedInAt  DateTime?     @map("checked_in_at")
   checkedOutAt DateTime?     @map("checked_out_at")
   badgeNumber  String?       @map("badge_number")
+  visitorType  VisitorType   @default(VISITOR) @map("visitor_type")
+  email        String?
+  phone        String?
+  signature    String?
+  policyAckedAt DateTime?    @map("policy_acked_at")
+  qrToken      String?       @unique @map("qr_token")
+  scheduledAt  DateTime?     @map("scheduled_at")
+  groupId      String?       @map("group_id")
+  companyName  String?       @map("company_name")
+  notes        String?
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
   site       Site              @relation(fields: [siteId], references: [id])
   host       User?             @relation("VisitorHost", fields: [hostUserId], references: [id])
+  group      VisitorGroup?     @relation(fields: [groupId], references: [id])
   screening  VisitorScreening?
   cardholder Cardholder?
 
@@ -452,6 +484,69 @@ enum VisitorStatus {
   CHECKED_OUT
   DENIED
   FLAGGED
+}
+
+enum VisitorType {
+  VISITOR
+  PARENT
+  CONTRACTOR
+  VENDOR
+  VOLUNTEER
+  SUBSTITUTE_TEACHER
+  DELIVERY
+  EMERGENCY_CONTACT
+}
+
+model VisitorPolicy {
+  id        String   @id @default(uuid())
+  siteId    String   @map("site_id")
+  title     String
+  body      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, isActive])
+  @@map("visitor_policies")
+}
+
+model VisitorGroup {
+  id          String    @id @default(uuid())
+  siteId      String    @map("site_id")
+  name        String
+  purpose     String?
+  hostUserId  String?   @map("host_user_id")
+  scheduledAt DateTime? @map("scheduled_at")
+  totalCount  Int       @default(0) @map("total_count")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  site     Site      @relation(fields: [siteId], references: [id])
+  host     User?     @relation("VisitorGroupHost", fields: [hostUserId], references: [id])
+  visitors Visitor[]
+
+  @@index([siteId])
+  @@map("visitor_groups")
+}
+
+model SiteVisitorSettings {
+  id                      String  @id @default(uuid())
+  siteId                  String  @unique @map("site_id")
+  hostNotificationEnabled Boolean @default(true) @map("host_notification_enabled")
+  autoCheckoutEnabled     Boolean @default(false) @map("auto_checkout_enabled")
+  autoCheckoutTime        String  @default("18:00") @map("auto_checkout_time")
+  requireSignature        Boolean @default(false) @map("require_signature")
+  requirePhoto            Boolean @default(false) @map("require_photo")
+  requirePolicyAck        Boolean @default(false) @map("require_policy_ack")
+  publicPreRegEnabled     Boolean @default(false) @map("public_pre_reg_enabled")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("site_visitor_settings")
 }
 
 // ============================================================================
@@ -1246,4 +1341,965 @@ enum CredentialStatus {
   SUSPENDED
   EXPIRED
   REVOKED
+}
+
+// ============================================================================
+// First Responder Module — Agency & Users
+// ============================================================================
+
+model Agency {
+  id             String       @id @default(uuid())
+  name           String
+  type           AgencyType
+  jurisdiction   String?
+  primaryContact String?      @map("primary_contact")
+  primaryPhone   String?      @map("primary_phone")
+  primaryEmail   String?      @map("primary_email")
+  dispatchPhone  String?      @map("dispatch_phone")
+  psapId         String?      @map("psap_id")
+  rapidSosOrgId  String?      @map("rapid_sos_org_id")
+  status         AgencyStatus @default(PENDING_AGENCY)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  users            ResponderUser[]
+  schoolLinks      SchoolAgencyLink[]
+  incidentAgencies IncidentAgency[]
+  escalatedTips    FRTip[]            @relation("TipEscalatedToAgency")
+
+  @@map("agencies")
+}
+
+enum AgencyType {
+  POLICE
+  FIRE
+  EMS
+  DISPATCH_CENTER
+}
+
+enum AgencyStatus {
+  ACTIVE_AGENCY
+  SUSPENDED_AGENCY
+  PENDING_AGENCY
+}
+
+model ResponderUser {
+  id           String                @id @default(uuid())
+  agencyId     String                @map("agency_id")
+  badgeNumber  String?               @map("badge_number")
+  firstName    String                @map("first_name")
+  lastName     String                @map("last_name")
+  email        String                @unique
+  phone        String?
+  passwordHash String                @map("password_hash")
+  role         ResponderRole
+  permissions  ResponderPermission[]
+  mfaEnabled   Boolean               @default(false) @map("mfa_enabled")
+  mfaSecret    String?               @map("mfa_secret")
+  lastLogin    DateTime?             @map("last_login")
+  status       ResponderUserStatus   @default(ACTIVE_RESPONDER)
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  agency               Agency                @relation(fields: [agencyId], references: [id])
+  auditEntries         ResponderAuditLog[]
+  dataPackageDownloads DataPackageDownload[]
+  videoBookmarks       VideoBookmark[]
+  // sentMessages accessed via prisma.secureMessage.findMany({ where: { senderId, senderType: 'RESPONDER' } })
+
+  @@index([agencyId])
+  @@map("responder_users")
+}
+
+enum ResponderRole {
+  DISPATCH_ROLE
+  PATROL
+  COMMAND
+  AGENCY_ADMIN
+  INVESTIGATOR
+}
+
+enum ResponderPermission {
+  VIEW_FLOOR_PLANS
+  VIEW_DOOR_STATUS
+  VIEW_CAMERA_FEEDS
+  CONTROL_DOORS
+  VIEW_VISITOR_LIST
+  VIEW_STUDENT_ACCOUNTABILITY
+  VIEW_INCIDENT_LOGS
+  EXPORT_DATA
+  COMMUNICATE_STAFF
+  VIEW_TIPS
+}
+
+enum ResponderUserStatus {
+  ACTIVE_RESPONDER
+  DISABLED_RESPONDER
+}
+
+model SchoolAgencyLink {
+  id          String             @id @default(uuid())
+  siteId      String             @map("site_id")
+  agencyId    String             @map("agency_id")
+  accessLevel AgencyAccessLevel
+  approvedBy  String?            @map("approved_by")
+  approvedAt  DateTime?          @map("approved_at")
+  mouSigned   Boolean            @default(false) @map("mou_signed")
+  expiresAt   DateTime?          @map("expires_at")
+  status      SchoolAgencyStatus @default(ACTIVE_LINK)
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  site   Site   @relation(fields: [siteId], references: [id])
+  agency Agency @relation(fields: [agencyId], references: [id])
+
+  @@unique([siteId, agencyId])
+  @@map("school_agency_links")
+}
+
+enum AgencyAccessLevel {
+  PRE_INCIDENT
+  FULL_RESPONSE
+  INVESTIGATION
+}
+
+enum SchoolAgencyStatus {
+  ACTIVE_LINK
+  EXPIRED_LINK
+  REVOKED_LINK
+}
+
+// ============================================================================
+// First Responder Module — Incidents
+// ============================================================================
+
+model Incident {
+  id                       String           @id @default(uuid())
+  siteId                   String           @map("site_id")
+  type                     IncidentType
+  status                   IncidentStatus   @default(TRIGGERED_INCIDENT)
+  severity                 IncidentSeverity @default(HIGH_INCIDENT)
+  triggeredBy              String?          @map("triggered_by")
+  triggeredAt              DateTime         @default(now()) @map("triggered_at")
+  triggerDeviceId          String?          @map("trigger_device_id")
+  triggerBuildingId        String?          @map("trigger_building_id")
+  triggerFloor             Int?             @map("trigger_floor")
+  triggerRoom              String?          @map("trigger_room")
+  triggerLat               Float?           @map("trigger_lat")
+  triggerLng               Float?           @map("trigger_lng")
+  dispatchedAt             DateTime?        @map("dispatched_at")
+  firstResponderArrival    DateTime?        @map("first_responder_arrival")
+  allClearAt               DateTime?        @map("all_clear_at")
+  reunificationStartedAt   DateTime?        @map("reunification_started_at")
+  reunificationCompletedAt DateTime?        @map("reunification_completed_at")
+  resolvedAt               DateTime?        @map("resolved_at")
+  resolvedBy               String?          @map("resolved_by")
+  notes                    String?
+  createdAt                DateTime         @default(now()) @map("created_at")
+  updatedAt                DateTime         @updatedAt @map("updated_at")
+
+  site                  Site                   @relation(fields: [siteId], references: [id])
+  timeline              IncidentTimeline[]
+  respondingAgencies    IncidentAgency[]
+  messages              SecureMessage[]
+  videoBookmarks        VideoBookmark[]
+  doorCommands          DoorCommand[]
+  frReunificationEvents FRReunificationEvent[]
+
+  @@index([siteId])
+  @@index([status])
+  @@index([siteId, status])
+  @@map("incidents")
+}
+
+enum IncidentType {
+  ACTIVE_THREAT
+  LOCKDOWN_INCIDENT
+  MEDICAL_INCIDENT
+  FIRE_INCIDENT
+  HAZMAT
+  WEATHER_INCIDENT
+  INTRUDER
+  BOMB_THREAT
+  OTHER_INCIDENT
+}
+
+enum IncidentStatus {
+  TRIGGERED_INCIDENT
+  DISPATCHED_INCIDENT
+  RESPONDING_INCIDENT
+  ON_SCENE
+  LOCKDOWN_ACTIVE
+  ALL_CLEAR_INCIDENT
+  REUNIFICATION_INCIDENT
+  RESOLVED_INCIDENT
+  FALSE_ALARM
+}
+
+enum IncidentSeverity {
+  CRITICAL_INCIDENT
+  HIGH_INCIDENT
+  MEDIUM_INCIDENT
+  LOW_INCIDENT
+}
+
+model IncidentTimeline {
+  id         String             @id @default(uuid())
+  incidentId String             @map("incident_id")
+  timestamp  DateTime           @default(now())
+  action     String
+  actionType TimelineActionType @map("action_type")
+  actorType  String             @map("actor_type") // SYSTEM, STAFF, RESPONDER, ADMIN
+  actorId    String?            @map("actor_id")
+  metadata   Json?              @default("{}")
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+
+  @@index([incidentId, timestamp])
+  @@map("incident_timeline")
+}
+
+enum TimelineActionType {
+  PANIC_ACTIVATED
+  DISPATCH_SENT
+  DISPATCH_ACKNOWLEDGED
+  LOCKDOWN_INITIATED
+  DOOR_LOCKED
+  DOOR_UNLOCKED
+  DOOR_FORCED
+  CAMERA_ACCESSED
+  RESPONDER_EN_ROUTE
+  RESPONDER_ON_SCENE
+  NOTIFICATION_SENT
+  ACCOUNTABILITY_UPDATE
+  ALL_CLEAR_ACTION
+  REUNIFICATION_STARTED
+  STUDENT_RELEASED
+  INCIDENT_RESOLVED
+  NOTE_ADDED
+  MESSAGE_SENT
+  MESSAGE_RECEIVED
+  FALSE_ALARM_DECLARED
+}
+
+model IncidentAgency {
+  incidentId     String    @map("incident_id")
+  agencyId       String    @map("agency_id")
+  notifiedAt     DateTime  @default(now()) @map("notified_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  onSceneAt      DateTime? @map("on_scene_at")
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+  agency   Agency   @relation(fields: [agencyId], references: [id])
+
+  @@id([incidentId, agencyId])
+  @@map("incident_agencies")
+}
+
+// ============================================================================
+// First Responder Module — Floor Plans & Facility Data
+// ============================================================================
+
+model FloorPlan {
+  id           String   @id @default(uuid())
+  siteId       String   @map("site_id")
+  buildingId   String   @map("building_id")
+  buildingName String   @map("building_name")
+  floor        Int
+  floorName    String   @map("floor_name")
+  imageUrl     String   @map("image_url")
+  imageWidth   Int      @map("image_width")
+  imageHeight  Int      @map("image_height")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  site        Site                  @relation(fields: [siteId], references: [id])
+  building    Building              @relation(fields: [buildingId], references: [id])
+  devices     FloorPlanDevice[]
+  annotations FloorPlanAnnotation[]
+
+  @@index([siteId])
+  @@index([buildingId])
+  @@map("floor_plans")
+}
+
+model FloorPlanDevice {
+  id       String          @id @default(uuid())
+  planId   String          @map("plan_id")
+  deviceId String          @map("device_id")
+  type     FloorDeviceType
+  label    String
+  x        Float
+  y        Float
+  metadata Json?
+
+  plan FloorPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("floor_plan_devices")
+}
+
+enum FloorDeviceType {
+  FP_DOOR
+  FP_CAMERA
+  FP_PANIC_BUTTON_WALL
+  FP_READER
+  FP_INTERCOM
+  FP_AED
+  FP_FIRE_EXTINGUISHER
+  FP_FIRE_PULL
+  FP_FIRE_PANEL
+  FP_UTILITY_SHUTOFF_ELECTRIC
+  FP_UTILITY_SHUTOFF_GAS
+  FP_UTILITY_SHUTOFF_WATER
+  FP_FIRST_AID_KIT
+  FP_RALLY_POINT
+  FP_STAIRWELL
+  FP_ELEVATOR
+  FP_RESTROOM
+  FP_OFFICE
+  FP_HAZMAT_STORAGE
+}
+
+model FloorPlanAnnotation {
+  id          String   @id @default(uuid())
+  planId      String   @map("plan_id")
+  type        String // TEXT, ZONE, PATH
+  label       String?
+  coordinates Json // [{x, y}] array
+  color       String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  plan FloorPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("floor_plan_annotations")
+}
+
+model DataPackage {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  version     Int      @default(1)
+  generatedAt DateTime @default(now()) @map("generated_at")
+  generatedBy String?  @map("generated_by")
+  contents    Json
+  pdfUrl      String?  @map("pdf_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  site      Site                  @relation(fields: [siteId], references: [id])
+  downloads DataPackageDownload[]
+
+  @@index([siteId])
+  @@map("data_packages")
+}
+
+model DataPackageDownload {
+  id            String   @id @default(uuid())
+  dataPackageId String   @map("data_package_id")
+  downloadedBy  String   @map("downloaded_by")
+  downloadedAt  DateTime @default(now()) @map("downloaded_at")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+
+  dataPackage   DataPackage   @relation(fields: [dataPackageId], references: [id])
+  responderUser ResponderUser @relation(fields: [downloadedBy], references: [id])
+
+  @@map("data_package_downloads")
+}
+
+model FRReunificationSite {
+  id                 String   @id @default(uuid())
+  siteId             String   @map("site_id")
+  name               String
+  address            String?
+  isPrimary          Boolean  @default(false) @map("is_primary")
+  capacity           Int?
+  distanceFromSchool String?  @map("distance_from_school")
+  drivingDirections  String?  @map("driving_directions")
+  contactName        String?  @map("contact_name")
+  contactPhone       String?  @map("contact_phone")
+  parkingCapacity    Int?     @map("parking_capacity")
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  site                Site                   @relation(fields: [siteId], references: [id])
+  reunificationEvents FRReunificationEvent[]
+
+  @@index([siteId])
+  @@map("fr_reunification_sites")
+}
+
+model StagingArea {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  name        String
+  type        String // LAW_ENFORCEMENT, FIRE, EMS, COMMAND_POST, MEDIA
+  description String?
+  lat         Float?
+  lng         Float?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@map("staging_areas")
+}
+
+model KeyHolder {
+  id            String   @id @default(uuid())
+  siteId        String   @map("site_id")
+  name          String
+  role          String?
+  phone         String?
+  hasKeys       Boolean  @default(false) @map("has_keys")
+  hasAccessCard Boolean  @default(false) @map("has_access_card")
+  hasAlarmCode  Boolean  @default(false) @map("has_alarm_code")
+  priority      Int      @default(99)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@map("key_holders")
+}
+
+model HazardLocation {
+  id                  String   @id @default(uuid())
+  siteId              String   @map("site_id")
+  buildingId          String?  @map("building_id")
+  type                String
+  locationDescription String?  @map("location_description")
+  floor               Int?
+  description         String?
+  sdsAvailable        Boolean  @default(false) @map("sds_available")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@map("hazard_locations")
+}
+
+// ============================================================================
+// First Responder Module — Reunification (Enhanced)
+// ============================================================================
+
+model FRReunificationEvent {
+  id                  String                @id @default(uuid())
+  incidentId          String                @map("incident_id")
+  siteId              String                @map("site_id")
+  reunificationSiteId String?               @map("reunification_site_id")
+  status              FRReunificationStatus @default(PREPARING)
+  startedAt           DateTime              @default(now()) @map("started_at")
+  completedAt         DateTime?             @map("completed_at")
+  totalStudents       Int                   @default(0) @map("total_students")
+  studentsAccounted   Int                   @default(0) @map("students_accounted")
+  studentsReleased    Int                   @default(0) @map("students_released")
+  studentsMissing     Int                   @default(0) @map("students_missing")
+  studentsInjured     Int                   @default(0) @map("students_injured")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  incident          Incident             @relation(fields: [incidentId], references: [id])
+  site              Site                 @relation(fields: [siteId], references: [id])
+  reunificationSite FRReunificationSite? @relation(fields: [reunificationSiteId], references: [id])
+  guardianCheckIns  GuardianCheckIn[]
+  studentReleases   StudentRelease[]
+
+  @@index([incidentId])
+  @@index([siteId])
+  @@map("fr_reunification_events")
+}
+
+enum FRReunificationStatus {
+  PREPARING
+  ACTIVE_REUNIFICATION
+  WINDING_DOWN
+  COMPLETED_REUNIFICATION
+}
+
+model GuardianCheckIn {
+  id                   String   @id @default(uuid())
+  reunificationEventId String   @map("reunification_event_id")
+  guardianName         String   @map("guardian_name")
+  guardianIdType       String?  @map("guardian_id_type")
+  guardianIdLast4      String?  @map("guardian_id_last4")
+  guardianIdVerified   Boolean  @default(false) @map("guardian_id_verified")
+  requestedStudentIds  String[] @map("requested_student_ids")
+  authorizedInSis      Boolean  @default(false) @map("authorized_in_sis")
+  checkedInAt          DateTime @default(now()) @map("checked_in_at")
+  checkedInBy          String?  @map("checked_in_by")
+  status               String   @default("CHECKED_IN") // CHECKED_IN, WAITING, RELEASED, DENIED
+  denyReason           String?  @map("deny_reason")
+
+  reunificationEvent FRReunificationEvent @relation(fields: [reunificationEventId], references: [id])
+  studentReleases    StudentRelease[]
+
+  @@index([reunificationEventId])
+  @@map("guardian_checkins")
+}
+
+model StudentRelease {
+  id                   String   @id @default(uuid())
+  reunificationEventId String   @map("reunification_event_id")
+  studentId            String   @map("student_id")
+  studentName          String   @map("student_name")
+  guardianCheckInId    String?  @map("guardian_checkin_id")
+  releasedTo           String   @map("released_to")
+  releasedAt           DateTime @default(now()) @map("released_at")
+  releasedBy           String?  @map("released_by")
+  notes                String?
+
+  reunificationEvent FRReunificationEvent @relation(fields: [reunificationEventId], references: [id])
+  guardianCheckIn    GuardianCheckIn?     @relation(fields: [guardianCheckInId], references: [id])
+
+  @@index([reunificationEventId])
+  @@map("student_releases")
+}
+
+// ============================================================================
+// First Responder Module — Tips (Enhanced)
+// ============================================================================
+
+model FRTip {
+  id                  String        @id @default(uuid())
+  trackingCode        String        @unique @map("tracking_code")
+  siteId              String?       @map("site_id")
+  source              FRTipSource
+  category            FRTipCategory
+  content             String
+  attachments         String[]      @default([])
+  tipsterContact      String?       @map("tipster_contact")
+  isAnonymous         Boolean       @default(true) @map("is_anonymous")
+  severity            TipSeverity   @default(MEDIUM)
+  status              FRTipStatus   @default(NEW_TIP)
+  assignedTo          String?       @map("assigned_to")
+  escalatedToAgencyId String?       @map("escalated_to_agency_id")
+  escalatedAt         DateTime?     @map("escalated_at")
+  resolvedAt          DateTime?     @map("resolved_at")
+  resolvedBy          String?       @map("resolved_by")
+  resolution          String?
+  publicStatusMessage String?       @map("public_status_message")
+  timeline            Json          @default("[]")
+  externalSourceId    String?       @map("external_source_id")
+  externalSource      String?       @map("external_source")
+  smsConversationId   String?       @map("sms_conversation_id")
+  smsPhoneHash        String?       @map("sms_phone_hash")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  site              Site?         @relation(fields: [siteId], references: [id])
+  escalatedToAgency Agency?       @relation("TipEscalatedToAgency", fields: [escalatedToAgencyId], references: [id])
+  followUps         TipFollowUp[]
+
+  @@index([siteId, status])
+  @@index([severity])
+  @@index([trackingCode])
+  @@index([externalSource, externalSourceId])
+  @@map("fr_tips")
+}
+
+enum FRTipSource {
+  WEB_FORM
+  MOBILE_APP_TIP
+  TEXT_SMS
+  PHONE_TIP
+  EMAIL_TIP
+  WEBHOOK_WETIP
+  WEBHOOK_STOPIT
+  WEBHOOK_SAY_SOMETHING
+  WEBHOOK_CUSTOM
+}
+
+enum FRTipCategory {
+  THREAT_OF_VIOLENCE
+  WEAPON
+  BULLYING_TIP
+  DRUGS_TIP
+  SELF_HARM_TIP
+  SUSPICIOUS_PERSON
+  SUSPICIOUS_PACKAGE
+  INFRASTRUCTURE_TIP
+  OTHER_TIP
+}
+
+enum FRTipStatus {
+  NEW_TIP
+  UNDER_REVIEW_TIP
+  ESCALATED_TIP
+  RESOLVED_TIP
+  DISMISSED_TIP
+}
+
+model TipFollowUp {
+  id          String   @id @default(uuid())
+  tipId       String   @map("tip_id")
+  source      String // TRACKING_PAGE, SMS, MOBILE_APP
+  content     String
+  attachments String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tip FRTip @relation(fields: [tipId], references: [id])
+
+  @@index([tipId, createdAt])
+  @@map("tip_follow_ups")
+}
+
+model SmsTipConversation {
+  id             String      @id @default(uuid())
+  phoneHash      String      @map("phone_hash")
+  phoneEncrypted String?     @map("phone_encrypted")
+  state          SmsTipState @default(AWAITING_SCHOOL)
+  siteId         String?     @map("site_id")
+  category       String?
+  content        String?
+  tipId          String?     @map("tip_id")
+  lastMessageAt  DateTime    @default(now()) @map("last_message_at")
+  expiresAt      DateTime    @map("expires_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  messages SmsTipMessage[]
+
+  @@index([phoneHash, state])
+  @@index([expiresAt])
+  @@map("sms_tip_conversations")
+}
+
+enum SmsTipState {
+  AWAITING_SCHOOL
+  AWAITING_CATEGORY
+  AWAITING_CONTENT
+  AWAITING_CONFIRM
+  COMPLETED_SMS
+  EXPIRED_SMS
+  CANCELLED_SMS
+}
+
+model SmsTipMessage {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  direction      String // INBOUND, OUTBOUND
+  body           String
+  twilioSid      String?  @map("twilio_sid")
+  status         String? // queued, sent, delivered, failed
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation SmsTipConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@map("sms_tip_messages")
+}
+
+model TipWebhookConfig {
+  id               String    @id @default(uuid())
+  siteId           String    @map("site_id")
+  source           String // wetip, stopit, saysomething, custom
+  enabled          Boolean   @default(true)
+  apiKey           String    @map("api_key")
+  categoryMapping  Json      @default("{}") @map("category_mapping")
+  defaultCategory  String    @default("OTHER_TIP") @map("default_category")
+  schoolExternalId String?   @map("school_external_id")
+  lastReceivedAt   DateTime? @map("last_received_at")
+  totalReceived    Int       @default(0) @map("total_received")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([siteId, source])
+  @@map("tip_webhook_configs")
+}
+
+// ============================================================================
+// First Responder Module — Secure Messaging
+// ============================================================================
+
+model SecureMessage {
+  id            String    @id @default(uuid())
+  incidentId    String    @map("incident_id")
+  threadId      String    @map("thread_id")
+  senderType    String    @map("sender_type") // STAFF, RESPONDER, SYSTEM
+  senderId      String    @map("sender_id")
+  senderName    String    @map("sender_name")
+  recipientType String    @map("recipient_type") // STAFF, RESPONDER, BROADCAST
+  recipientId   String?   @map("recipient_id")
+  content       String
+  messageType   String    @default("TEXT") @map("message_type") // TEXT, LOCATION_UPDATE, STATUS_UPDATE, IMAGE
+  readAt        DateTime? @map("read_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+  // senderId is a plain string — can reference User (staff) or ResponderUser depending on senderType
+
+  @@index([incidentId, threadId, createdAt])
+  @@map("secure_messages")
+}
+
+// ============================================================================
+// First Responder Module — Responder Audit Log
+// ============================================================================
+
+model ResponderAuditLog {
+  id              String   @id @default(uuid())
+  responderUserId String   @map("responder_user_id")
+  action          String
+  resourceType    String?  @map("resource_type")
+  resourceId      String?  @map("resource_id")
+  siteId          String?  @map("site_id")
+  incidentId      String?  @map("incident_id")
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  metadata        Json?    @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  responderUser ResponderUser @relation(fields: [responderUserId], references: [id])
+
+  @@index([responderUserId, createdAt])
+  @@index([siteId, createdAt])
+  @@map("responder_audit_log")
+}
+
+// ============================================================================
+// First Responder Module — Video Bookmarks
+// ============================================================================
+
+model VideoBookmark {
+  id            String    @id @default(uuid())
+  incidentId    String    @map("incident_id")
+  cameraId      String    @map("camera_id")
+  cameraName    String?   @map("camera_name")
+  bookmarkStart DateTime  @map("bookmark_start")
+  bookmarkEnd   DateTime? @map("bookmark_end")
+  label         String?
+  notes         String?
+  createdBy     String    @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  incident      Incident      @relation(fields: [incidentId], references: [id])
+  responderUser ResponderUser @relation(fields: [createdBy], references: [id])
+
+  @@index([incidentId])
+  @@map("video_bookmarks")
+}
+
+// ============================================================================
+// First Responder Module — Gateway Redundancy
+// ============================================================================
+
+model Gateway {
+  id                     String              @id @default(uuid())
+  siteId                 String              @map("site_id")
+  name                   String
+  hostname               String?
+  ipAddress              String?             @map("ip_address")
+  macAddress             String?             @map("mac_address")
+  hardwareModel          String?             @map("hardware_model")
+  firmwareVersion        String?             @map("firmware_version")
+  serialNumber           String?             @map("serial_number")
+  clusterRole            GatewayClusterRole  @default(SINGLE) @map("cluster_role")
+  clusterMode            GatewayClusterMode  @default(STANDALONE) @map("cluster_mode")
+  clusterState           GatewayClusterState @default(SINGLE_GW) @map("cluster_state")
+  partnerId              String?             @map("partner_id")
+  assignedDevices        String[]            @default([]) @map("assigned_devices")
+  assignedZones          String[]            @default([]) @map("assigned_zones")
+  status                 GatewayStatus       @default(PROVISIONING_GW) @map("status")
+  lastHeartbeatAt        DateTime?           @map("last_heartbeat_at")
+  lastCloudSyncAt        DateTime?           @map("last_cloud_sync_at")
+  cpuUsage               Int?                @map("cpu_usage")
+  memoryUsage            Int?                @map("memory_usage")
+  diskUsage              Int?                @map("disk_usage")
+  uptimeSeconds          BigInt?             @map("uptime_seconds")
+  bleDevicesConnected    Int                 @default(0) @map("ble_devices_connected")
+  networkLatencyMs       Int?                @map("network_latency_ms")
+  primaryConnection      String              @default("ETHERNET") @map("primary_connection")
+  hasBackupCellular      Boolean             @default(false) @map("has_backup_cellular")
+  cellularSignalStrength Int?                @map("cellular_signal_strength")
+  provisioningToken      String?             @map("provisioning_token")
+  authTokenHash          String?             @map("auth_token_hash")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  site             Site                   @relation(fields: [siteId], references: [id])
+  partner          Gateway?               @relation("GatewayPair", fields: [partnerId], references: [id])
+  pairedWith       Gateway[]              @relation("GatewayPair")
+  heartbeats       GatewayHeartbeat[]
+  failoversFailed  GatewayFailoverEvent[] @relation("FailedGateway")
+  failoversAssumed GatewayFailoverEvent[] @relation("AssumingGateway")
+  syncsSent        GatewayStateSync[]     @relation("SyncSource")
+  syncsReceived    GatewayStateSync[]     @relation("SyncTarget")
+  doorCommands     DoorCommand[]
+
+  @@index([siteId])
+  @@index([partnerId])
+  @@index([status])
+  @@map("gateways")
+}
+
+enum GatewayClusterRole {
+  SINGLE
+  PRIMARY_GW
+  SECONDARY_GW
+  ASSUMED_PRIMARY
+}
+
+enum GatewayClusterMode {
+  STANDALONE
+  ACTIVE_ACTIVE
+  ACTIVE_PASSIVE
+}
+
+enum GatewayClusterState {
+  HEALTHY_GW
+  DEGRADED_GW
+  FAILOVER_GW
+  RECOVERING_GW
+  SINGLE_GW
+}
+
+enum GatewayStatus {
+  ONLINE_GW
+  OFFLINE_GW
+  DEGRADED_STATUS_GW
+  UPDATING_GW
+  PROVISIONING_GW
+}
+
+model GatewayHeartbeat {
+  id                  String   @id @default(uuid())
+  gatewayId           String   @map("gateway_id")
+  timestamp           DateTime @default(now())
+  status              String
+  cpuUsage            Int?     @map("cpu_usage")
+  memoryUsage         Int?     @map("memory_usage")
+  bleDevicesConnected Int?     @map("ble_devices_connected")
+  pendingCommands     Int      @default(0) @map("pending_commands")
+  activeIncidentId    String?  @map("active_incident_id")
+  firmwareVersion     String?  @map("firmware_version")
+
+  gateway Gateway @relation(fields: [gatewayId], references: [id])
+
+  @@index([gatewayId, timestamp(sort: Desc)])
+  @@map("gateway_heartbeats")
+}
+
+model GatewayFailoverEvent {
+  id                   String                @id @default(uuid())
+  siteId               String                @map("site_id")
+  failedGatewayId      String                @map("failed_gateway_id")
+  assumingGatewayId    String                @map("assuming_gateway_id")
+  failoverType         String                @map("failover_type") // AUTOMATIC, MANUAL
+  reason               GatewayFailoverReason
+  devicesTransferred   Int                   @default(0) @map("devices_transferred")
+  failoverStartedAt    DateTime              @default(now()) @map("failover_started_at")
+  failoverCompletedAt  DateTime?             @map("failover_completed_at")
+  durationMs           Int?                  @map("duration_ms")
+  incidentActiveAtTime Boolean               @default(false) @map("incident_active_at_time")
+  recoveredAt          DateTime?             @map("recovered_at")
+  rebalancedAt         DateTime?             @map("rebalanced_at")
+  notes                String?
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  site            Site    @relation(fields: [siteId], references: [id])
+  failedGateway   Gateway @relation("FailedGateway", fields: [failedGatewayId], references: [id])
+  assumingGateway Gateway @relation("AssumingGateway", fields: [assumingGatewayId], references: [id])
+
+  @@index([siteId, failoverStartedAt(sort: Desc)])
+  @@map("gateway_failover_events")
+}
+
+enum GatewayFailoverReason {
+  HEARTBEAT_TIMEOUT
+  NETWORK_LOSS
+  HARDWARE_FAILURE
+  MANUAL_TRIGGER
+  SOFTWARE_CRASH
+  UPDATE_REBOOT
+}
+
+model GatewayStateSync {
+  id               String   @id @default(uuid())
+  sourceGatewayId  String   @map("source_gateway_id")
+  targetGatewayId  String   @map("target_gateway_id")
+  syncType         String   @map("sync_type") // FULL, DELTA
+  payloadSizeBytes Int?     @map("payload_size_bytes")
+  syncDurationMs   Int?     @map("sync_duration_ms")
+  success          Boolean  @default(true)
+  errorMessage     String?  @map("error_message")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  sourceGateway Gateway @relation("SyncSource", fields: [sourceGatewayId], references: [id])
+  targetGateway Gateway @relation("SyncTarget", fields: [targetGatewayId], references: [id])
+
+  @@index([sourceGatewayId, createdAt(sort: Desc)])
+  @@map("gateway_state_syncs")
+}
+
+// ============================================================================
+// BadgeKiosk Integration
+// ============================================================================
+
+model BadgeKioskIntegration {
+  id              String    @id @default(uuid())
+  siteId          String    @unique @map("site_id")
+  apiUrl          String    @default("https://api.badgekiosk.com") @map("api_url")
+  apiKey          String    @map("api_key")
+  enabled         Boolean   @default(true)
+  autoSync        Boolean   @default(true) @map("auto_sync")
+  defaultTemplate String?   @map("default_template_id")
+  defaultPrinter  String?   @map("default_printer_id")
+  autoPrint       Boolean   @default(false) @map("auto_print")
+  features        Json      @default("{}")
+  lastSyncAt      DateTime? @map("last_sync_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("badgekiosk_integrations")
+}
+
+// ============================================================================
+// BadgeGuard Access Control Analytics
+// ============================================================================
+
+model BadgeGuardIntegration {
+  id           String    @id @default(uuid())
+  siteId       String    @unique @map("site_id")
+  apiUrl       String    @default("https://badgeguard-production.up.railway.app") @map("api_url")
+  apiKey       String    @map("api_key")
+  deviceId     String?   @map("device_id")
+  enabled      Boolean   @default(true)
+  pushInterval Int       @default(300) @map("push_interval_seconds")
+  lastPushAt   DateTime? @map("last_push_at")
+  lastAlertAt  DateTime? @map("last_alert_at")
+  alertCount   Int       @default(0) @map("alert_count")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("badgeguard_integrations")
+}
+
+model DoorCommand {
+  id            String    @id @default(uuid())
+  doorId        String    @map("door_id")
+  command       String // LOCK, UNLOCK
+  issuedBy      String    @map("issued_by")
+  issuedByType  String    @map("issued_by_type") // STAFF, RESPONDER, SYSTEM
+  incidentId    String?   @map("incident_id")
+  gatewayId     String    @map("gateway_id")
+  status        String    @default("PENDING") // PENDING, EXECUTED, FAILED, TIMEOUT
+  executedAt    DateTime? @map("executed_at")
+  failureReason String?   @map("failure_reason")
+  retryCount    Int       @default(0) @map("retry_count")
+  maxRetries    Int       @default(3) @map("max_retries")
+  timeoutAt     DateTime? @map("timeout_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  incident Incident? @relation(fields: [incidentId], references: [id])
+  gateway  Gateway   @relation(fields: [gatewayId], references: [id])
+
+  @@index([gatewayId, status])
+  @@index([incidentId])
+  @@map("door_commands")
 }

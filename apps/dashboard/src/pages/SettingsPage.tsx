@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { apiClient } from '../api/client';
+import { useSites, getSiteLogoUrl, useUploadSiteLogo, useDeleteSiteLogo } from '../api/sites';
 
 const CHANNELS = ['SMS', 'EMAIL', 'PUSH'] as const;
 const ALERT_LEVELS = ['MEDICAL', 'LOCKDOWN', 'ACTIVE_THREAT', 'FIRE', 'WEATHER', 'ALL_CLEAR'] as const;
@@ -54,6 +55,14 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [localPrefs, setLocalPrefs] = useState<Record<string, boolean>>(buildDefaultPrefs);
   const [hasChanges, setHasChanges] = useState(false);
+  const { data: sites } = useSites();
+  const siteId = user?.siteIds?.[0];
+  const site = sites?.[0];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadLogo = useUploadSiteLogo();
+  const deleteLogo = useDeleteSiteLogo();
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoKey, setLogoKey] = useState(0); // cache-bust for logo img
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['notification-preferences'],
@@ -121,8 +130,8 @@ export function SettingsPage() {
   return (
     <div className="p-3 sm:p-6 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       {/* User Profile Section */}
-      <section className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">User Profile</h2>
+      <section className="dark:bg-gray-800 bg-white rounded-xl dark:border-gray-700 border-gray-200 border p-6">
+        <h2 className="text-lg font-semibold dark:text-white text-gray-900 mb-4">User Profile</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Name</label>
@@ -152,6 +161,85 @@ export function SettingsPage() {
           </div>
         </div>
       </section>
+
+      {/* School Logo Section */}
+      {siteId && (user?.role === 'SITE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+        <section className="dark:bg-gray-800 bg-white rounded-xl dark:border-gray-700 border-gray-200 border p-6">
+          <h2 className="text-lg font-semibold dark:text-white text-gray-900 mb-4">School Logo</h2>
+          <p className="text-sm dark:text-gray-400 text-gray-500 mb-4">
+            Upload your school's logo. It will appear on the kiosk welcome screen, dashboard sidebar, and mobile app.
+          </p>
+          <div className="flex items-center gap-6">
+            {/* Preview */}
+            <div className="w-24 h-24 rounded-lg dark:bg-gray-900 bg-gray-100 border dark:border-gray-700 border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {logoPreview ? (
+                <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain" />
+              ) : site?.logoUrl ? (
+                <img
+                  key={logoKey}
+                  src={`${getSiteLogoUrl(siteId)}?t=${logoKey}`}
+                  alt="School logo"
+                  className="w-full h-full object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <svg className="w-10 h-10 dark:text-gray-600 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z" />
+                </svg>
+              )}
+            </div>
+            {/* Actions */}
+            <div className="flex flex-col gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !siteId) return;
+                  setLogoPreview(URL.createObjectURL(file));
+                  uploadLogo.mutate({ siteId, file }, {
+                    onSuccess: () => {
+                      setLogoPreview(null);
+                      setLogoKey((k) => k + 1);
+                    },
+                    onError: () => setLogoPreview(null),
+                  });
+                  e.target.value = '';
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadLogo.isPending}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50"
+              >
+                {uploadLogo.isPending ? 'Uploading...' : 'Upload Logo'}
+              </button>
+              {site?.logoUrl && (
+                <button
+                  onClick={() => {
+                    if (!siteId) return;
+                    deleteLogo.mutate(siteId, {
+                      onSuccess: () => setLogoKey((k) => k + 1),
+                    });
+                  }}
+                  disabled={deleteLogo.isPending}
+                  className="px-4 py-2 text-sm font-medium rounded-lg dark:text-gray-400 text-gray-600 border dark:border-gray-600 border-gray-300 dark:hover:border-gray-500 hover:border-gray-400 transition-colors disabled:opacity-50"
+                >
+                  {deleteLogo.isPending ? 'Removing...' : 'Remove Logo'}
+                </button>
+              )}
+              {uploadLogo.isError && (
+                <span className="text-sm text-red-400">Upload failed. Try again.</span>
+              )}
+              {uploadLogo.isSuccess && !uploadLogo.isPending && (
+                <span className="text-sm text-green-400">Logo uploaded!</span>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Notification Preferences Section */}
       <section className="bg-gray-800 rounded-xl border border-gray-700 p-6">

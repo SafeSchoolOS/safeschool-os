@@ -146,6 +146,23 @@ async function main() {
     console.log(`[worker] Weather polling scheduled every ${weatherIntervalMs / 1000}s`);
   }
 
+  // Schedule auto-checkout (runs every minute)
+  {
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const autoCheckoutConn = new Redis(redisUrl, { maxRetriesPerRequest: null });
+    const autoCheckoutQueue = new Queue('alert-processing', { connection: autoCheckoutConn as any });
+    await autoCheckoutQueue.add(
+      'auto-checkout',
+      {},
+      {
+        repeat: { every: 60000 }, // every minute
+        removeOnComplete: 5,
+        removeOnFail: 10,
+      },
+    );
+    console.log('[worker] Auto-checkout scheduled every 60s');
+  }
+
   console.log('[worker] Alert processing worker started. Waiting for jobs...');
 
   // Graceful shutdown

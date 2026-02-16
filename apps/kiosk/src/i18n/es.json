@@ -4,6 +4,8 @@
     "subtitle": "Todos los visitantes deben registrarse en la recepcion",
     "checkIn": "Registro de Visitante",
     "checkOut": "Salida de Visitante",
+    "scanQr": "Escanear Codigo QR",
+    "groupCheckIn": "Registro Grupal",
     "footer": "Desarrollado por SafeSchool"
   },
   "checkIn": {
@@ -12,15 +14,31 @@
     "step2Title": "Motivo",
     "step3Title": "Destino",
     "step4Title": "Anfitrion",
+    "stepVisitorType": "Tipo de Visitante",
+    "stepPhoto": "Foto",
+    "stepPolicy": "Politica y Firma",
     "enterName": "Por favor ingrese su nombre",
     "firstName": "Nombre",
     "lastName": "Apellido",
     "firstNamePlaceholder": "Ingrese su nombre",
     "lastNamePlaceholder": "Ingrese su apellido",
+    "visitorTypePrompt": "Seleccione su tipo de visitante",
+    "visitorTypes": {
+      "VISITOR": "Visitante",
+      "PARENT": "Padre / Tutor",
+      "CONTRACTOR": "Contratista",
+      "VENDOR": "Proveedor",
+      "VOLUNTEER": "Voluntario",
+      "SUBSTITUTE_TEACHER": "Maestro Sustituto",
+      "DELIVERY": "Entrega",
+      "EMERGENCY_CONTACT": "Contacto de Emergencia"
+    },
     "purposePrompt": "Cual es el motivo de su visita?",
     "destinationPrompt": "A donde se dirige?",
     "hostPrompt": "A quien visita? (opcional)",
     "hostPlaceholder": "Nombre del empleado",
+    "photoPrompt": "Por favor tome una foto para su credencial de visitante",
+    "signaturePrompt": "Por favor firme abajo para aceptar la politica de visitantes",
     "skip": "Omitir",
     "processingTitle": "Procesando Registro",
     "processingMessage": "Realizando verificacion de antecedentes...",
@@ -75,6 +93,28 @@
   "screening": {
     "title": "Verificando Identidad...",
     "message": "Por favor espere mientras completamos el proceso de verificacion"
+  },
+  "qrScan": {
+    "title": "Escanee su Codigo QR",
+    "instruction": "Sostenga su codigo QR frente a la camara",
+    "notFound": "Codigo QR no reconocido. Intente de nuevo o registrese manualmente.",
+    "error": "No se pudo leer el codigo QR. Intente de nuevo."
+  },
+  "groupCheckIn": {
+    "title": "Registro Grupal",
+    "searchPrompt": "Ingrese el nombre del grupo para buscarlo",
+    "searchPlaceholder": "Buscar por nombre de grupo...",
+    "noGroupFound": "No se encontro grupo con ese nombre",
+    "members": "Miembros",
+    "checkInAll": "Registrar Todos",
+    "checkInSelected": "Registrar Seleccionados",
+    "processing": "Procesando...",
+    "success": "Registro grupal completado!",
+    "error": "El registro grupal fallo. Intente de nuevo."
+  },
+  "offline": {
+    "banner": "Modo Sin Conexion — Los registros se sincronizaran cuando se restablezca la conexion",
+    "syncing": "Sincronizando {{count}} registro(s) pendiente(s)..."
   },
   "common": {
     "back": "Volver",

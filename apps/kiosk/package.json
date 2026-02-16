@@ -12,6 +12,8 @@
     "@clerk/clerk-react": "^5.20.0",
     "@tanstack/react-query": "^5.62.0",
     "i18next": "^25.8.4",
+    "idb": "^8.0.3",
+    "jsqr": "^1.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-i18next": "^16.5.4",

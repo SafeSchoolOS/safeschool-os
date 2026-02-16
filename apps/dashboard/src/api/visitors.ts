@@ -54,3 +54,83 @@ export function useCheckOutVisitor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['visitors'] }),
   });
 }
+
+// Visitor Settings hooks
+
+export function useVisitorSettings() {
+  return useQuery({
+    queryKey: ['visitor-settings'],
+    queryFn: () => apiClient.get('/api/v1/visitor-settings'),
+  });
+}
+
+export function useUpdateVisitorSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => apiClient.put('/api/v1/visitor-settings', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visitor-settings'] }),
+  });
+}
+
+export function useVisitorPolicies() {
+  return useQuery({
+    queryKey: ['visitor-policies'],
+    queryFn: () => apiClient.get('/api/v1/visitor-settings/policies'),
+  });
+}
+
+export function useCreateVisitorPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { title: string; body: string }) => apiClient.post('/api/v1/visitor-settings/policies', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visitor-policies'] }),
+  });
+}
+
+export function useUpdateVisitorPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; title?: string; body?: string; isActive?: boolean }) =>
+      apiClient.put(`/api/v1/visitor-settings/policies/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visitor-policies'] }),
+  });
+}
+
+export function useDeleteVisitorPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/api/v1/visitor-settings/policies/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visitor-policies'] }),
+  });
+}
+
+export function useCreateVisitorGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => apiClient.post('/api/v1/visitors/group', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['visitors'] }),
+  });
+}
+
+// Analytics hooks
+
+export function useVisitorAnalyticsSummary() {
+  return useQuery({
+    queryKey: ['visitor-analytics', 'summary'],
+    queryFn: () => apiClient.get('/api/v1/visitor-analytics/summary'),
+  });
+}
+
+export function useVisitorAnalyticsPeakTimes(days?: number) {
+  return useQuery({
+    queryKey: ['visitor-analytics', 'peak-times', days],
+    queryFn: () => apiClient.get(`/api/v1/visitor-analytics/peak-times?days=${days || 30}`),
+  });
+}
+
+export function useVisitorAnalyticsFrequent(limit?: number) {
+  return useQuery({
+    queryKey: ['visitor-analytics', 'frequent', limit],
+    queryFn: () => apiClient.get(`/api/v1/visitor-analytics/frequent?limit=${limit || 20}`),
+  });
+}
