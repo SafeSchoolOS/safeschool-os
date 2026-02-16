@@ -24,3 +24,47 @@ export function useUnlockDoor() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['doors'] }),
   });
 }
+
+export function useCreateDoor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ siteId, data }: {
+      siteId: string;
+      data: {
+        buildingId: string; name: string;
+        floor?: number; isExterior?: boolean; isEmergencyExit?: boolean;
+        mapX?: number; mapY?: number;
+      };
+    }) => apiClient.post(`/api/v1/sites/${siteId}/doors`, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['doors'] });
+      qc.invalidateQueries({ queryKey: ['site-detail', vars.siteId] });
+    },
+  });
+}
+
+export function useUpdateDoor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ siteId, doorId, data }: {
+      siteId: string; doorId: string;
+      data: { name?: string; floor?: number; isExterior?: boolean; isEmergencyExit?: boolean; mapX?: number; mapY?: number };
+    }) => apiClient.put(`/api/v1/sites/${siteId}/doors/${doorId}`, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['doors'] });
+      qc.invalidateQueries({ queryKey: ['site-detail', vars.siteId] });
+    },
+  });
+}
+
+export function useDeleteDoor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ siteId, doorId }: { siteId: string; doorId: string }) =>
+      apiClient.delete(`/api/v1/sites/${siteId}/doors/${doorId}`),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['doors'] });
+      qc.invalidateQueries({ queryKey: ['site-detail', vars.siteId] });
+    },
+  });
+}
