@@ -1226,7 +1226,7 @@ const gatewayRoutes: FastifyPluginAsync = async (fastify) => {
         failedGatewayId: gatewayId,
         assumingGatewayId: partner.id,
         failoverType: 'MANUAL',
-        reason: 'PLANNED_MAINTENANCE' as any,
+        reason: 'PLANNED_MAINTENANCE',
         devicesTransferred: gateway.assignedDevices.length,
         incidentActiveAtTime: false,
       },

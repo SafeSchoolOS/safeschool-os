@@ -373,11 +373,13 @@ describe('Dispatch Integration', () => {
     const alert = await app.prisma.alert.create({
       data: {
         siteId: SITE_ID,
-        type: 'PANIC',
-        severity: 'CRITICAL',
-        status: 'ACTIVE',
+        level: 'LOCKDOWN',
+        source: 'DASHBOARD',
+        status: 'TRIGGERED',
         triggeredById: adminUserId,
-        description: 'Test panic alert',
+        buildingId: SEED.buildings.mainId,
+        buildingName: 'Main Building',
+        message: 'Test panic alert',
       },
     });
     alertId = alert.id;
