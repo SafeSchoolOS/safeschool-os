@@ -61,6 +61,8 @@ export function useProvisionCredential() {
       credentialType: string;
       cardNumber?: string;
       facilityCode?: string;
+      pinCode?: string;
+      cardFormat?: string;
       zoneIds?: string[];
       expiresAt?: string;
     }) => apiClient.post(`/api/v1/cardholders/${cardholderId}/credentials`, data),

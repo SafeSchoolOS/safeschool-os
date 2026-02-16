@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useCardholders, useCreateCardholder, useProvisionCredential, useRevokeCredential, useAccessZones } from '../api/cardholders';
+import { useCardholders, useCreateCardholder, useProvisionCredential, useRevokeCredential, useAccessZones, useCreateZone } from '../api/cardholders';
+import { CARD_FORMATS } from '@safeschool/core';
 
 const PERSON_TYPES = ['ALL', 'STAFF', 'STUDENT', 'WORKER', 'VISITOR'] as const;
 const CREDENTIAL_TYPES = ['PHYSICAL_CARD', 'MOBILE', 'TEMPORARY_CARD', 'FOB'] as const;
@@ -23,6 +24,8 @@ export function CardholderPage() {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showCredForm, setShowCredForm] = useState<string | null>(null);
+  const [showZones, setShowZones] = useState(false);
+  const [showZoneForm, setShowZoneForm] = useState(false);
 
   const { data: cardholders, isLoading } = useCardholders({
     personType: activeTab === 'ALL' ? undefined : activeTab,
@@ -32,6 +35,7 @@ export function CardholderPage() {
   const createCardholder = useCreateCardholder();
   const provisionCredential = useProvisionCredential();
   const revokeCredential = useRevokeCredential();
+  const createZone = useCreateZone();
 
   const [form, setForm] = useState({
     personType: 'STAFF',
@@ -47,9 +51,13 @@ export function CardholderPage() {
     credentialType: 'PHYSICAL_CARD' as string,
     cardNumber: '',
     facilityCode: '',
+    pinCode: '',
+    cardFormat: '',
     zoneIds: [] as string[],
     expiresAt: '',
   });
+
+  const [zoneForm, setZoneForm] = useState({ name: '', description: '' });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,15 +72,36 @@ export function CardholderPage() {
     await provisionCredential.mutateAsync({
       cardholderId: showCredForm,
       ...credForm,
+      pinCode: credForm.pinCode || undefined,
+      cardFormat: credForm.cardFormat || undefined,
       expiresAt: credForm.expiresAt || undefined,
     });
-    setCredForm({ credentialType: 'PHYSICAL_CARD', cardNumber: '', facilityCode: '', zoneIds: [], expiresAt: '' });
+    setCredForm({ credentialType: 'PHYSICAL_CARD', cardNumber: '', facilityCode: '', pinCode: '', cardFormat: '', zoneIds: [], expiresAt: '' });
     setShowCredForm(null);
   };
 
   const handleRevoke = async (cardholderId: string, credentialId: string) => {
     if (!confirm('Revoke this credential?')) return;
     await revokeCredential.mutateAsync({ cardholderId, credentialId });
+  };
+
+  const handleCreateZone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!zoneForm.name) return;
+    await createZone.mutateAsync({ name: zoneForm.name, description: zoneForm.description || undefined });
+    setZoneForm({ name: '', description: '' });
+    setShowZoneForm(false);
+  };
+
+  const formatCredentialDisplay = (cred: any) => {
+    const parts: string[] = [];
+    if (cred.cardNumber) parts.push(`#${cred.cardNumber}`);
+    if (cred.cardFormat) {
+      const fmt = CARD_FORMATS.find((f) => f.value === cred.cardFormat);
+      parts.push(fmt ? fmt.label : cred.cardFormat);
+    }
+    if (cred.pinCode) parts.push('PIN:****');
+    return parts.join(' ');
   };
 
   return (
@@ -177,7 +206,9 @@ export function CardholderPage() {
                             <span className={`px-1.5 py-0.5 rounded text-xs ${STATUS_COLORS[cred.status] || ''}`}>
                               {cred.credentialType.replace('_', ' ')}
                             </span>
-                            {cred.cardNumber && <span className="text-xs dark:text-gray-500 text-gray-400">#{cred.cardNumber}</span>}
+                            <span className="text-xs dark:text-gray-500 text-gray-400">
+                              {formatCredentialDisplay(cred)}
+                            </span>
                             {cred.status === 'ACTIVE' && (
                               <button
                                 onClick={() => handleRevoke(ch.id, cred.id)}
@@ -227,8 +258,31 @@ export function CardholderPage() {
                 <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
               ))}
             </select>
+            <select
+              value={credForm.cardFormat}
+              onChange={(e) => setCredForm({ ...credForm, cardFormat: e.target.value })}
+              className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-2 text-sm dark:border-gray-600 border-gray-300 border"
+            >
+              <option value="">Card Format (optional)</option>
+              {CARD_FORMATS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}{f.bits ? ` (${f.bits}-bit)` : ''}
+                </option>
+              ))}
+            </select>
             <input placeholder="Card Number" value={credForm.cardNumber} onChange={(e) => setCredForm({ ...credForm, cardNumber: e.target.value })} className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-2 text-sm dark:border-gray-600 border-gray-300 border" />
             <input placeholder="Facility Code" value={credForm.facilityCode} onChange={(e) => setCredForm({ ...credForm, facilityCode: e.target.value })} className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-2 text-sm dark:border-gray-600 border-gray-300 border" />
+            <input
+              placeholder="PIN Code (optional)"
+              value={credForm.pinCode}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 8);
+                setCredForm({ ...credForm, pinCode: val });
+              }}
+              inputMode="numeric"
+              maxLength={8}
+              className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-2 text-sm dark:border-gray-600 border-gray-300 border"
+            />
             <input type="datetime-local" value={credForm.expiresAt} onChange={(e) => setCredForm({ ...credForm, expiresAt: e.target.value })} className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-2 text-sm dark:border-gray-600 border-gray-300 border" placeholder="Expires (optional)" />
           </div>
           {zones && (zones as any[]).length > 0 && (
@@ -265,6 +319,88 @@ export function CardholderPage() {
           </div>
         </form>
       )}
+
+      {/* Access Zones Section */}
+      <div className="dark:bg-gray-800 bg-white rounded-lg dark:border-gray-700 border-gray-200 border overflow-hidden">
+        <button
+          onClick={() => setShowZones(!showZones)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+        >
+          <h3 className="font-medium">Access Zones</h3>
+          <span className="text-xs dark:text-gray-500 text-gray-400">
+            {(zones as any[])?.length || 0} zone{(zones as any[])?.length !== 1 ? 's' : ''} {showZones ? '▲' : '▼'}
+          </span>
+        </button>
+        {showZones && (
+          <div className="border-t dark:border-gray-700 border-gray-200">
+            {zones && (zones as any[]).length > 0 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="dark:bg-gray-750 bg-gray-50 dark:border-gray-700 border-gray-200 border-b">
+                    <th className="text-left px-4 py-2 font-medium dark:text-gray-400 text-gray-500">Zone Name</th>
+                    <th className="text-left px-4 py-2 font-medium dark:text-gray-400 text-gray-500">Description</th>
+                    <th className="text-left px-4 py-2 font-medium dark:text-gray-400 text-gray-500">Doors</th>
+                    <th className="text-left px-4 py-2 font-medium dark:text-gray-400 text-gray-500">Credentials</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(zones as any[]).map((z: any) => (
+                    <tr key={z.id} className="dark:border-gray-700 border-gray-200 border-b">
+                      <td className="px-4 py-2 font-medium">{z.name}</td>
+                      <td className="px-4 py-2 dark:text-gray-400 text-gray-600">{z.description || '-'}</td>
+                      <td className="px-4 py-2 dark:text-gray-400 text-gray-600">{z._count?.doorAssignments ?? z.doorAssignments?.length ?? 0}</td>
+                      <td className="px-4 py-2 dark:text-gray-400 text-gray-600">{z._count?.credentials ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="px-4 py-4 text-sm dark:text-gray-500 text-gray-400">No access zones defined yet.</p>
+            )}
+            <div className="px-4 py-3 flex gap-2 border-t dark:border-gray-700 border-gray-200">
+              {showZoneForm ? (
+                <form onSubmit={handleCreateZone} className="flex gap-2 items-center w-full">
+                  <input
+                    placeholder="Zone name *"
+                    required
+                    value={zoneForm.name}
+                    onChange={(e) => setZoneForm({ ...zoneForm, name: e.target.value })}
+                    className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-1.5 text-sm dark:border-gray-600 border-gray-300 border flex-1"
+                  />
+                  <input
+                    placeholder="Description"
+                    value={zoneForm.description}
+                    onChange={(e) => setZoneForm({ ...zoneForm, description: e.target.value })}
+                    className="dark:bg-gray-700 bg-gray-100 rounded px-3 py-1.5 text-sm dark:border-gray-600 border-gray-300 border flex-1"
+                  />
+                  <button type="submit" disabled={createZone.isPending} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50">
+                    {createZone.isPending ? 'Creating...' : 'Create'}
+                  </button>
+                  <button type="button" onClick={() => setShowZoneForm(false)} className="px-3 py-1.5 dark:bg-gray-700 bg-gray-200 rounded text-sm">
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowZoneForm(true)}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    + Create Zone
+                  </button>
+                  <button
+                    disabled
+                    title="Requires a connected PAC system (e.g., Sicunet)"
+                    className="px-3 py-1.5 dark:bg-gray-700 bg-gray-200 rounded text-sm opacity-50 cursor-not-allowed"
+                  >
+                    Sync from PAC
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

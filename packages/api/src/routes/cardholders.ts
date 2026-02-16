@@ -167,6 +167,8 @@ const cardholderRoutes: FastifyPluginAsync = async (fastify) => {
       credentialType: string;
       cardNumber?: string;
       facilityCode?: string;
+      pinCode?: string;
+      cardFormat?: string;
       zoneIds?: string[];
       expiresAt?: string;
     };
@@ -176,7 +178,7 @@ const cardholderRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'Cardholder not found' });
     }
 
-    const { credentialType, cardNumber, facilityCode, zoneIds, expiresAt } = request.body;
+    const { credentialType, cardNumber, facilityCode, pinCode, cardFormat, zoneIds, expiresAt } = request.body;
     if (!credentialType) {
       return reply.code(400).send({ error: 'credentialType is required' });
     }
@@ -187,6 +189,8 @@ const cardholderRoutes: FastifyPluginAsync = async (fastify) => {
         credentialType: credentialType as any,
         cardNumber: cardNumber ? sanitizeText(cardNumber) : undefined,
         facilityCode: facilityCode ? sanitizeText(facilityCode) : undefined,
+        pinCode: pinCode ? sanitizeText(pinCode) : undefined,
+        cardFormat: cardFormat ? sanitizeText(cardFormat) : undefined,
         expiresAt: expiresAt ? new Date(expiresAt) : undefined,
         zones: zoneIds && zoneIds.length > 0
           ? { create: zoneIds.map((zoneId) => ({ zoneId })) }
@@ -315,6 +319,22 @@ const cardholderRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     return reply.code(201).send(zone);
+  });
+
+  // GET /cardholders/access-levels — Fetch access levels from connected PAC system (OPERATOR+)
+  fastify.get('/access-levels', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (_request, reply) => {
+    return reply.code(501).send({
+      error: 'Access level sync requires a connected PAC system (e.g., Sicunet)',
+      message: 'Use the local access zones for now.',
+    });
+  });
+
+  // POST /cardholders/zones/sync — Import access zones from connected AC system (SITE_ADMIN+)
+  fastify.post('/zones/sync', { preHandler: [fastify.authenticate, requireMinRole('SITE_ADMIN')] }, async (_request, reply) => {
+    return reply.code(501).send({
+      error: 'Zone sync not yet available',
+      message: 'This feature requires a connected access control system.',
+    });
   });
 
   // POST /cardholders/import — Import cardholders from AC system (SITE_ADMIN+)
