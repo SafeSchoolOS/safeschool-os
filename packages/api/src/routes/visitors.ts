@@ -68,7 +68,8 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
     if (email || phone) {
       try {
         const { Queue } = await import('bullmq');
-        const Redis = (await import('ioredis')).default;
+        const ioredis = await import('ioredis');
+        const Redis = (ioredis as any).default ?? ioredis;
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
         const conn = new Redis(redisUrl, { maxRetriesPerRequest: null });
         const queue = new Queue('alert-processing', { connection: conn as any });
@@ -166,7 +167,8 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
       if (request.body.email || request.body.phone) {
         try {
           const { Queue } = await import('bullmq');
-          const Redis = (await import('ioredis')).default;
+          const ioredis = await import('ioredis');
+        const Redis = (ioredis as any).default ?? ioredis;
           const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
           const conn = new Redis(redisUrl, { maxRetriesPerRequest: null });
           const queue = new Queue('alert-processing', { connection: conn as any });
@@ -279,7 +281,8 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
             });
             if (settings?.hostNotificationEnabled) {
               const { Queue } = await import('bullmq');
-              const Redis = (await import('ioredis')).default;
+              const ioredis = await import('ioredis');
+        const Redis = (ioredis as any).default ?? ioredis;
               const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
               const conn = new Redis(redisUrl, { maxRetriesPerRequest: null });
               const queue = new Queue('alert-processing', { connection: conn as any });
