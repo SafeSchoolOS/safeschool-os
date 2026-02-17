@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 const authProvider = import.meta.env.VITE_AUTH_PROVIDER || 'dev';
@@ -33,12 +33,31 @@ function ClerkSignIn() {
   );
 }
 
+const DEMO_ACCOUNTS: Record<string, string> = {
+  admin: 'admin@lincoln.edu',
+  operator: 'operator@lincoln.edu',
+  teacher: 'teacher1@lincoln.edu',
+  responder: 'responder@lincoln.edu',
+};
+
 function DevLoginForm() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [autoLogging, setAutoLogging] = useState(false);
+
+  // Auto-login via ?demo=admin (or operator, teacher, responder)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const demo = params.get('demo');
+    if (demo) {
+      const demoEmail = DEMO_ACCOUNTS[demo] || DEMO_ACCOUNTS['admin'];
+      setAutoLogging(true);
+      login(demoEmail, 'safeschool123').catch(() => setAutoLogging(false));
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +83,17 @@ function DevLoginForm() {
       setLoading(false);
     }
   };
+
+  if (autoLogging) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-white text-lg">Signing into demo...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
