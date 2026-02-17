@@ -364,11 +364,11 @@ describe('C. Rate Limiting Configuration', () => {
     });
   });
 
-  // VULNERABILITY: LOW — Missing rate limits on sensitive endpoints
-  describe('C2: [VULN-LOW] Endpoints missing route-specific rate limits', () => {
-    it('fire-alarm PAS endpoints have no specific rate limits', () => {
+  // FIXED: Rate limits now applied to sensitive endpoints
+  describe('C2: Rate limits on sensitive endpoints', () => {
+    it('fire-alarm PAS endpoints have rate limits (10 req/min)', () => {
       const source = readRouteSource('fire-alarm.ts');
-      expect(source).not.toContain('rateLimit');
+      expect(source).toContain('rateLimit');
     });
 
     it('roll-call initiation has no specific rate limit', () => {
@@ -499,15 +499,14 @@ describe('E. CORS & Headers', () => {
     });
   });
 
-  // VULNERABILITY: LOW — No @fastify/helmet for security headers
-  describe('E2: [VULN-LOW] Missing security headers', () => {
-    it('server.ts does not include @fastify/helmet', () => {
+  // FIXED: @fastify/helmet now registered for security headers
+  describe('E2: Security headers via @fastify/helmet', () => {
+    it('server.ts includes @fastify/helmet', () => {
       const serverSource = readFileSync(
         join(__dirname, '..', 'server.ts'),
         'utf-8'
       );
-      expect(serverSource).not.toContain('helmet');
-      // Missing: X-Content-Type-Options, X-Frame-Options, HSTS, CSP
+      expect(serverSource).toContain('helmet');
     });
   });
 });
@@ -542,17 +541,12 @@ describe('F. Webhook Security', () => {
     }
   });
 
-  // VULNERABILITY: HIGH — Bus fleet webhook does not actually verify HMAC
-  describe('F3: [VULN-HIGH] Bus fleet webhook signature verification incomplete', () => {
-    it('checks for signature header but does not actually verify HMAC', () => {
+  // FIXED: Bus fleet webhook now verifies HMAC signatures
+  describe('F3: Bus fleet webhook signature verification', () => {
+    it('verifies HMAC signature using createHmac', () => {
       const source = readRouteSource('webhooks/bus-fleet.ts');
-      // It checks if the header exists
       expect(source).toContain('x-webhook-signature');
-      // But there is a comment saying "For production, implement vendor-specific..."
-      expect(source).toContain('For production');
-      // It does NOT call any verifySignature or HMAC function
-      expect(source).not.toContain('createHmac');
-      expect(source).not.toContain('verifySignature');
+      expect(source).toContain('createHmac');
     });
   });
 
@@ -708,7 +702,7 @@ describe('I. Password & Auth Security', () => {
     it('user creation hashes password with bcrypt', () => {
       const source = readRouteSource('users.ts');
       expect(source).toContain('bcrypt.hash');
-      expect(source).toContain('10'); // salt rounds
+      expect(source).toContain('12'); // salt rounds (upgraded from 10)
     });
 
     it('login verifies with bcrypt.compare', () => {
@@ -718,9 +712,10 @@ describe('I. Password & Auth Security', () => {
   });
 
   describe('I2: JWT tokens have expiration', () => {
-    it('login sets expiresIn 24h on JWT', () => {
+    it('login sets short-lived access token expiry', () => {
       const source = readRouteSource('auth.ts');
-      expect(source).toContain("expiresIn: '24h'");
+      // Access tokens expire in 1h (with refresh token support)
+      expect(source).toContain('ACCESS_TOKEN_EXPIRY');
     });
   });
 
