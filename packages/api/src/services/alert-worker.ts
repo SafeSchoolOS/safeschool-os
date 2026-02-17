@@ -1152,7 +1152,7 @@ async function handleCheckIntegrationHealth(job: Job, deps: WorkerDeps): Promise
   for (const integration of integrations) {
     const oldStatus = integration.status;
     let newStatus: string = oldStatus;
-    let lastError: string | null = null;
+    const lastError: string | null = null;
 
     try {
       switch (integration.integrationType) {
