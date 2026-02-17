@@ -80,6 +80,7 @@ function createMockApp() {
       create: vi.fn().mockResolvedValue({ id: 'fae-1' }),
       findFirst: vi.fn().mockResolvedValue(null),
       update: vi.fn().mockResolvedValue({ id: 'fae-1' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     actionConfirmation: {
       create: vi.fn().mockResolvedValue({ id: 'ac-1' }),

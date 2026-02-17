@@ -315,13 +315,12 @@ describe('B. Authentication & Authorization', () => {
 
   // VULNERABILITY: HIGH — Responder MFA stub always returns verified=true
   describe('B9: [VULN-HIGH] Responder MFA verification is a stub', () => {
-    it('MFA verify always returns { verified: true }', () => {
+    it('MFA verify returns 501 Not Implemented (not a stub verified: true)', () => {
       const source = readRouteSource('responder-auth.ts');
-      // Find the MFA section
-      const mfaSection = source.substring(source.indexOf('/mfa/verify'));
-      expect(mfaSection).toContain('verified: true');
-      // There is a TODO comment acknowledging this
-      expect(source).toContain('TODO');
+      // MFA endpoint should return 501, not a stub verified: true
+      expect(source).not.toContain('verified: true');
+      expect(source).toContain('501');
+      expect(source).toContain('MFA_NOT_IMPLEMENTED');
     });
   });
 });
