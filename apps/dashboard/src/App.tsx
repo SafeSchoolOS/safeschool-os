@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
@@ -43,6 +43,11 @@ const VisitorBanListPage = lazy(() => import('./pages/VisitorBanListPage').then(
 const WidgetDesktopPage = lazy(() => import('./pages/WidgetDesktopPage').then(m => ({ default: m.WidgetDesktopPage })));
 const FireAlarmPASPage = lazy(() => import('./pages/FireAlarmPASPage').then(m => ({ default: m.FireAlarmPASPage })));
 
+function NavigateWithSearch({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
+}
+
 function PageLoader() {
   return (
     <div className="flex items-center justify-center py-32">
@@ -79,7 +84,7 @@ export function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/login" />} />
+        <Route path="*" element={<NavigateWithSearch to="/login" />} />
       </Routes>
     );
   }
