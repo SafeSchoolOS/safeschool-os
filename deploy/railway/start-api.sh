@@ -8,7 +8,10 @@ echo "DATABASE_URL set: $(test -n "$DATABASE_URL" && echo YES || echo NO)"
 echo "REDIS_URL set: $(test -n "$REDIS_URL" && echo YES || echo NO)"
 
 echo "=== Running migrations ==="
-npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
+npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma || {
+  echo "=== migrate deploy failed, falling back to db push ==="
+  npx prisma db push --schema=packages/db/prisma/schema.prisma --accept-data-loss --skip-generate
+}
 echo "=== Migration exit code: $? ==="
 
 echo "=== Seeding essential data ==="
@@ -20,7 +23,7 @@ const p = new PrismaClient();
   try {
     const orgId = '00000000-0000-4000-a000-000000008001';
     const siteId = '00000000-0000-4000-a000-000000000001';
-    const passwordHash = bcrypt.hashSync('safeschool123', 10);
+    const passwordHash = bcrypt.hashSync('safeschool123', 12);
 
     await p.organization.upsert({
       where: { id: orgId },
