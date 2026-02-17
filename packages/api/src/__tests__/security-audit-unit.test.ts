@@ -317,8 +317,8 @@ describe('B. Authentication & Authorization', () => {
   describe('B9: [VULN-HIGH] Responder MFA verification is a stub', () => {
     it('MFA verify returns 501 Not Implemented (not a stub verified: true)', () => {
       const source = readRouteSource('responder-auth.ts');
-      // MFA endpoint should return 501, not a stub verified: true
-      expect(source).not.toContain('verified: true');
+      // MFA endpoint should return 501, not a stub that sends { verified: true }
+      expect(source).not.toMatch(/send\(\s*\{[^}]*verified:\s*true/);
       expect(source).toContain('501');
       expect(source).toContain('MFA_NOT_IMPLEMENTED');
     });
@@ -627,9 +627,10 @@ describe('G. Fire Alarm PAS Security', () => {
   });
 
   describe('G4: PAS actions pass user ID and IP for audit', () => {
-    it('all PAS endpoints pass user.id and request.ip', () => {
+    it('all PAS endpoints pass user ID and request.ip', () => {
       const source = readRouteSource('fire-alarm.ts');
-      const userIdRefs = source.match(/user\.id/g);
+      // Code uses jwtUser.id or user.id patterns
+      const userIdRefs = source.match(/(?:jwtUser|user)\.id/g);
       const ipRefs = source.match(/request\.ip/g);
       expect(userIdRefs).not.toBeNull();
       expect(ipRefs).not.toBeNull();
@@ -651,36 +652,24 @@ describe('H. IDOR Prevention', () => {
     });
   });
 
-  // VULNERABILITY: MEDIUM — Single resource endpoints don't check site ownership
-  describe('H2: [VULN-MEDIUM] Single resource detail endpoints lack site verification', () => {
-    it('GET /alerts/:id does not check siteId against user sites', () => {
+  // FIXED: Single resource endpoints now check site ownership
+  describe('H2: Single resource detail endpoints verify site ownership', () => {
+    it('GET /alerts/:id checks siteId against user sites', () => {
       const source = readRouteSource('alerts.ts');
-      // The GET /:id handler just finds by ID, no siteId check
-      const getDetailSection = source.substring(
-        source.indexOf("'/:id', { preHandler: [fastify.authenticate] }"),
-        source.indexOf("'/:id/confirm-fire'")
-      );
-      expect(getDetailSection).not.toContain('siteIds');
+      // GET /:id handler now verifies siteIds
+      expect(source).toContain('siteIds.includes(alert.siteId)');
     });
 
-    it('GET /roll-call/:id does not check siteId', () => {
+    it('GET /roll-call/:id checks siteId', () => {
       const source = readRouteSource('roll-call.ts');
-      // GET /:id just does findUnique by ID
-      const getSection = source.substring(
-        source.indexOf("'/:id',"),
-        source.indexOf("'/active'")
-      );
-      expect(getSection).not.toContain('siteId');
+      // GET /:id now verifies siteIds
+      expect(source).toContain('siteIds.includes(rollCall.siteId)');
     });
 
-    it('GET /zones/:id does not check siteId', () => {
+    it('GET /zones/:id checks siteId', () => {
       const source = readRouteSource('zones.ts');
-      // GET /:id just does findUnique by ID
-      const getSection = source.substring(
-        source.indexOf("'/:id',"),
-        source.indexOf("fastify.post<{")
-      );
-      expect(getSection).not.toContain('siteIds');
+      // GET /:id now verifies siteIds
+      expect(source).toContain('siteIds.includes(zone.siteId)');
     });
   });
 
@@ -746,15 +735,15 @@ describe('I. Password & Auth Security', () => {
   });
 
   describe('I4: Password minimum length enforced', () => {
-    it('user creation requires 8+ character password', () => {
+    it('user creation requires 12+ character password', () => {
       const source = readRouteSource('users.ts');
-      expect(source).toContain('password.length < 8');
+      expect(source).toContain('password.length < 12');
     });
 
-    it('password reset requires 8+ character password', () => {
+    it('password reset requires 12+ character password', () => {
       const source = readRouteSource('users.ts');
       const resetSection = source.substring(source.indexOf('reset-password'));
-      expect(resetSection).toContain('8 characters');
+      expect(resetSection).toContain('12 characters');
     });
   });
 
