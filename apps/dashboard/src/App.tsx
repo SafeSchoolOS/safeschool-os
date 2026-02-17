@@ -26,11 +26,22 @@ const CardholderPage = lazy(() => import('./pages/CardholderPage').then(m => ({ 
 const StudentPage = lazy(() => import('./pages/StudentPage').then(m => ({ default: m.StudentPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
+const PanicDevicesPage = lazy(() => import('./pages/PanicDevicesPage').then(m => ({ default: m.PanicDevicesPage })));
+const WeaponsDetectionPage = lazy(() => import('./pages/WeaponsDetectionPage').then(m => ({ default: m.WeaponsDetectionPage })));
+const CameraPage = lazy(() => import('./pages/CameraPage').then(m => ({ default: m.CameraPage })));
+const ZoneManagementPage = lazy(() => import('./pages/ZoneManagementPage').then(m => ({ default: m.ZoneManagementPage })));
 const BadgeKioskSettingsPage = lazy(() => import('./pages/BadgeKioskSettingsPage').then(m => ({ default: m.BadgeKioskSettingsPage })));
 const AccessAnalyticsPage = lazy(() => import('./pages/AccessAnalyticsPage').then(m => ({ default: m.AccessAnalyticsPage })));
 const BadgeGuardSettingsPage = lazy(() => import('./pages/BadgeGuardSettingsPage').then(m => ({ default: m.BadgeGuardSettingsPage })));
 const VisitorSettingsPage = lazy(() => import('./pages/VisitorSettingsPage').then(m => ({ default: m.VisitorSettingsPage })));
 const VisitorAnalyticsPage = lazy(() => import('./pages/VisitorAnalyticsPage').then(m => ({ default: m.VisitorAnalyticsPage })));
+const EventsPage = lazy(() => import('./pages/EventsPage').then(m => ({ default: m.EventsPage })));
+const DoorHealthPage = lazy(() => import('./pages/DoorHealthPage').then(m => ({ default: m.DoorHealthPage })));
+const SystemHealthPage = lazy(() => import('./pages/SystemHealthPage').then(m => ({ default: m.SystemHealthPage })));
+const RollCallPage = lazy(() => import('./pages/RollCallPage').then(m => ({ default: m.RollCallPage })));
+const VisitorBanListPage = lazy(() => import('./pages/VisitorBanListPage').then(m => ({ default: m.VisitorBanListPage })));
+const WidgetDesktopPage = lazy(() => import('./pages/WidgetDesktopPage').then(m => ({ default: m.WidgetDesktopPage })));
+const FireAlarmPASPage = lazy(() => import('./pages/FireAlarmPASPage').then(m => ({ default: m.FireAlarmPASPage })));
 
 function PageLoader() {
   return (
@@ -97,6 +108,10 @@ export function App() {
         <Route path="/students" element={<LazyRoute><StudentPage /></LazyRoute>} />
         <Route path="/fleet" element={<LazyRoute><FleetPage /></LazyRoute>} />
         <Route path="/onboarding" element={<LazyRoute><OnboardingPage /></LazyRoute>} />
+        <Route path="/panic-devices" element={<LazyRoute><PanicDevicesPage /></LazyRoute>} />
+        <Route path="/weapons-detection" element={<LazyRoute><WeaponsDetectionPage /></LazyRoute>} />
+        <Route path="/cameras" element={<LazyRoute><CameraPage /></LazyRoute>} />
+        <Route path="/zones" element={<LazyRoute><ZoneManagementPage /></LazyRoute>} />
         <Route path="/users" element={<LazyRoute><UsersPage /></LazyRoute>} />
         <Route path="/settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
         <Route path="/badgekiosk" element={<LazyRoute><BadgeKioskSettingsPage /></LazyRoute>} />
@@ -104,6 +119,13 @@ export function App() {
         <Route path="/access-analytics/settings" element={<LazyRoute><BadgeGuardSettingsPage /></LazyRoute>} />
         <Route path="/visitor-settings" element={<LazyRoute><VisitorSettingsPage /></LazyRoute>} />
         <Route path="/visitor-analytics" element={<LazyRoute><VisitorAnalyticsPage /></LazyRoute>} />
+        <Route path="/events" element={<LazyRoute><EventsPage /></LazyRoute>} />
+        <Route path="/door-health" element={<LazyRoute><DoorHealthPage /></LazyRoute>} />
+        <Route path="/system-health" element={<LazyRoute><SystemHealthPage /></LazyRoute>} />
+        <Route path="/roll-call" element={<LazyRoute><RollCallPage /></LazyRoute>} />
+        <Route path="/visitor-bans" element={<LazyRoute><VisitorBanListPage /></LazyRoute>} />
+        <Route path="/monitor" element={<LazyRoute><WidgetDesktopPage /></LazyRoute>} />
+        <Route path="/fire-alarm" element={<LazyRoute><FireAlarmPASPage /></LazyRoute>} />
       </Route>
     </Routes>
   );

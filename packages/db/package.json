@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx src/seed.ts",
+    "seed:demo": "tsx src/seed-demo.ts",
     "db:studio": "prisma studio",
     "generate": "prisma generate",
     "postinstall": "prisma generate"

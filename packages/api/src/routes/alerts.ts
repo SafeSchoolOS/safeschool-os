@@ -88,7 +88,38 @@ const alertRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'Alert not found' });
     }
 
+    // IDOR protection: verify user has access to this alert's site
+    if (!request.jwtUser.siteIds.includes(alert.siteId)) {
+      return reply.code(404).send({ error: 'Alert not found' });
+    }
+
     return alert;
+  });
+
+  // POST /api/v1/alerts/:id/confirm-fire — Confirm a suppressed fire alarm as real (OPERATOR+)
+  // Overrides lockdown suppression: unlocks all doors, dispatches fire dept, notifies all staff
+  fastify.post<{ Params: { id: string } }>('/:id/confirm-fire', {
+    preHandler: [fastify.authenticate, requireMinRole('OPERATOR')],
+  }, async (request, reply) => {
+    try {
+      const alert = await engine.confirmFire(request.params.id, request.jwtUser.id, undefined, request.ip);
+      return alert;
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : 'Failed to confirm fire' });
+    }
+  });
+
+  // POST /api/v1/alerts/:id/dismiss-fire — Dismiss a suppressed fire alarm as false alarm (OPERATOR+)
+  // Maintains lockdown, cancels the fire alert
+  fastify.post<{ Params: { id: string } }>('/:id/dismiss-fire', {
+    preHandler: [fastify.authenticate, requireMinRole('OPERATOR')],
+  }, async (request, reply) => {
+    try {
+      const alert = await engine.dismissFire(request.params.id, request.jwtUser.id, request.ip);
+      return alert;
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : 'Failed to dismiss fire alarm' });
+    }
   });
 
   // PATCH /api/v1/alerts/:id — Update alert status (FIRST_RESPONDER+)

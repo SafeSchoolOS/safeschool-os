@@ -163,6 +163,45 @@ async function main() {
     console.log('[worker] Auto-checkout scheduled every 60s');
   }
 
+  // Schedule door health check (every 60 seconds)
+  {
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const conn = new Redis(redisUrl, { maxRetriesPerRequest: null });
+    const queue = new Queue('alert-processing', { connection: conn as any });
+    await queue.add('check-door-health', {}, {
+      repeat: { every: 60000 },
+      removeOnComplete: 5,
+      removeOnFail: 10,
+    });
+    console.log('[worker] Door health check scheduled every 60s');
+  }
+
+  // Schedule system heartbeat (every 60 seconds)
+  {
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const conn = new Redis(redisUrl, { maxRetriesPerRequest: null });
+    const queue = new Queue('alert-processing', { connection: conn as any });
+    await queue.add('system-heartbeat', {}, {
+      repeat: { every: 60000 },
+      removeOnComplete: 5,
+      removeOnFail: 10,
+    });
+    console.log('[worker] System heartbeat scheduled every 60s');
+  }
+
+  // Schedule integration health check (every 120 seconds)
+  {
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const conn = new Redis(redisUrl, { maxRetriesPerRequest: null });
+    const queue = new Queue('alert-processing', { connection: conn as any });
+    await queue.add('check-integration-health', {}, {
+      repeat: { every: 120000 },
+      removeOnComplete: 5,
+      removeOnFail: 10,
+    });
+    console.log('[worker] Integration health check scheduled every 120s');
+  }
+
   console.log('[worker] Alert processing worker started. Waiting for jobs...');
 
   // Graceful shutdown

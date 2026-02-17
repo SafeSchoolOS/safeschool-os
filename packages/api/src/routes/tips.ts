@@ -44,7 +44,7 @@ export default async function tipRoutes(app: FastifyInstance) {
         category: category as any,
         message,
         severity: (body.severity as any) || 'LOW',
-        contactInfo: body.contactInfo,
+        contactInfo: body.contactInfo ? sanitizeText(body.contactInfo) : undefined,
         ipHash,
       },
     });
@@ -150,7 +150,7 @@ export default async function tipRoutes(app: FastifyInstance) {
         where: { id },
         data: {
           ...(body.status && { status: body.status as any }),
-          ...(body.notes !== undefined && { notes: body.notes }),
+          ...(body.notes !== undefined && { notes: body.notes ? sanitizeText(body.notes) : null }),
           reviewedById: user.id,
           reviewedAt: new Date(),
         },

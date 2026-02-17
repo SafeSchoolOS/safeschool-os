@@ -34,3 +34,19 @@ export function useUpdateAlertStatus() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   });
 }
+
+export function useConfirmFire() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (alertId: string) => apiClient.post(`/api/v1/alerts/${alertId}/confirm-fire`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  });
+}
+
+export function useDismissFire() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (alertId: string) => apiClient.post(`/api/v1/alerts/${alertId}/dismiss-fire`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
+  });
+}

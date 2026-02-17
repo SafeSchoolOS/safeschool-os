@@ -100,11 +100,21 @@ model Site {
   frTips                  FRTip[]
   gateways                Gateway[]
   gatewayFailoverEvents   GatewayFailoverEvent[]
+  events                  Event[]
+  doorHealthEvents        DoorHealthEvent[]
+  workOrders              WorkOrder[]
+  actionConfirmations     ActionConfirmation[]
+  rollCalls               RollCall[]
+  integrationHealths      IntegrationHealth[]
+  visitorBans             VisitorBan[]
   badgeKioskIntegration   BadgeKioskIntegration?
   badgeGuardIntegration   BadgeGuardIntegration?
   visitorPolicies         VisitorPolicy[]
   visitorGroups           VisitorGroup[]
   visitorSettings         SiteVisitorSettings?
+  fireAlarmZones          FireAlarmZone[]
+  fireAlarmEvents         FireAlarmEvent[]
+  evacuationRoutes        EvacuationRoute[]
 
   @@index([organizationId])
   @@map("sites")
@@ -144,8 +154,9 @@ model Room {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  students Student[]
+  building        Building         @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  students        Student[]
+  rollCallReports RollCallReport[]
 
   @@map("rooms")
 }
@@ -157,6 +168,11 @@ enum RoomType {
   CAFETERIA
   HALLWAY
   ENTRANCE
+  LOADING_DOCK
+  MAINTENANCE
+  KITCHEN
+  MECHANICAL
+  STORAGE
   OTHER
 }
 
@@ -186,6 +202,9 @@ model User {
   hostedVisitorGroups     VisitorGroup[]           @relation("VisitorGroupHost")
   notificationPreferences NotificationPreference[]
   cardholder              Cardholder?
+  createdEvents           Event[]                  @relation("EventCreatedBy")
+  rollCallReports         RollCallReport[]
+  visitorBans             VisitorBan[]             @relation("BannedBy")
 
   @@map("users")
 }
@@ -272,6 +291,7 @@ enum AlertStatus {
   RESPONDING
   RESOLVED
   CANCELLED
+  SUPPRESSED
 }
 
 enum AlertSource {
@@ -306,6 +326,9 @@ model Door {
   site            Site                 @relation(fields: [siteId], references: [id])
   building        Building             @relation(fields: [buildingId], references: [id])
   zoneAssignments DoorZoneAssignment[]
+  eventDoorGrants EventDoorGrant[]
+  healthEvents    DoorHealthEvent[]
+  workOrders      WorkOrder[]
 
   @@index([siteId])
   @@index([buildingId])
@@ -449,9 +472,10 @@ model Visitor {
   scheduledAt  DateTime?     @map("scheduled_at")
   groupId      String?       @map("group_id")
   companyName  String?       @map("company_name")
-  notes        String?
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  notes          String?
+  allowedZoneIds String[]      @default([]) @map("allowed_zone_ids")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
   site       Site              @relation(fields: [siteId], references: [id])
   host       User?             @relation("VisitorHost", fields: [hostUserId], references: [id])
@@ -1223,14 +1247,28 @@ enum UpgradeStatus {
 // Access Control — Cardholders, Credentials & Zones
 // ============================================================================
 
+enum ZoneType {
+  PUBLIC
+  CLASSROOM
+  ADMINISTRATIVE
+  SERVICE
+  UTILITY
+  RESTRICTED
+  SECURE
+}
+
 model AccessZone {
-  id          String   @id @default(uuid())
-  siteId      String   @map("site_id")
-  name        String
-  description String?
-  externalId  String?  @map("external_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  siteId           String   @map("site_id")
+  name             String
+  description      String?
+  externalId       String?  @map("external_id")
+  type             ZoneType @default(PUBLIC)
+  isRestrictedArea Boolean  @default(false) @map("is_restricted_area")
+  requiresApproval Boolean  @default(false) @map("requires_approval")
+  accessSchedule   Json?    @map("access_schedule")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   site            Site                       @relation(fields: [siteId], references: [id])
   doorAssignments DoorZoneAssignment[]
@@ -1504,6 +1542,7 @@ model Incident {
   videoBookmarks        VideoBookmark[]
   doorCommands          DoorCommand[]
   frReunificationEvents FRReunificationEvent[]
+  rollCalls             RollCall[]
 
   @@index([siteId])
   @@index([status])
@@ -2306,4 +2345,429 @@ model DoorCommand {
   @@index([gatewayId, status])
   @@index([incidentId])
   @@map("door_commands")
+}
+
+// ============================================================================
+// Event / Sports Scheduling with Door Access (Feature 1)
+// ============================================================================
+
+model Event {
+  id                  String      @id @default(uuid())
+  siteId              String      @map("site_id")
+  name                String
+  description         String?
+  type                EventType
+  startTime           DateTime    @map("start_time")
+  endTime             DateTime    @map("end_time")
+  recurrence          Json?
+  schoolHoursOverride Boolean     @default(false) @map("school_hours_override")
+  createdById         String      @map("created_by_id")
+  status              EventStatus @default(SCHEDULED)
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  site       Site             @relation(fields: [siteId], references: [id])
+  createdBy  User             @relation("EventCreatedBy", fields: [createdById], references: [id])
+  doorGrants EventDoorGrant[]
+
+  @@index([siteId, status])
+  @@index([siteId, startTime])
+  @@map("events")
+}
+
+model EventDoorGrant {
+  id         String    @id @default(uuid())
+  eventId    String    @map("event_id")
+  doorId     String    @map("door_id")
+  unlockAt   DateTime  @map("unlock_at")
+  lockAt     DateTime  @map("lock_at")
+  executed   Boolean   @default(false)
+  failedAt   DateTime? @map("failed_at")
+  failReason String?   @map("fail_reason")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  door  Door  @relation(fields: [doorId], references: [id])
+
+  @@index([eventId])
+  @@index([unlockAt])
+  @@map("event_door_grants")
+}
+
+enum EventType {
+  SPORTS
+  ASSEMBLY
+  CONCERT
+  PARENT_NIGHT
+  COMMUNITY
+  MAINTENANCE
+  OTHER_EVENT
+}
+
+enum EventStatus {
+  SCHEDULED
+  ACTIVE_EVENT
+  COMPLETED_EVENT
+  CANCELLED_EVENT
+}
+
+// ============================================================================
+// Door Health Analytics & Work Orders (Feature 2)
+// ============================================================================
+
+model DoorHealthEvent {
+  id            String        @id @default(uuid())
+  doorId        String        @map("door_id")
+  siteId        String        @map("site_id")
+  eventType     DoorEventType @map("event_type")
+  severity      String        // INFO, WARNING, CRITICAL
+  detectedAt    DateTime      @map("detected_at")
+  resolvedAt    DateTime?     @map("resolved_at")
+  metadata      Json?
+  autoWorkOrder Boolean       @default(false) @map("auto_work_order")
+
+  door      Door       @relation(fields: [doorId], references: [id])
+  site      Site       @relation(fields: [siteId], references: [id])
+  workOrder WorkOrder? @relation("HealthEventWorkOrder")
+
+  @@index([siteId, detectedAt])
+  @@index([doorId, detectedAt])
+  @@map("door_health_events")
+}
+
+model WorkOrder {
+  id            String            @id @default(uuid())
+  siteId        String            @map("site_id")
+  doorId        String?           @map("door_id")
+  healthEventId String?           @unique @map("health_event_id")
+  title         String
+  description   String?
+  priority      WorkOrderPriority
+  status        WorkOrderStatus   @default(OPEN)
+  assignedTo    String?           @map("assigned_to")
+  createdById   String?           @map("created_by_id")
+  dueDate       DateTime?         @map("due_date")
+  completedAt   DateTime?         @map("completed_at")
+  notes         Json?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  site        Site             @relation(fields: [siteId], references: [id])
+  door        Door?            @relation(fields: [doorId], references: [id])
+  healthEvent DoorHealthEvent? @relation("HealthEventWorkOrder", fields: [healthEventId], references: [id])
+
+  @@index([siteId, status])
+  @@index([siteId, priority])
+  @@map("work_orders")
+}
+
+enum DoorEventType {
+  FORCED_OPEN
+  HELD_OPEN
+  OFFLINE
+  SLOW_RESPONSE
+  BATTERY_LOW
+  COMM_FAILURE
+}
+
+enum WorkOrderPriority {
+  LOW_WO
+  MEDIUM_WO
+  HIGH_WO
+  URGENT_WO
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS_WO
+  COMPLETED_WO
+  CANCELLED_WO
+}
+
+// ============================================================================
+// System Heartbeat & Action Confirmation (Feature 3)
+// ============================================================================
+
+model ActionConfirmation {
+  id            String             @id @default(uuid())
+  siteId        String             @map("site_id")
+  actionType    ActionType         @map("action_type")
+  actionId      String             @map("action_id")
+  status        ConfirmationStatus @default(PENDING_CONFIRMATION)
+  initiatedById String?            @map("initiated_by_id")
+  initiatedAt   DateTime           @map("initiated_at")
+  confirmedAt   DateTime?          @map("confirmed_at")
+  timeoutAt     DateTime           @map("timeout_at")
+  escalatedAt   DateTime?          @map("escalated_at")
+  escalationMsg String?            @map("escalation_msg")
+  metadata      Json?
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, status])
+  @@index([timeoutAt])
+  @@map("action_confirmations")
+}
+
+enum ActionType {
+  LOCKDOWN_ACTION
+  DISPATCH_911
+  NOTIFICATION_ACTION
+  DOOR_COMMAND_ACTION
+  UNLOCK_EVENT
+}
+
+enum ConfirmationStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED_ACTION
+  PARTIAL_CONFIRMATION
+  FAILED_CONFIRMATION
+  TIMED_OUT_CONFIRMATION
+}
+
+// ============================================================================
+// Teacher Accountability / Roll Call (Feature 4)
+// ============================================================================
+
+model RollCall {
+  id                  String         @id @default(uuid())
+  incidentId          String         @map("incident_id")
+  siteId              String         @map("site_id")
+  initiatedById       String         @map("initiated_by_id")
+  initiatedAt         DateTime       @default(now()) @map("initiated_at")
+  status              RollCallStatus @default(ACTIVE_ROLLCALL)
+  totalClassrooms     Int            @map("total_classrooms")
+  reportedClassrooms  Int            @default(0) @map("reported_classrooms")
+  totalStudents       Int            @map("total_students")
+  accountedStudents   Int            @default(0) @map("accounted_students")
+  completedAt         DateTime?      @map("completed_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  incident Incident         @relation(fields: [incidentId], references: [id])
+  site     Site             @relation(fields: [siteId], references: [id])
+  reports  RollCallReport[]
+
+  @@index([siteId, status])
+  @@index([incidentId])
+  @@map("roll_calls")
+}
+
+model RollCallReport {
+  id              String   @id @default(uuid())
+  rollCallId      String   @map("roll_call_id")
+  userId          String   @map("user_id")
+  roomId          String   @map("room_id")
+  studentsPresent Int      @map("students_present")
+  studentsAbsent  Int      @map("students_absent")
+  studentsMissing String[] @map("students_missing")
+  studentsInjured String[] @map("students_injured")
+  notes           String?
+  reportedAt      DateTime @default(now()) @map("reported_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  rollCall RollCall @relation(fields: [rollCallId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+  room     Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([rollCallId, userId])
+  @@index([rollCallId])
+  @@map("roll_call_reports")
+}
+
+enum RollCallStatus {
+  ACTIVE_ROLLCALL
+  COMPLETED_ROLLCALL
+  CANCELLED_ROLLCALL
+}
+
+// ============================================================================
+// Integration Health Dashboard (Feature 5)
+// ============================================================================
+
+model IntegrationHealth {
+  id              String            @id @default(uuid())
+  siteId          String            @map("site_id")
+  integrationName String            @map("integration_name")
+  integrationType IntegrationType   @map("integration_type")
+  status          IntegrationStatus @default(UNKNOWN_INTEGRATION)
+  lastCheckAt     DateTime?         @map("last_check_at")
+  lastSuccessAt   DateTime?         @map("last_success_at")
+  lastErrorAt     DateTime?         @map("last_error_at")
+  lastError       String?           @map("last_error")
+  config          Json?
+  metadata        Json?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, integrationName])
+  @@index([siteId])
+  @@map("integration_health")
+}
+
+enum IntegrationType {
+  ACCESS_CONTROL_INT
+  CAMERAS_INT
+  DISPATCH_911_INT
+  NOTIFICATIONS_INT
+  VISITOR_MGMT_INT
+  PANIC_DEVICES_INT
+  WEAPONS_DETECTION_INT
+  GUNSHOT_DETECTION_INT
+  EDGE_SYNC_INT
+  ENVIRONMENTAL_INT
+}
+
+enum IntegrationStatus {
+  HEALTHY_INTEGRATION
+  DEGRADED_INTEGRATION
+  DOWN_INTEGRATION
+  UNKNOWN_INTEGRATION
+  DISABLED_INTEGRATION
+}
+
+// ============================================================================
+// Visitor Ban List / Watchlist (Feature 6)
+// ============================================================================
+
+model VisitorBan {
+  id          String    @id @default(uuid())
+  siteId      String    @map("site_id")
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  dateOfBirth DateTime? @map("date_of_birth")
+  idNumber    String?   @map("id_number")
+  reason      String
+  bannedById  String    @map("banned_by_id")
+  bannedAt    DateTime  @default(now()) @map("banned_at")
+  expiresAt   DateTime? @map("expires_at")
+  isActive    Boolean   @default(true) @map("is_active")
+  photoUrl    String?   @map("photo_url")
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  site     Site @relation(fields: [siteId], references: [id])
+  bannedBy User @relation("BannedBy", fields: [bannedById], references: [id])
+
+  @@index([siteId, lastName, firstName])
+  @@index([siteId, isActive])
+  @@map("visitor_bans")
+}
+
+// ============================================================================
+// Fire Alarm Integration — NFPA 72 Positive Alarm Sequence (PAS) Protocol
+// ============================================================================
+
+model FireAlarmZone {
+  id               String              @id @default(uuid())
+  siteId           String              @map("site_id")
+  buildingId       String?             @map("building_id")
+  name             String
+  zoneNumber       String              @map("zone_number")
+  floor            Int?
+  description      String?
+  hasPullStations  Boolean             @default(true)  @map("has_pull_stations")
+  hasSmokeDetectors Boolean            @default(true)  @map("has_smoke_detectors")
+  hasHeatDetectors Boolean             @default(false) @map("has_heat_detectors")
+  hasSprinklers    Boolean             @default(false) @map("has_sprinklers")
+  mapX             Float?              @map("map_x")
+  mapY             Float?              @map("map_y")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  site     Site              @relation(fields: [siteId], references: [id])
+  events   FireAlarmEvent[]
+
+  @@unique([siteId, zoneNumber])
+  @@index([siteId])
+  @@map("fire_alarm_zones")
+}
+
+model FireAlarmEvent {
+  id                 String               @id @default(uuid())
+  siteId             String               @map("site_id")
+  alertId            String?              @map("alert_id")
+  fireAlarmZoneId    String?              @map("fire_alarm_zone_id")
+  deviceType         FireAlarmDeviceType  @map("device_type")
+  status             FireAlarmEventStatus @default(ALARM_ACTIVE)
+  suspicionLevel     FireAlarmSuspicion   @default(UNKNOWN_SUSPICION) @map("suspicion_level")
+  acknowledgedAt     DateTime?            @map("acknowledged_at")
+  acknowledgedById   String?              @map("acknowledged_by_id")
+  investigationEndsAt DateTime?           @map("investigation_ends_at")
+  decisionMadeAt     DateTime?            @map("decision_made_at")
+  decisionMadeById   String?              @map("decision_made_by_id")
+  decision           FireAlarmDecision?
+  activeLockdownId   String?              @map("active_lockdown_id")
+  notes              String?
+  metadata           Json?
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  site           Site           @relation(fields: [siteId], references: [id])
+  fireAlarmZone  FireAlarmZone? @relation(fields: [fireAlarmZoneId], references: [id])
+
+  @@index([siteId, status])
+  @@index([alertId])
+  @@map("fire_alarm_events")
+}
+
+enum FireAlarmDeviceType {
+  SMOKE_DETECTOR
+  HEAT_DETECTOR
+  MANUAL_PULL_STATION
+  SPRINKLER_WATERFLOW
+  DUCT_DETECTOR
+  UNKNOWN_DEVICE
+}
+
+enum FireAlarmEventStatus {
+  ALARM_ACTIVE
+  ACKNOWLEDGED_ALARM
+  INVESTIGATING
+  CONFIRMED_FIRE
+  FALSE_ALARM
+  AUTO_ESCALATED
+}
+
+enum FireAlarmSuspicion {
+  HIGH_SUSPICION       // Manual pull station during lockdown — likely ruse
+  ELEVATED_SUSPICION   // Heat/waterflow — possible real fire
+  MODERATE_SUSPICION   // Smoke detector near threat zone — likely gunfire
+  LOW_SUSPICION        // Smoke detector away from threat — investigate
+  UNKNOWN_SUSPICION
+}
+
+enum FireAlarmDecision {
+  EVACUATE_ALL         // Confirmed fire — full building evacuation
+  EVACUATE_DIRECTED    // Confirmed fire — evacuate specific zones away from threat
+  MAINTAIN_LOCKDOWN    // False alarm — stay locked down
+  EXTEND_INVESTIGATION // Active threat verified, holding beyond 3 minutes
+}
+
+// ============================================================================
+// Directed Evacuation Routes
+// ============================================================================
+
+model EvacuationRoute {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  buildingId  String?  @map("building_id")
+  name        String
+  description String?
+  fromZones   String[] @map("from_zones")
+  toExit      String?  @map("to_exit")
+  doorIds     String[] @map("door_ids")
+  avoidZones  String[] @map("avoid_zones")
+  isDefault   Boolean  @default(false) @map("is_default")
+  mapPath     Json?    @map("map_path")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@map("evacuation_routes")
 }

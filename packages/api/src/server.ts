@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
@@ -64,6 +65,19 @@ import frTipsIntegrationsRoutes from './routes/fr-tips-integrations.js';
 import badgekioskRoutes from './routes/badgekiosk.js';
 import badgeguardAnalyticsRoutes from './routes/badgeguard-analytics.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
+import panicWebhookRoutes from './routes/webhooks/panic.js';
+import weaponsDetectionWebhookRoutes from './routes/webhooks/weapons-detection.js';
+import busFleetWebhookRoutes from './routes/webhooks/bus-fleet.js';
+import panicDeviceRoutes from './routes/panic-devices.js';
+import weaponsDetectorRoutes from './routes/weapons-detectors.js';
+import zoneRoutes from './routes/zones.js';
+import eventRoutes from './routes/events.js';
+import doorHealthRoutes from './routes/door-health.js';
+import systemHealthRoutes from './routes/system-health.js';
+import rollCallRoutes from './routes/roll-call.js';
+import integrationHealthRoutes from './routes/integration-health.js';
+import visitorBanRoutes from './routes/visitor-bans.js';
+import fireAlarmRoutes from './routes/fire-alarm.js';
 import wsHandler from './ws/handler.js';
 
 // Side-effect: import types for augmentation
@@ -107,6 +121,12 @@ export async function buildServer() {
     credentials: isProduction ? false : true,
   });
 
+  // Security headers — CSP, X-Frame-Options, HSTS, etc.
+  await app.register(helmet, {
+    contentSecurityPolicy: isProduction ? undefined : false, // Disable CSP in dev for Swagger UI
+    hsts: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
+  });
+
   // Rate limiting — 100 req/min global, with stricter per-route overrides
   // Disabled in test environment to prevent flaky test failures
   if (process.env.NODE_ENV !== 'test') {
@@ -143,9 +163,12 @@ export async function buildServer() {
       },
     },
   });
-  await app.register(swaggerUi, {
-    routePrefix: '/docs',
-  });
+  // Only expose Swagger UI in non-production (prevents full API surface disclosure)
+  if (!isProduction) {
+    await app.register(swaggerUi, {
+      routePrefix: '/docs',
+    });
+  }
 
   // Global error handler
   app.setErrorHandler((error: any, request, reply) => {
@@ -261,8 +284,29 @@ export async function buildServer() {
   await app.register(badgekioskRoutes, { prefix: '/api/v1/badgekiosk' });
   await app.register(badgeguardAnalyticsRoutes, { prefix: '/api/v1/badgeguard' });
 
+  // Panic device management
+  await app.register(panicDeviceRoutes, { prefix: '/api/v1/panic-devices' });
+
+  // Weapons detector management
+  await app.register(weaponsDetectorRoutes, { prefix: '/api/v1/weapons-detectors' });
+
+  // Zone management
+  await app.register(zoneRoutes, { prefix: '/api/v1/zones' });
+
+  // Feature expansion routes
+  await app.register(eventRoutes, { prefix: '/api/v1/events' });
+  await app.register(doorHealthRoutes, { prefix: '/api/v1/door-health' });
+  await app.register(systemHealthRoutes, { prefix: '/api/v1/system-health' });
+  await app.register(rollCallRoutes, { prefix: '/api/v1/roll-call' });
+  await app.register(integrationHealthRoutes, { prefix: '/api/v1/integration-health' });
+  await app.register(visitorBanRoutes, { prefix: '/api/v1/visitor-bans' });
+  await app.register(fireAlarmRoutes, { prefix: '/api/v1/fire-alarm' });
+
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });
+  await app.register(panicWebhookRoutes, { prefix: '/webhooks/panic' });
+  await app.register(weaponsDetectionWebhookRoutes, { prefix: '/webhooks/weapons-detection' });
+  await app.register(busFleetWebhookRoutes, { prefix: '/webhooks/bus-fleet' });
 
   // Sync routes (cloud mode only)
   if (process.env.OPERATING_MODE === 'cloud') {

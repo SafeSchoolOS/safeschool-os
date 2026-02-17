@@ -13,6 +13,7 @@ import { AlertDetailScreen } from './src/screens/AlertDetailScreen';
 import { PanicScreen } from './src/screens/PanicScreen';
 import { BusTracker } from './src/screens/BusTracker';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { MonitorScreen } from './src/screens/MonitorScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -94,6 +95,14 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Buses',
           tabBarIcon: ({ color }) => <TabIcon label="B" color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="MonitorTab"
+        component={MonitorScreen}
+        options={{
+          tabBarLabel: 'Monitor',
+          tabBarIcon: ({ color }) => <TabIcon label="M" color={color} />,
         }}
       />
       <Tab.Screen

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSites } from '../api/sites';
+import { useAlerts, useConfirmFire, useDismissFire } from '../api/alerts';
 import { useWeatherAlerts, type WeatherAlert } from '../api/weather';
+import { useIntegrationHealth } from '../api/integrationHealth';
+import { useActiveRollCall } from '../api/rollCall';
+import { useActionConfirmations } from '../api/systemHealth';
 import { AlertList } from '../components/alerts/AlertList';
 import { CreateAlertButton } from '../components/alerts/CreateAlertButton';
 import { DoorStatusGrid } from '../components/doors/DoorStatusGrid';
@@ -16,7 +20,16 @@ export function CommandCenter() {
   const { data: sites } = useSites();
   const siteId = user?.siteIds[0];
   const site = sites?.[0];
+  const { data: alerts } = useAlerts(siteId);
+  const confirmFire = useConfirmFire();
+  const dismissFire = useDismissFire();
   const { data: weatherAlerts, isLoading: weatherLoading } = useWeatherAlerts(siteId);
+
+  // Detect suppressed fire alarms
+  const suppressedFireAlerts = (alerts || []).filter((a: any) => a.status === 'SUPPRESSED' && a.level === 'FIRE');
+  const { data: integrations } = useIntegrationHealth();
+  const { data: activeRollCall } = useActiveRollCall();
+  const { data: confirmations } = useActionConfirmations();
 
   const [trainingMode, setTrainingMode] = useState(() => {
     return sessionStorage.getItem(TRAINING_MODE_KEY) === 'true';
@@ -63,6 +76,47 @@ export function CommandCenter() {
         </div>
       )}
 
+      {/* Fire Alarm Suppression Banner */}
+      {suppressedFireAlerts.map((fa: any) => (
+        <div key={fa.id} className="col-span-12 px-4 py-4 bg-red-600/20 border-2 border-red-500 rounded-lg animate-pulse">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-base font-bold text-red-300">
+                FIRE ALARM SUPPRESSED &mdash; {fa.buildingName}
+              </p>
+              <p className="text-sm text-red-200 mt-1">
+                Fire alarm triggered during active lockdown. Doors remain LOCKED to prevent adversarial evacuation.
+                Operator decision required: Is this a real fire or a false alarm?
+              </p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (window.confirm('CONFIRM REAL FIRE? This will unlock ALL doors and begin evacuation.')) {
+                    confirmFire.mutate(fa.id);
+                  }
+                }}
+                disabled={confirmFire.isPending}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                CONFIRM FIRE — Evacuate
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('Dismiss fire alarm as false alarm? Lockdown will continue.')) {
+                    dismissFire.mutate(fa.id);
+                  }
+                }}
+                disabled={dismissFire.isPending}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                Dismiss — False Alarm
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
       {/* Left column: Map + Alert Creation */}
       <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
         {/* PANIC Button */}
@@ -80,6 +134,72 @@ export function CommandCenter() {
         <LockdownControls siteId={siteId} buildings={site?.buildings || []} trainingMode={trainingMode} />
         <DoorStatusGrid siteId={siteId} />
         <WeatherAlertWidget alerts={weatherAlerts} loading={weatherLoading} />
+
+        {/* Integration Status Panel */}
+        {integrations && integrations.length > 0 && (
+          <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Integration Status</h3>
+            <div className="space-y-2">
+              {integrations.slice(0, 8).map((int: any) => {
+                const color = int.status === 'HEALTHY_INTEGRATION' ? 'bg-green-500'
+                  : int.status === 'DEGRADED_INTEGRATION' ? 'bg-yellow-500'
+                  : int.status === 'DOWN_INTEGRATION' ? 'bg-red-500' : 'bg-gray-500';
+                return (
+                  <div key={int.id} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-300">{int.integrationName}</span>
+                    <span className={`w-2 h-2 rounded-full ${color}`} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Accountability Tracker (Active Roll Call) */}
+        {activeRollCall && (
+          <div className="rounded-lg border border-orange-500/50 bg-orange-900/20 p-4">
+            <h3 className="text-sm font-semibold text-orange-300 mb-2">Roll Call Active</h3>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between text-gray-300">
+                <span>Classrooms</span>
+                <span className="font-mono">{activeRollCall.reportedClassrooms}/{activeRollCall.totalClassrooms}</span>
+              </div>
+              <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${Math.round((activeRollCall.reportedClassrooms / Math.max(activeRollCall.totalClassrooms, 1)) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <span>Students Accounted</span>
+                <span className="font-mono">{activeRollCall.accountedStudents}/{activeRollCall.totalStudents}</span>
+              </div>
+              {activeRollCall.reports?.some((r: any) => r.studentsMissing?.length > 0) && (
+                <div className="text-red-400 font-medium mt-1">
+                  Missing: {activeRollCall.reports.flatMap((r: any) => r.studentsMissing || []).join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Action Confirmation Feed */}
+        {confirmations && confirmations.length > 0 && (
+          <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Action Confirmations</h3>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {confirmations.slice(0, 10).map((c: any) => {
+                const statusColor = c.status === 'CONFIRMED_ACTION' ? 'text-green-400'
+                  : c.status === 'FAILED_CONFIRMATION' || c.status === 'TIMED_OUT_CONFIRMATION' ? 'text-red-400'
+                  : 'text-blue-400';
+                return (
+                  <div key={c.id} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-300">{c.actionType.replace('_ACTION', '').replace('_', ' ')}</span>
+                    <span className={statusColor}>{c.status.replace('_CONFIRMATION', '').replace('_ACTION', '')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <SendNotificationForm />
       </div>
     </div>

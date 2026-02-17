@@ -8,9 +8,12 @@ export default async function userRoutes(app: FastifyInstance) {
     await request.jwtVerify();
   });
 
-  // GET /api/v1/users — list all users
+  // GET /api/v1/users — list users scoped to requesting admin's sites
   app.get('/', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest) => {
     const users = await app.prisma.user.findMany({
+      where: {
+        sites: { some: { siteId: { in: (request as any).jwtUser.siteIds } } },
+      },
       select: {
         id: true,
         email: true,
@@ -33,11 +36,15 @@ export default async function userRoutes(app: FastifyInstance) {
     }));
   });
 
-  // GET /api/v1/users/:id — single user detail
+  // GET /api/v1/users/:id — single user detail (must share a site with requester)
   app.get('/:id', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-    const user = await app.prisma.user.findUnique({
-      where: { id },
+    const requesterSiteIds = (request as any).jwtUser.siteIds as string[];
+    const user = await app.prisma.user.findFirst({
+      where: {
+        id,
+        sites: { some: { siteId: { in: requesterSiteIds } } },
+      },
       select: {
         id: true,
         email: true,
@@ -72,8 +79,8 @@ export default async function userRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'email, name, role, and password are required' });
     }
 
-    if (password.length < 8) {
-      return reply.code(400).send({ error: 'Password must be at least 8 characters' });
+    if (password.length < 12) {
+      return reply.code(400).send({ error: 'Password must be at least 12 characters' });
     }
 
     const existing = await app.prisma.user.findUnique({ where: { email } });
@@ -81,7 +88,7 @@ export default async function userRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: 'A user with this email already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await app.prisma.user.create({
       data: {
@@ -112,22 +119,40 @@ export default async function userRoutes(app: FastifyInstance) {
   // PUT /api/v1/users/:id — update a user
   app.put('/:id', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-    const { name, email, role, phone, isActive, siteIds } = request.body as {
+    const { name, email, role, phone, isActive, siteIds, wearableDeviceId } = request.body as {
       name?: string;
       email?: string;
       role?: string;
       phone?: string;
       isActive?: boolean;
       siteIds?: string[];
+      wearableDeviceId?: string | null;
     };
 
-    const existing = await app.prisma.user.findUnique({ where: { id } });
+    const requesterSiteIds = (request as any).jwtUser.siteIds as string[];
+    const existing = await app.prisma.user.findFirst({
+      where: { id, sites: { some: { siteId: { in: requesterSiteIds } } } },
+    });
     if (!existing) return reply.code(404).send({ error: 'User not found' });
 
     // If changing email, check for conflicts
     if (email && email !== existing.email) {
       const conflict = await app.prisma.user.findUnique({ where: { email } });
       if (conflict) return reply.code(409).send({ error: 'Email already in use' });
+    }
+
+    // If setting wearableDeviceId, check uniqueness
+    if (wearableDeviceId !== undefined && wearableDeviceId !== null) {
+      const cleanBadgeId = sanitizeText(wearableDeviceId);
+      const badgeConflict = await app.prisma.user.findFirst({
+        where: {
+          wearableDeviceId: { equals: cleanBadgeId, mode: 'insensitive' },
+          id: { not: id },
+        },
+      });
+      if (badgeConflict) {
+        return reply.code(409).send({ error: 'This badge ID is already assigned to another user' });
+      }
     }
 
     // Update site assignments if provided
@@ -148,6 +173,7 @@ export default async function userRoutes(app: FastifyInstance) {
         ...(role !== undefined && { role: role as any }),
         ...(phone !== undefined && { phone: phone ? sanitizeText(phone) : null }),
         ...(isActive !== undefined && { isActive }),
+        ...(wearableDeviceId !== undefined && { wearableDeviceId: wearableDeviceId ? sanitizeText(wearableDeviceId) : null }),
       },
       select: {
         id: true,
@@ -155,6 +181,7 @@ export default async function userRoutes(app: FastifyInstance) {
         name: true,
         role: true,
         phone: true,
+        wearableDeviceId: true,
         isActive: true,
         updatedAt: true,
         sites: {
@@ -166,19 +193,22 @@ export default async function userRoutes(app: FastifyInstance) {
     return { ...user, sites: user.sites.map((s) => s.site) };
   });
 
-  // POST /api/v1/users/:id/reset-password — reset user password
+  // POST /api/v1/users/:id/reset-password — reset user password (must share a site)
   app.post('/:id/reset-password', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const { password } = request.body as { password: string };
 
-    if (!password || password.length < 8) {
-      return reply.code(400).send({ error: 'Password must be at least 8 characters' });
+    if (!password || password.length < 12) {
+      return reply.code(400).send({ error: 'Password must be at least 12 characters' });
     }
 
-    const existing = await app.prisma.user.findUnique({ where: { id } });
+    const requesterSiteIds = (request as any).jwtUser.siteIds as string[];
+    const existing = await app.prisma.user.findFirst({
+      where: { id, sites: { some: { siteId: { in: requesterSiteIds } } } },
+    });
     if (!existing) return reply.code(404).send({ error: 'User not found' });
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     await app.prisma.user.update({
       where: { id },
       data: { passwordHash },
@@ -187,15 +217,18 @@ export default async function userRoutes(app: FastifyInstance) {
     return { message: 'Password updated' };
   });
 
-  // DELETE /api/v1/users/:id — deactivate (soft delete)
+  // DELETE /api/v1/users/:id — deactivate (soft delete, must share a site)
   app.delete('/:id', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
 
-    const existing = await app.prisma.user.findUnique({ where: { id } });
+    const requesterSiteIds = (request as any).jwtUser.siteIds as string[];
+    const existing = await app.prisma.user.findFirst({
+      where: { id, sites: { some: { siteId: { in: requesterSiteIds } } } },
+    });
     if (!existing) return reply.code(404).send({ error: 'User not found' });
 
     // Prevent self-deactivation
-    const requester = (request as any).user;
+    const requester = (request as any).jwtUser;
     if (requester.id === id) {
       return reply.code(400).send({ error: 'Cannot deactivate your own account' });
     }

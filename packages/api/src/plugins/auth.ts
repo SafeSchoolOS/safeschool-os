@@ -4,7 +4,13 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 
 export default fp(async (fastify) => {
   await fastify.register(fjwt, {
-    secret: process.env.JWT_SECRET || 'safeschool-dev-secret-change-in-production',
+    secret: (() => {
+      const secret = process.env.JWT_SECRET;
+      if (!secret && process.env.NODE_ENV === 'production') {
+        throw new Error('FATAL: JWT_SECRET environment variable is required in production');
+      }
+      return secret || 'safeschool-dev-secret-DO-NOT-USE-IN-PRODUCTION';
+    })(),
     sign: { expiresIn: '24h' },
   });
 

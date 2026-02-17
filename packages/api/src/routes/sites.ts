@@ -44,6 +44,11 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'Site not found' });
     }
 
+    // IDOR protection: verify user has access to this site
+    if (!request.jwtUser.siteIds.includes(site.id)) {
+      return reply.code(404).send({ error: 'Site not found' });
+    }
+
     return site;
   });
 
@@ -85,10 +90,10 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /:id/buildings/:buildingId/floor-plan-image — upload background image (SITE_ADMIN)
+  // SVG excluded — can contain embedded JavaScript (stored XSS risk)
   const ALLOWED_MIMETYPES: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
-    'image/svg+xml': 'svg',
   };
 
   fastify.post<{ Params: { id: string; buildingId: string } }>(
@@ -141,11 +146,11 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
   // Site Logo Upload/Serve/Delete
   // ============================================================================
 
+  // SVG excluded — can contain embedded JavaScript (stored XSS risk)
   const LOGO_MIMETYPES: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
     'image/webp': 'webp',
-    'image/svg+xml': 'svg',
   };
 
   // POST /:id/logo — upload site logo (SITE_ADMIN+)

@@ -80,6 +80,8 @@ COPY --from=build-api /app/packages/integrations/panic-devices/dist ./packages/i
 COPY --from=build-api /app/packages/integrations/panic-devices/package.json ./packages/integrations/panic-devices/package.json
 COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packages/integrations/gunshot-detection/dist
 COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
+COPY --from=build-api /app/packages/integrations/weapons-detection/dist ./packages/integrations/weapons-detection/dist
+COPY --from=build-api /app/packages/integrations/weapons-detection/package.json ./packages/integrations/weapons-detection/package.json
 COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
 COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
 COPY --from=build-api /app/packages/integrations/badge-printing/dist ./packages/integrations/badge-printing/dist
@@ -87,8 +89,10 @@ COPY --from=build-api /app/packages/integrations/badge-printing/package.json ./p
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 
-# Create data directories
-RUN mkdir -p /app/data/students
+# Create non-root user and data directories
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+  && mkdir -p /app/data/students \
+  && chown -R appuser:appgroup /app
 
 # Build-time module test
 RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('@safeschool/weather'); require('fastify'); console.log('Modules OK')"
@@ -97,6 +101,7 @@ RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('@s
 COPY deploy/railway/start-api.sh /app/start.sh
 RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
+USER appuser
 EXPOSE 3000
 CMD ["/app/start.sh"]
 
@@ -143,6 +148,8 @@ COPY --from=build-api /app/packages/integrations/panic-devices/dist ./packages/i
 COPY --from=build-api /app/packages/integrations/panic-devices/package.json ./packages/integrations/panic-devices/package.json
 COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packages/integrations/gunshot-detection/dist
 COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
+COPY --from=build-api /app/packages/integrations/weapons-detection/dist ./packages/integrations/weapons-detection/dist
+COPY --from=build-api /app/packages/integrations/weapons-detection/package.json ./packages/integrations/weapons-detection/package.json
 COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
 COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
 COPY --from=build-api /app/packages/integrations/badge-printing/dist ./packages/integrations/badge-printing/dist
@@ -150,6 +157,10 @@ COPY --from=build-api /app/packages/integrations/badge-printing/package.json ./p
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+  && chown -R appuser:appgroup /app
+
+USER appuser
 EXPOSE 3000
 CMD ["node", "packages/api/dist/worker-entry.js"]
 
@@ -165,6 +176,10 @@ COPY deploy/railway/serve-dashboard.js ./serve-dashboard.js
 # Verify build output exists
 RUN ls -la dist/ && test -f dist/index.html
 
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+  && chown -R appuser:appgroup /app
+
+USER appuser
 EXPOSE 3000
 CMD ["node", "serve-dashboard.js"]
 

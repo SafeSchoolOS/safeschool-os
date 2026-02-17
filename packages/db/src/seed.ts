@@ -471,10 +471,10 @@ async function main() {
   // ---- Access Zones ----
 
   const accessZones = [
-    { id: IDS.accessZones.allDoors, name: 'All Doors', description: 'Full building access — all doors' },
-    { id: IDS.accessZones.adminWing, name: 'Admin Wing', description: 'Administrative offices and front desk' },
-    { id: IDS.accessZones.visitorAccess, name: 'Visitor Access', description: 'Main entrance and common areas only' },
-    { id: IDS.accessZones.mechanical, name: 'Mechanical Rooms', description: 'HVAC, electrical, and maintenance areas' },
+    { id: IDS.accessZones.allDoors, name: 'All Doors', description: 'Full building access — all doors', type: 'PUBLIC' as const },
+    { id: IDS.accessZones.adminWing, name: 'Admin Wing', description: 'Administrative offices and front desk', type: 'ADMINISTRATIVE' as const, requiresApproval: true },
+    { id: IDS.accessZones.visitorAccess, name: 'Visitor Access', description: 'Main entrance and common areas only', type: 'PUBLIC' as const },
+    { id: IDS.accessZones.mechanical, name: 'Mechanical Rooms', description: 'HVAC, electrical, and maintenance areas', type: 'UTILITY' as const, isRestrictedArea: true, requiresApproval: true, accessSchedule: [{ days: [1,2,3,4,5], startTime: '07:00', endTime: '17:00' }] },
   ];
 
   for (const zone of accessZones) {

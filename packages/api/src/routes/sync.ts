@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import crypto from 'node:crypto';
+import { sanitizeText } from '../utils/sanitize.js';
 
 /**
  * Cloud-side sync endpoints for edge devices.
@@ -28,6 +29,11 @@ const syncRoutes: FastifyPluginAsync = async (fastify) => {
     // Verify HMAC signature if present (required for production, optional during migration)
     const timestamp = request.headers['x-sync-timestamp'] as string | undefined;
     const signature = request.headers['x-sync-signature'] as string | undefined;
+
+    // HMAC signature is mandatory in production
+    if (process.env.NODE_ENV === 'production' && (!timestamp || !signature)) {
+      return reply.code(401).send({ error: 'HMAC signature required in production', code: 'HMAC_REQUIRED' });
+    }
 
     if (timestamp && signature) {
       // Reject stale requests (replay protection)
@@ -118,45 +124,87 @@ const syncRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // Whitelist fields for each entity type to prevent arbitrary data injection
+        const d = entity.data;
         switch (entity.type) {
-          case 'alert':
+          case 'alert': {
             if (entity.action === 'create') {
+              const safeCreate = {
+                id: d.id, siteId, level: d.level, status: d.status,
+                source: d.source, triggeredById: d.triggeredById,
+                buildingId: d.buildingId, buildingName: d.buildingName || '',
+                floor: d.floor, roomId: d.roomId,
+                message: d.message ? sanitizeText(d.message) : null,
+                triggeredAt: d.triggeredAt ? new Date(d.triggeredAt) : new Date(),
+              };
+              const safeUpdate = { ...safeCreate };
               await fastify.prisma.alert.upsert({
-                where: { id: entity.data.id },
-                update: entity.data,
-                create: entity.data,
+                where: { id: d.id },
+                update: safeUpdate,
+                create: safeCreate,
               });
             }
             break;
-          case 'visitor':
+          }
+          case 'visitor': {
             if (entity.action === 'create' || entity.action === 'update') {
+              const safeCreate = {
+                id: d.id, siteId,
+                firstName: d.firstName ? sanitizeText(d.firstName) : '',
+                lastName: d.lastName ? sanitizeText(d.lastName) : '',
+                company: d.company ? sanitizeText(d.company) : undefined,
+                hostName: d.hostName ? sanitizeText(d.hostName) : undefined,
+                purpose: d.purpose ? sanitizeText(d.purpose) : '',
+                destination: d.destination ? sanitizeText(d.destination) : '',
+                status: d.status, checkedInAt: d.checkedInAt,
+                checkedOutAt: d.checkedOutAt,
+              };
+              const safeUpdate = {
+                firstName: safeCreate.firstName,
+                lastName: safeCreate.lastName,
+                status: safeCreate.status,
+                checkedOutAt: safeCreate.checkedOutAt,
+              };
               await fastify.prisma.visitor.upsert({
-                where: { id: entity.data.id },
-                update: entity.data,
-                create: entity.data,
+                where: { id: d.id },
+                update: safeUpdate,
+                create: safeCreate,
               });
             }
             break;
+          }
           case 'door':
             if (entity.action === 'update') {
               await fastify.prisma.door.update({
-                where: { id: entity.data.id },
-                data: { status: entity.data.status },
+                where: { id: d.id },
+                data: { status: d.status },
               });
             }
             break;
-          case 'audit_log':
-            await fastify.prisma.auditLog.create({ data: entity.data });
+          case 'audit_log': {
+            const safeAudit = {
+              id: d.id, siteId, userId: d.userId,
+              action: d.action, entity: d.entity, entityId: d.entityId,
+              details: d.details, ipAddress: d.ipAddress,
+              createdAt: d.createdAt ? new Date(d.createdAt) : new Date(),
+            };
+            await fastify.prisma.auditLog.create({ data: safeAudit });
             break;
+          }
           case 'lockdown_command':
             await fastify.prisma.lockdownCommand.upsert({
-              where: { id: entity.data.id },
+              where: { id: d.id },
               update: {
-                releasedAt: entity.data.releasedAt,
-                doorsLocked: entity.data.doorsLocked,
-                updatedAt: entity.data.updatedAt,
+                releasedAt: d.releasedAt,
+                doorsLocked: d.doorsLocked,
+                updatedAt: d.updatedAt,
               },
-              create: entity.data,
+              create: {
+                id: d.id, siteId, scope: d.scope, targetId: d.targetId,
+                initiatedById: d.initiatedById, alertId: d.alertId,
+                doorsLocked: d.doorsLocked, metadata: d.metadata,
+                initiatedAt: d.initiatedAt ? new Date(d.initiatedAt) : new Date(),
+              },
             });
             break;
         }
@@ -185,7 +233,12 @@ const syncRoutes: FastifyPluginAsync = async (fastify) => {
           updatedAt: { gte: sinceDate },
           sites: { some: { siteId } },
         },
-        include: { sites: true },
+        select: {
+          id: true, email: true, name: true, role: true, phone: true,
+          isActive: true, createdAt: true, updatedAt: true,
+          sites: { select: { siteId: true } },
+          // passwordHash intentionally excluded from sync
+        },
       });
     }
 

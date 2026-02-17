@@ -13,7 +13,13 @@ declare module 'fastify' {
   }
 }
 
-const FR_JWT_SECRET = process.env.FR_JWT_SECRET || 'fr-dev-secret-change-in-production';
+const FR_JWT_SECRET = (() => {
+  const secret = process.env.FR_JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: FR_JWT_SECRET environment variable is required in production');
+  }
+  return secret || 'fr-dev-secret-DO-NOT-USE-IN-PRODUCTION';
+})();
 
 function base64UrlEncode(data: Buffer): string {
   return data.toString('base64url');

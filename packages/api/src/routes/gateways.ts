@@ -258,6 +258,7 @@ const gatewayRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: request.params.gatewayId },
       select: {
         id: true,
+        siteId: true,
         status: true,
         cpuUsage: true,
         memoryUsage: true,
@@ -274,6 +275,9 @@ const gatewayRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     if (!gateway) {
+      return reply.code(404).send({ error: 'Gateway not found' });
+    }
+    if (!request.jwtUser.siteIds.includes(gateway.siteId)) {
       return reply.code(404).send({ error: 'Gateway not found' });
     }
 

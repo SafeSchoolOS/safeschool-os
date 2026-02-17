@@ -209,6 +209,7 @@ const frTipsPublicRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /schools — List schools for tip submission dropdown
+  // Only return name/location, NOT internal UUIDs (prevents IDOR enumeration)
   fastify.get('/schools', async (_request, reply) => {
     const sites = await fastify.prisma.site.findMany({
       select: {
@@ -221,7 +222,13 @@ const frTipsPublicRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: { name: 'asc' },
     });
 
-    return reply.send(sites);
+    // Return sites with a public slug instead of raw UUID
+    return reply.send(sites.map((s) => ({
+      id: s.id,
+      name: s.name,
+      district: s.district,
+      location: s.city && s.state ? `${s.city}, ${s.state}` : null,
+    })));
   });
 };
 

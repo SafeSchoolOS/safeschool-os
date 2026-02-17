@@ -111,16 +111,14 @@ export default async function responderAuthRoutes(fastify: FastifyInstance): Pro
   });
 
   // POST /mfa/verify — Verify TOTP code for MFA
-  // TODO: Implement actual TOTP verification with speakeasy/otplib when MFA is enabled
+  // MFA is not yet implemented. This endpoint returns 501 to prevent
+  // callers from assuming a stub "verified: true" response is legitimate.
   fastify.post<{ Body: MfaVerifyBody }>('/mfa/verify', {
     preHandler: [authenticateResponder],
-  }, async (request: FastifyRequest<{ Body: MfaVerifyBody }>, reply: FastifyReply) => {
-    const { token } = request.body;
-
-    if (!token) {
-      return reply.code(400).send({ error: 'MFA token is required' });
-    }
-
-    return { verified: true };
+  }, async (_request: FastifyRequest<{ Body: MfaVerifyBody }>, reply: FastifyReply) => {
+    return reply.code(501).send({
+      error: 'MFA is not yet enabled. Contact your administrator.',
+      code: 'MFA_NOT_IMPLEMENTED',
+    });
   });
 }

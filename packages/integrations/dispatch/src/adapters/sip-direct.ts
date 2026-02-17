@@ -1,6 +1,7 @@
 import type { DispatchAdapter, DispatchPayload, DispatchResult } from '../index.js';
 import { generatePidfLo } from '../nena-i3.js';
 import type { CivicAddress, GeoCoordinates, CallerInfo } from '../nena-i3.js';
+import crypto from 'node:crypto';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -31,20 +32,20 @@ export interface SipDirectConfig {
 // SIP message helpers
 // ---------------------------------------------------------------------------
 
-/** Generate a random SIP Call-ID. */
+/** Generate a random SIP Call-ID using cryptographic randomness. */
 function generateCallId(domain: string): string {
-  const random = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  const random = crypto.randomBytes(12).toString('hex');
   return `${random}@${domain}`;
 }
 
-/** Generate a random SIP branch parameter. */
+/** Generate a random SIP branch parameter using cryptographic randomness. */
 function generateBranch(): string {
-  return 'z9hG4bK' + Math.random().toString(36).substring(2, 15);
+  return 'z9hG4bK' + crypto.randomBytes(8).toString('hex');
 }
 
-/** Generate a random SIP tag. */
+/** Generate a random SIP tag using cryptographic randomness. */
 function generateTag(): string {
-  return Math.random().toString(36).substring(2, 10);
+  return crypto.randomBytes(6).toString('hex');
 }
 
 /** Build a SIP INVITE message with PIDF-LO body for NG 911. */

@@ -6,17 +6,30 @@ import os from 'os';
 
 const ENV_FILE = process.env.EDGE_ENV_FILE || '/app/deploy/edge/.env';
 
-// Keys that should be redacted in config responses
+// Pattern-based redaction — catches all current and future secrets
+const SENSITIVE_PATTERN = /SECRET|KEY|TOKEN|PASSWORD|HASH|CREDENTIAL|AUTH/i;
+
+// Keep legacy set for backwards compat, but pattern covers everything
 const REDACTED_KEYS = new Set([
   'DB_PASSWORD',
   'JWT_SECRET',
+  'FR_JWT_SECRET',
   'CLOUD_SYNC_KEY',
   'RAPIDSOS_CLIENT_SECRET',
   'RAVE_API_KEY',
   'AC_API_KEY',
   'TWILIO_AUTH_TOKEN',
   'SENDGRID_API_KEY',
+  'CLERK_WEBHOOK_SECRET',
+  'GITHUB_TOKEN',
+  'CENTEGIX_WEBHOOK_SECRET',
+  'ZEROEYES_WEBHOOK_SECRET',
+  'BARK_API_KEY',
 ]);
+
+function isSensitiveKey(key: string): boolean {
+  return REDACTED_KEYS.has(key) || SENSITIVE_PATTERN.test(key);
+}
 
 function parseEnvFile(path: string): Array<{ key: string; value: string; redacted: boolean }> {
   if (!existsSync(path)) return [];
@@ -32,8 +45,8 @@ function parseEnvFile(path: string): Array<{ key: string; value: string; redacte
     const value = trimmed.slice(eqIdx + 1).trim();
     entries.push({
       key,
-      value: REDACTED_KEYS.has(key) ? '***redacted***' : value,
-      redacted: REDACTED_KEYS.has(key),
+      value: isSensitiveKey(key) ? '***redacted***' : value,
+      redacted: isSensitiveKey(key),
     });
   }
 
@@ -148,6 +161,19 @@ function listBackupFiles(): Array<{ filename: string; category: string; size: nu
 }
 
 export default async function adminRoutes(app: FastifyInstance) {
+  // Require SITE_ADMIN+ for ALL admin routes
+  app.addHook('onRequest', async (request, reply) => {
+    try {
+      await (request as any).jwtVerify();
+      const role = (request as any).jwtUser?.role;
+      if (role !== 'SITE_ADMIN' && role !== 'SUPER_ADMIN') {
+        return reply.code(403).send({ error: 'Forbidden: SITE_ADMIN or higher required' });
+      }
+    } catch {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
+  });
+
   // GET /api/v1/admin/status — system health overview
   app.get('/status', async () => {
     const mem = os.totalmem();

@@ -56,12 +56,30 @@ interface AppConfig {
     adapter: string;
     onvifDiscovery: boolean;
     genetecVmsUrl?: string;
+    milestoneVmsUrl?: string;
+    avigilonUrl?: string;
+    username?: string;
+    password?: string;
+    clientId?: string;
+    clientSecret?: string;
   };
   threatIntel: {
     adapter: string;
     zeroEyesApiUrl?: string;
     zeroEyesApiKey?: string;
     zeroEyesWebhookSecret?: string;
+  };
+  panicDevices: {
+    centegixWebhookSecret: string;
+    raveApiKey: string;
+  };
+  weaponsDetection: {
+    evolvApiKey: string;
+    evolvWebhookSecret: string;
+    evolvApiUrl: string;
+    ceiaWebhookSecret: string;
+    xtractOneApiKey: string;
+    xtractOneWebhookSecret: string;
   };
   socialMedia: {
     adapter: string;
@@ -137,12 +155,30 @@ export function getConfig(): AppConfig {
       adapter: process.env.CAMERA_ADAPTER || 'none',
       onvifDiscovery: process.env.ONVIF_DISCOVERY_ENABLED === 'true',
       genetecVmsUrl: process.env.GENETEC_VMS_URL,
+      milestoneVmsUrl: process.env.MILESTONE_VMS_URL,
+      avigilonUrl: process.env.AVIGILON_URL,
+      username: process.env.CAMERA_USERNAME,
+      password: process.env.CAMERA_PASSWORD,
+      clientId: process.env.CAMERA_CLIENT_ID,
+      clientSecret: process.env.CAMERA_CLIENT_SECRET,
     },
     threatIntel: {
       adapter: process.env.THREAT_INTEL_ADAPTER || 'none',
       zeroEyesApiUrl: process.env.ZEROEYES_API_URL,
       zeroEyesApiKey: process.env.ZEROEYES_API_KEY,
       zeroEyesWebhookSecret: process.env.ZEROEYES_WEBHOOK_SECRET,
+    },
+    panicDevices: {
+      centegixWebhookSecret: process.env.CENTEGIX_WEBHOOK_SECRET || '',
+      raveApiKey: process.env.RAVE_API_KEY || '',
+    },
+    weaponsDetection: {
+      evolvApiKey: process.env.EVOLV_API_KEY || '',
+      evolvWebhookSecret: process.env.EVOLV_WEBHOOK_SECRET || '',
+      evolvApiUrl: process.env.EVOLV_API_URL || 'https://api.evolvtechnology.com',
+      ceiaWebhookSecret: process.env.CEIA_WEBHOOK_SECRET || '',
+      xtractOneApiKey: process.env.XTRACT_ONE_API_KEY || '',
+      xtractOneWebhookSecret: process.env.XTRACT_ONE_WEBHOOK_SECRET || '',
     },
     socialMedia: {
       adapter: process.env.SOCIAL_MEDIA_ADAPTER || 'console',

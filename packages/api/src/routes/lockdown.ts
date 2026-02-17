@@ -25,7 +25,13 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
     if (scope === 'BUILDING') doorFilter.buildingId = targetId;
     if (scope === 'FLOOR') {
       doorFilter.buildingId = targetId;
-      // Floor-based lockdown would need floor field
+      doorFilter.floor = parseInt(targetId.split(':')[1] || '1', 10);
+    }
+    if (scope === 'ZONE') {
+      // Lock only doors assigned to this zone via DoorZoneAssignment
+      doorFilter.zoneAssignments = {
+        some: { zoneId: targetId },
+      };
     }
 
     const result = await fastify.prisma.door.updateMany({
@@ -106,6 +112,11 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'Lockdown not found' });
     }
 
+    // IDOR protection: verify user has access to this lockdown's site
+    if (!request.jwtUser.siteIds.includes(lockdown.siteId)) {
+      return reply.code(404).send({ error: 'Lockdown not found' });
+    }
+
     if (lockdown.releasedAt) {
       return reply.code(400).send({ error: 'Lockdown already released' });
     }
@@ -113,6 +124,9 @@ const lockdownRoutes: FastifyPluginAsync = async (fastify) => {
     // Unlock doors based on scope
     const doorFilter: any = { siteId: lockdown.siteId };
     if (lockdown.scope === 'BUILDING') doorFilter.buildingId = lockdown.targetId;
+    if (lockdown.scope === 'ZONE') {
+      doorFilter.zoneAssignments = { some: { zoneId: lockdown.targetId } };
+    }
 
     await fastify.prisma.door.updateMany({
       where: doorFilter,

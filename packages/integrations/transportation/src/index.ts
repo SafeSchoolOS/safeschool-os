@@ -379,3 +379,16 @@ export class StudentTransportService {
     return R * c;
   }
 }
+
+// Re-export bus fleet adapters
+export {
+  createBusFleetAdapter,
+  SUPPORTED_BUS_FLEET_VENDORS,
+  type BusFleetAdapter,
+  type BusFleetAdapterConfig,
+  type BusFleetVendor,
+  type GpsUpdate as FleetGpsUpdate,
+  type RfidScanEvent as FleetRfidScanEvent,
+  type DriverEvent as FleetDriverEvent,
+  type VehicleHealth as FleetVehicleHealth,
+} from './adapters/index.js';

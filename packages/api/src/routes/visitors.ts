@@ -25,6 +25,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
       scheduledAt?: string;
       companyName?: string;
       notes?: string;
+      allowedZoneIds?: string[];
     };
   }>('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
     const siteId = request.jwtUser.siteIds[0];
@@ -34,10 +35,46 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
     const lastName = sanitizeText(request.body.lastName);
     const purpose = sanitizeText(request.body.purpose);
     const destination = sanitizeText(request.body.destination);
-    const { hostUserId, idType, idNumberHash, photo, email, phone, visitorType, scheduledAt, companyName, notes } = request.body;
+    const { hostUserId, idType, idNumberHash, photo, email, phone, visitorType, scheduledAt, companyName, notes, allowedZoneIds } = request.body;
 
     if (!firstName || !lastName || !purpose || !destination) {
       return reply.code(400).send({ error: 'firstName, lastName, purpose, and destination are required' });
+    }
+
+    // Check ban list
+    const banMatch = await fastify.prisma.visitorBan.findFirst({
+      where: {
+        siteId,
+        isActive: true,
+        firstName: { equals: firstName, mode: 'insensitive' },
+        lastName: { equals: lastName, mode: 'insensitive' },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+
+    if (banMatch) {
+      await fastify.prisma.auditLog.create({
+        data: {
+          siteId,
+          userId: request.jwtUser.id,
+          action: 'BANNED_VISITOR_ATTEMPT',
+          entity: 'VisitorBan',
+          entityId: banMatch.id,
+          details: { firstName, lastName, reason: banMatch.reason },
+          ipAddress: request.ip,
+        },
+      });
+      fastify.wsManager.broadcastToSite(siteId, 'visitor:banned-attempt', {
+        firstName,
+        lastName,
+        reason: banMatch.reason,
+        banId: banMatch.id,
+      });
+      return reply.code(403).send({
+        error: 'Visitor is on the ban list',
+        reason: banMatch.reason,
+        banId: banMatch.id,
+      });
     }
 
     const qrToken = randomUUID();
@@ -59,6 +96,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         companyName: companyName ? sanitizeText(companyName) : null,
         notes: notes ? sanitizeText(notes) : null,
+        allowedZoneIds: allowedZoneIds || [],
         qrToken,
         status: 'PRE_REGISTERED',
       },
@@ -510,6 +548,60 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
       const visitor = await visitorService.getVisitor(request.params.id);
       if (!visitor) return reply.code(404).send({ error: 'Visitor not found' });
       return visitor;
+    },
+  );
+  // PUT /api/v1/visitors/:id/zones — Set allowed zone IDs for a visitor
+  fastify.put<{
+    Params: { id: string };
+    Body: { allowedZoneIds: string[] };
+  }>(
+    '/:id/zones',
+    { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] },
+    async (request, reply) => {
+      const visitor = await fastify.prisma.visitor.findUnique({
+        where: { id: request.params.id },
+        select: { id: true, firstName: true, lastName: true, siteId: true },
+      });
+      if (!visitor) return reply.code(404).send({ error: 'Visitor not found' });
+
+      const { allowedZoneIds } = request.body;
+      if (!Array.isArray(allowedZoneIds)) {
+        return reply.code(400).send({ error: 'allowedZoneIds must be an array' });
+      }
+
+      // Validate zone IDs exist
+      if (allowedZoneIds.length > 0) {
+        const zones = await fastify.prisma.accessZone.findMany({
+          where: { id: { in: allowedZoneIds }, siteId: visitor.siteId },
+          select: { id: true },
+        });
+        if (zones.length !== allowedZoneIds.length) {
+          return reply.code(400).send({ error: 'One or more zone IDs are invalid' });
+        }
+      }
+
+      const updated = await fastify.prisma.visitor.update({
+        where: { id: request.params.id },
+        data: { allowedZoneIds },
+      });
+
+      await fastify.prisma.auditLog.create({
+        data: {
+          siteId: visitor.siteId,
+          userId: request.jwtUser.id,
+          action: 'VISITOR_ZONES_UPDATED',
+          entity: 'Visitor',
+          entityId: visitor.id,
+          details: {
+            visitorName: `${visitor.firstName} ${visitor.lastName}`,
+            zoneCount: allowedZoneIds.length,
+            zoneIds: allowedZoneIds,
+          },
+          ipAddress: request.ip,
+        },
+      });
+
+      return { id: updated.id, allowedZoneIds: updated.allowedZoneIds };
     },
   );
 };

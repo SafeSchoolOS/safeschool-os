@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { sanitizeText } from '../utils/sanitize.js';
 
 const demoRequestRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/v1/demo-requests — Submit a demo request (no auth, rate-limited)
@@ -13,8 +14,21 @@ const demoRequestRoutes: FastifyPluginAsync = async (fastify) => {
       state?: string;
       message?: string;
     };
-  }>('/', async (request, reply) => {
-    const { name, email, school, role, phone, buildings, state, message } = request.body;
+  }>('/', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
+    const name = sanitizeText(request.body.name);
+    const email = sanitizeText(request.body.email).toLowerCase();
+    const school = sanitizeText(request.body.school);
+    const role = sanitizeText(request.body.role);
+    const phone = request.body.phone ? sanitizeText(request.body.phone) : undefined;
+    const message = request.body.message ? sanitizeText(request.body.message) : undefined;
+    const { buildings, state } = request.body;
 
     if (!name || !email || !school || !role) {
       return reply.code(400).send({ error: 'name, email, school, and role are required' });

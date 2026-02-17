@@ -91,8 +91,9 @@ export function useWebSocket(siteId: string | undefined): UseWebSocketReturn {
       const eventName: string = wsEvent.event;
 
       // Invalidate relevant React Query caches based on event type
-      if (eventName === 'alert:created' || eventName === 'alert:updated') {
+      if (eventName === 'alert:created' || eventName === 'alert:updated' || eventName.startsWith('fire-alarm:')) {
         queryClient.invalidateQueries({ queryKey: ['alerts'] });
+        queryClient.invalidateQueries({ queryKey: ['fire-alarm-events'] });
       }
 
       if (eventName.startsWith('lockdown:')) {

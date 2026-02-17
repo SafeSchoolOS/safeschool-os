@@ -408,7 +408,7 @@ const agencyRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(409).send({ error: 'A responder user with this email already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await fastify.prisma.responderUser.create({
       data: {
