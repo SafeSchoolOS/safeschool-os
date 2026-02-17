@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 const authProvider = import.meta.env.VITE_AUTH_PROVIDER || 'dev';
@@ -42,22 +43,27 @@ const DEMO_ACCOUNTS: Record<string, string> = {
 
 function DevLoginForm() {
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [autoLogging, setAutoLogging] = useState(false);
+  const attempted = useRef(false);
 
   // Auto-login via ?demo=admin (or operator, teacher, responder)
+  const demo = searchParams.get('demo');
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const demo = params.get('demo');
-    if (demo) {
+    if (demo && !attempted.current) {
+      attempted.current = true;
       const demoEmail = DEMO_ACCOUNTS[demo] || DEMO_ACCOUNTS['admin'];
       setAutoLogging(true);
-      login(demoEmail, 'safeschool123').catch(() => setAutoLogging(false));
+      login(demoEmail, 'safeschool123').catch((err: any) => {
+        setAutoLogging(false);
+        setError(err.message || 'Auto-login failed');
+      });
     }
-  }, []);
+  }, [demo, login]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
