@@ -1,0 +1,57 @@
+# SafeSchool Edge — Caddy Reverse Proxy Configuration
+#
+# Default: HTTP on local network (no TLS complexity for on-prem mini PCs).
+# To enable HTTPS with a real domain, replace :443/:8443/:3443 with your FQDN:
+#   safeschool.myschool.org {
+#       reverse_proxy dashboard:80
+#   }
+#   safeschool.myschool.org:8443 {
+#       reverse_proxy kiosk:80
+#   }
+#   safeschool.myschool.org:3443 {
+#       reverse_proxy api:3000
+#   }
+
+# ---- Shared snippet: security headers applied to every site ----
+(security_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+# ====================================================================
+# Dashboard — HTTP :443
+# ====================================================================
+:443 {
+	import security_headers
+	reverse_proxy dashboard:80
+}
+
+# ====================================================================
+# Kiosk — HTTP :8443
+# ====================================================================
+:8443 {
+	import security_headers
+	reverse_proxy kiosk:3000
+}
+
+# ====================================================================
+# API — HTTP :3443
+# ====================================================================
+:3443 {
+	import security_headers
+	reverse_proxy api:3000
+}
+
+# ====================================================================
+# HTTP :80 — Also serves Dashboard (convenience)
+# ====================================================================
+:80 {
+	import security_headers
+	reverse_proxy dashboard:80
+}

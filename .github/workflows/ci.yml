@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Lint
+        run: npx turbo run lint
+
+      - name: Type check (build packages)
+        run: npx turbo run build --filter='./packages/*'
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: safeschool_test
+          POSTGRES_USER: safeschool
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://safeschool:test@localhost:5432/safeschool_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: test-secret-for-ci
+      AUTH_PROVIDER: dev
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Push schema to test DB
+        run: npx prisma db push --skip-generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Seed test DB
+        run: npx tsx packages/db/src/seed.ts
+
+      - name: Run tests
+        run: npx turbo run test
+
+  deploy:
+    name: Deploy to Railway
+    needs: [lint-and-typecheck, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for deployable changes
+        id: changes
+        run: |
+          # Skip deploy if only edge image files or CI workflow files changed
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          DEPLOYABLE=$(echo "$CHANGED" | grep -v '^deploy/edge/' | grep -v '^\.github/workflows/build-edge-iso\.yml$' || true)
+          if [ -z "$DEPLOYABLE" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Only edge/workflow files changed — skipping Railway deploy."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Railway CLI
+        if: steps.changes.outputs.skip != 'true'
+        run: npm install -g @railway/cli
+
+      - name: Deploy API
+        if: steps.changes.outputs.skip != 'true'
+        run: railway up --detach --service api
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Dashboard
+        if: steps.changes.outputs.skip != 'true'
+        run: railway up --detach --service dashboard
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  build-edge-images:
+    name: Build Edge Docker Images
+    needs: [lint-and-typecheck, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: api
+            dockerfile: Dockerfile
+            build-args: BUILD_TARGET=api
+          - image: dashboard
+            dockerfile: deploy/docker/Dockerfile.dashboard
+            build-args: ""
+          - image: kiosk
+            dockerfile: deploy/docker/Dockerfile.kiosk
+            build-args: |
+              VITE_AUTH_PROVIDER=dev
+          - image: admin
+            dockerfile: deploy/docker/Dockerfile.admin
+            build-args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/bwattendorf/safeschool/${{ matrix.image }}:latest
+            ghcr.io/bwattendorf/safeschool/${{ matrix.image }}:${{ github.sha }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

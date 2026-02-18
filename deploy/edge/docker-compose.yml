@@ -1,0 +1,312 @@
+# SafeSchool OS — Production Edge Deployment
+# Deploy on the on-site mini PC. Configure via .env file.
+
+services:
+  # Database migration + seed init container
+  migrate:
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "=== Running migrations ==="
+        npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
+        echo "=== Seeding essential data ==="
+        node -e "
+        const { PrismaClient } = require('@prisma/client');
+        const bcrypt = require('bcryptjs');
+        const p = new PrismaClient();
+        (async () => {
+          try {
+            const orgId = '00000000-0000-4000-a000-000000008001';
+            const siteId = '00000000-0000-4000-a000-000000000001';
+            const seedPw = process.env.SEED_ADMIN_PASSWORD || 'safeschool123';
+            const passwordHash = bcrypt.hashSync(seedPw, 10);
+            await p.organization.upsert({ where: { id: orgId }, update: {}, create: { id: orgId, name: 'Newark Public Schools', slug: 'newark-public-schools', type: 'DISTRICT', address: '765 Broad St', city: 'Newark', state: 'NJ', zip: '07102' } });
+            console.log('Organization ready');
+            await p.site.upsert({ where: { id: siteId }, update: { organizationId: orgId }, create: { id: siteId, name: 'Lincoln Elementary School', district: 'Newark Public Schools', organizationId: orgId, address: '123 Lincoln Ave', city: 'Newark', state: 'NJ', zip: '07104', latitude: 40.7357, longitude: -74.1724, timezone: 'America/New_York' } });
+            console.log('Site ready');
+            const u = await p.user.upsert({ where: { email: 'admin@safeschool.example.com' }, update: { passwordHash }, create: { id: '00000000-0000-4000-a000-000000001000', email: 'admin@safeschool.example.com', name: 'Admin User', role: 'SITE_ADMIN', passwordHash, sites: { create: { siteId } } } });
+            console.log('Owner account ready:', u.email);
+          } catch(e) { console.error('Seed error:', e.message); }
+          finally { await p.\$$disconnect(); }
+        })();
+        "
+        echo "=== Seed complete ==="
+    environment:
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - safeschool
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+      - "3443:3443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+      - kiosk
+      - api
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  api:
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    command: ["node", "packages/api/dist/server.js"]
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - CLOUD_SYNC_URL=${CLOUD_SYNC_URL}
+      - CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}
+      - CLOUD_TLS_FINGERPRINT=${CLOUD_TLS_FINGERPRINT:-}
+      - SITE_ID=${SITE_ID}
+      - SITE_NAME=${SITE_NAME}
+      - OPERATING_MODE=edge
+      - AUTH_PROVIDER=${AUTH_PROVIDER:-dev}
+      - DISPATCH_ADAPTER=${DISPATCH_ADAPTER:-console}
+      - RAPIDSOS_CLIENT_ID=${RAPIDSOS_CLIENT_ID}
+      - RAPIDSOS_CLIENT_SECRET=${RAPIDSOS_CLIENT_SECRET}
+      - RAVE_API_KEY=${RAVE_API_KEY}
+      - RAVE_ORGANIZATION_ID=${RAVE_ORGANIZATION_ID}
+      - SIP_TRUNK_HOST=${SIP_TRUNK_HOST}
+      - SIP_LOCAL_DOMAIN=${SIP_LOCAL_DOMAIN}
+      - CELLULAR_DEVICE_PATH=${CELLULAR_DEVICE_PATH}
+      - ACCESS_CONTROL_ADAPTER=${ACCESS_CONTROL_ADAPTER:-mock}
+      - AC_API_URL=${AC_API_URL}
+      - AC_API_KEY=${AC_API_KEY}
+      - NOTIFICATION_ADAPTER=${NOTIFICATION_ADAPTER:-console}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
+      - VISITOR_SCREENING_ADAPTER=console
+      - TRANSPORT_TRACKING_ENABLED=${TRANSPORT_TRACKING_ENABLED:-false}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - edge_data:/app/data
+      - /etc/safeschool:/etc/safeschool
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - safeschool
+
+  worker:
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    command: ["node", "packages/api/dist/worker-entry.js"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - DISPATCH_ADAPTER=${DISPATCH_ADAPTER:-console}
+      - ACCESS_CONTROL_ADAPTER=${ACCESS_CONTROL_ADAPTER:-mock}
+      - NOTIFICATION_ADAPTER=${NOTIFICATION_ADAPTER:-console}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
+      - TRANSPORT_TRACKING_ENABLED=${TRANSPORT_TRACKING_ENABLED:-false}
+    volumes:
+      - edge_data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  dashboard:
+    image: ghcr.io/bwattendorf/safeschool/dashboard:latest
+    expose:
+      - "80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  kiosk:
+    image: ghcr.io/bwattendorf/safeschool/kiosk:latest
+    expose:
+      - "3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  admin:
+    image: ghcr.io/bwattendorf/safeschool/admin:latest
+    ports:
+      - "127.0.0.1:9091:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=safeschool
+      - POSTGRES_USER=safeschool
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safeschool"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # Database backup scheduler — runs pg_dump daily at 2 AM UTC
+  backup:
+    image: postgres:16-alpine
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "SafeSchool backup scheduler starting..."
+        while true; do
+          # Calculate seconds until next 2:00 AM UTC
+          NOW=$$(date -u +%s)
+          TODAY_TARGET=$$(date -u -d "$$(date -u +%Y-%m-%d) 02:00:00" +%s 2>/dev/null || echo 0)
+          if [ "$$TODAY_TARGET" -le "$$NOW" ]; then
+            TARGET=$$((TODAY_TARGET + 86400))
+          else
+            TARGET=$$TODAY_TARGET
+          fi
+          SLEEP_SEC=$$((TARGET - NOW))
+          echo "[backup] Next backup in $$SLEEP_SEC seconds (at 02:00 UTC)"
+          sleep $$SLEEP_SEC
+
+          echo "[backup] Starting database backup at $$(date -u '+%Y-%m-%dT%H:%M:%SZ')..."
+          TIMESTAMP=$$(date -u '+%Y%m%dT%H%M%SZ')
+          BACKUP_FILE="safeschool_$${TIMESTAMP}.sql.gz"
+          DAY_OF_WEEK=$$(date '+%u')
+
+          mkdir -p /backups/daily /backups/weekly
+          if PGPASSWORD=$${POSTGRES_PASSWORD} pg_dump \
+            -h postgres -U safeschool -d safeschool \
+            --format=custom --compress=6 --no-owner --no-acl \
+            > "/backups/daily/$${BACKUP_FILE}"; then
+            SIZE=$$(stat -c%s "/backups/daily/$${BACKUP_FILE}" 2>/dev/null || echo "?")
+            echo "[backup] Daily backup saved: $${BACKUP_FILE} ($${SIZE} bytes)"
+
+            # Weekly copy on Sundays (day 7)
+            if [ "$$DAY_OF_WEEK" = "7" ]; then
+              cp "/backups/daily/$${BACKUP_FILE}" "/backups/weekly/safeschool_weekly_$${TIMESTAMP}.sql.gz"
+              echo "[backup] Weekly backup saved."
+            fi
+
+            # Rotate: keep 7 daily, 4 weekly
+            ls -1t /backups/daily/safeschool_*.sql.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null || true
+            ls -1t /backups/weekly/safeschool_weekly_*.sql.gz 2>/dev/null | tail -n +5 | xargs rm -f 2>/dev/null || true
+
+            echo "[backup] Rotation complete."
+          else
+            echo "[backup] ERROR: pg_dump failed."
+            rm -f "/backups/daily/$${BACKUP_FILE}"
+          fi
+        done
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # Auto-update watcher — checks for new images on schedule
+  watchtower:
+    image: containrrr/watchtower
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-3600}
+      - WATCHTOWER_CLEANUP=${WATCHTOWER_CLEANUP:-true}
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_LABEL_ENABLE=false
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=${WATCHTOWER_NOTIFICATION_URL:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+volumes:
+  postgres_data:
+  redis_data:
+  edge_data:
+  caddy_data:
+  caddy_config:
+  backup_data:
+
+networks:
+  safeschool:
+    driver: bridge

@@ -1,0 +1,55 @@
+# SafeSchool Test Runner
+# Builds all packages, runs Prisma migrations, seeds, and executes vitest
+
+FROM node:20-alpine AS test-runner
+
+# Install build tools for native modules (better-sqlite3)
+RUN apk add --no-cache python3 make g++ bash
+
+WORKDIR /app
+
+# --- Layer 1: Copy only package manifests for npm install cache ---
+COPY package.json package-lock.json turbo.json tsconfig.json ./
+
+# Copy package.json from each workspace (preserves npm install cache when only source changes)
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/db/prisma/ ./packages/db/prisma/
+COPY packages/core/package.json ./packages/core/package.json
+COPY packages/api/package.json ./packages/api/package.json
+COPY packages/edge/package.json ./packages/edge/package.json
+COPY packages/integrations/dispatch/package.json ./packages/integrations/dispatch/package.json
+COPY packages/integrations/access-control/package.json ./packages/integrations/access-control/package.json
+COPY packages/integrations/notifications/package.json ./packages/integrations/notifications/package.json
+COPY packages/integrations/visitor-mgmt/package.json ./packages/integrations/visitor-mgmt/package.json
+COPY packages/integrations/transportation/package.json ./packages/integrations/transportation/package.json
+COPY packages/integrations/grants/package.json ./packages/integrations/grants/package.json
+COPY packages/integrations/cameras/package.json ./packages/integrations/cameras/package.json
+COPY packages/integrations/threat-intel/package.json ./packages/integrations/threat-intel/package.json
+COPY packages/integrations/environmental/package.json ./packages/integrations/environmental/package.json
+COPY packages/integrations/threat-assessment/package.json ./packages/integrations/threat-assessment/package.json
+COPY packages/integrations/social-media/package.json ./packages/integrations/social-media/package.json
+COPY apps/dashboard/package.json ./apps/dashboard/package.json
+COPY apps/kiosk/package.json ./apps/kiosk/package.json
+COPY apps/mobile/package.json ./apps/mobile/package.json
+COPY apps/admin/package.json ./apps/admin/package.json
+
+# Install all dependencies (cached unless package.json files change)
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+    npm install --legacy-peer-deps
+
+# --- Layer 2: Copy source and build ---
+COPY packages/ ./packages/
+COPY apps/ ./apps/
+
+# Generate Prisma client
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+    npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+# Build all packages
+RUN npx turbo run build --filter='./packages/**'
+
+# Copy the test startup script
+COPY scripts/run-tests.sh /app/run-tests.sh
+RUN chmod +x /app/run-tests.sh
+
+CMD ["/app/run-tests.sh"]

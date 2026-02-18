@@ -1,0 +1,30 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package.json turbo.json tsconfig.json ./
+COPY packages/ ./packages/
+COPY apps/ ./apps/
+
+ARG VITE_API_URL
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_AUTH_PROVIDER=dev
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
+
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm install --legacy-peer-deps
+RUN npx turbo run build --filter=@safeschool/dashboard
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+COPY --from=builder /app/apps/dashboard/dist ./dist
+COPY deploy/railway/serve-dashboard.js ./serve-dashboard.js
+
+# Verify build output
+RUN ls -la dist/ && test -f dist/index.html
+
+EXPOSE 3000
+CMD ["node", "serve-dashboard.js"]

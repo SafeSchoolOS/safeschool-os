@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# TypeScript compiled output (source is .ts/.tsx, these are artifacts)
+apps/**/*.js
+apps/**/*.js.map
+apps/**/*.d.ts
+apps/**/*.d.ts.map
+packages/**/*.js
+packages/**/*.js.map
+packages/**/*.d.ts
+packages/**/*.d.ts.map
+scripts/**/*.js
+scripts/**/*.js.map
+scripts/**/*.d.ts
+scripts/**/*.d.ts.map
+# Keep config files that are intentionally .js
+!eslint.config.mjs
+*.tsbuildinfo
+
+# Edge installer output (large binary)
+deploy/edge/image/output/
+deploy/edge/image/build/
+deploy/edge/image/docker-images/
+deploy/edge/image/deploy-edge/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Turbo
+.turbo/
+
+# Docker
+postgres_data/
+redis_data/
+
+# Temp
+*.tmp
+gh_installer.msi
+gh.zip
+gh_cli/
+
+# Claude Code
+.claude/
+
+# Secrets - NEVER commit these
+*.pem
+*.key
+credentials.json
+service-account.json
+deploy/edge/image/safeschool-edge-key

@@ -1,0 +1,126 @@
+{
+  "welcome": {
+    "title": "Welcome to",
+    "subtitle": "All visitors must sign in at the front desk",
+    "checkIn": "Visitor Check-In",
+    "checkOut": "Visitor Check-Out",
+    "scanQr": "Scan QR Code",
+    "groupCheckIn": "Group Check-In",
+    "footer": "Powered by SafeSchool"
+  },
+  "checkIn": {
+    "header": "Visitor Check-In",
+    "step1Title": "Name",
+    "step2Title": "Purpose",
+    "step3Title": "Destination",
+    "step4Title": "Host",
+    "stepVisitorType": "Visitor Type",
+    "stepPhoto": "Photo",
+    "stepPolicy": "Policy & Signature",
+    "enterName": "Please enter your name",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "firstNamePlaceholder": "Enter first name",
+    "lastNamePlaceholder": "Enter last name",
+    "visitorTypePrompt": "Select your visitor type",
+    "visitorTypes": {
+      "VISITOR": "Visitor",
+      "PARENT": "Parent / Guardian",
+      "CONTRACTOR": "Contractor",
+      "VENDOR": "Vendor",
+      "VOLUNTEER": "Volunteer",
+      "SUBSTITUTE_TEACHER": "Substitute Teacher",
+      "DELIVERY": "Delivery",
+      "EMERGENCY_CONTACT": "Emergency Contact"
+    },
+    "purposePrompt": "What is the purpose of your visit?",
+    "destinationPrompt": "Where are you heading?",
+    "hostPrompt": "Who are you visiting? (optional)",
+    "hostPlaceholder": "Staff member name",
+    "photoPrompt": "Please take a photo for your visitor badge",
+    "signaturePrompt": "Please sign below to acknowledge the visitor policy",
+    "skip": "Skip",
+    "processingTitle": "Processing Check-In",
+    "processingMessage": "Running background screening...",
+    "errorDefault": "Check-in failed. Please try again.",
+    "purposes": {
+      "parentVisit": "Parent Visit",
+      "vendor": "Vendor / Contractor",
+      "meeting": "Meeting",
+      "volunteer": "Volunteer",
+      "delivery": "Delivery",
+      "emergencyContact": "Emergency Contact",
+      "other": "Other"
+    },
+    "destinations": {
+      "mainOffice": "Main Office",
+      "room101": "Room 101",
+      "room102": "Room 102",
+      "room103": "Room 103",
+      "room104": "Room 104",
+      "cafeteria": "Cafeteria",
+      "gymnasium": "Gymnasium",
+      "library": "Library",
+      "nursesOffice": "Nurse's Office"
+    }
+  },
+  "checkOut": {
+    "header": "Visitor Check-Out",
+    "searchPrompt": "Find your name or badge number",
+    "searchPlaceholder": "Search by name or badge number...",
+    "noMatchingVisitors": "No matching visitors found",
+    "noActiveVisitors": "No active visitors",
+    "checkOutButton": "Check Out",
+    "successMessage": "{{name}} has been checked out. Goodbye!",
+    "errorLoad": "Could not load visitor list",
+    "errorDefault": "Check-out failed",
+    "badgeLabel": "Badge"
+  },
+  "confirmed": {
+    "title": "You're All Set!",
+    "welcome": "Welcome, {{name}}",
+    "badge": "Badge #{{number}}",
+    "destination": "Destination: {{dest}}",
+    "instructions": "Please proceed to the front desk.",
+    "redirect": "Returning to home in {{seconds}}s",
+    "done": "Done"
+  },
+  "denied": {
+    "title": "Entry Not Authorized",
+    "message": "Your entry cannot be processed at this time. Please visit the main office for assistance.",
+    "returnButton": "Return to Welcome Screen"
+  },
+  "screening": {
+    "title": "Verifying Identity...",
+    "message": "Please wait while we complete the screening process"
+  },
+  "qrScan": {
+    "title": "Scan Your QR Code",
+    "instruction": "Hold your QR code up to the camera",
+    "notFound": "QR code not recognized. Please try again or check in manually.",
+    "error": "Could not read QR code. Please try again."
+  },
+  "groupCheckIn": {
+    "title": "Group Check-In",
+    "searchPrompt": "Enter the group name to find your group",
+    "searchPlaceholder": "Search by group name...",
+    "noGroupFound": "No group found with that name",
+    "members": "Members",
+    "checkInAll": "Check In All",
+    "checkInSelected": "Check In Selected",
+    "processing": "Processing...",
+    "success": "Group check-in complete!",
+    "error": "Group check-in failed. Please try again."
+  },
+  "offline": {
+    "banner": "Offline Mode — Check-ins will be synced when connection is restored",
+    "syncing": "Syncing {{count}} pending check-in(s)..."
+  },
+  "common": {
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "loading": "Loading..."
+  }
+}

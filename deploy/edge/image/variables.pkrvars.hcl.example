@@ -1,0 +1,42 @@
+# ==============================================================================
+# SafeSchool Edge — Packer Variables Template
+# ==============================================================================
+#
+# Copy this file to variables.pkrvars.hcl and edit the values below.
+#
+#   cp variables.pkrvars.hcl.example variables.pkrvars.hcl
+#   vi variables.pkrvars.hcl
+#
+# Then build:
+#   packer init .
+#   packer build -var-file=variables.pkrvars.hcl packer.pkr.hcl
+#
+# ==============================================================================
+
+# --- Ubuntu ISO ---
+# Update these if a newer point release is available.
+# Find checksums at: https://releases.ubuntu.com/24.04/SHA256SUMS
+
+ubuntu_iso_url      = "https://releases.ubuntu.com/24.04/ubuntu-24.04.1-live-server-amd64.iso"
+ubuntu_iso_checksum = "sha256:e240e4b801f7bb68c20d1356b60f4cbcc27b3be0bc2f7b1b4144e2c27c0460d0"
+
+# --- VM Resources ---
+# Adjust based on your host machine capacity and the target deployment size.
+
+disk_size = "128G"
+memory    = 8192
+cpus      = 4
+
+# --- SafeSchool Site Configuration ---
+# Leave site_id empty to auto-generate a UUID during first-boot setup.
+# Leave cloud_sync_url empty to run in standalone mode (no cloud sync).
+
+site_id        = ""
+site_name      = "My School"
+cloud_sync_url = ""
+cloud_sync_key = ""
+
+# --- Build Settings ---
+
+headless         = true
+output_directory = "output-safeschool-edge"

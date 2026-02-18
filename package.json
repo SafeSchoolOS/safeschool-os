@@ -1,0 +1,36 @@
+{
+  "name": "safeschool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SafeSchool OS — Comprehensive school safety platform - Alyssa's Law compliant",
+  "author": "SafeSchool OS <info@safeschoolos.com> (https://safeschoolos.com)",
+  "license": "AGPL-3.0-only",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/integrations/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "db:migrate": "turbo run db:migrate --filter=@safeschool/db",
+    "db:seed": "turbo run db:seed --filter=@safeschool/db"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.2.1",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.55.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.9.0"
+}

@@ -1,0 +1,126 @@
+{
+  "welcome": {
+    "title": "Bienvenido a",
+    "subtitle": "Todos los visitantes deben registrarse en la recepcion",
+    "checkIn": "Registro de Visitante",
+    "checkOut": "Salida de Visitante",
+    "scanQr": "Escanear Codigo QR",
+    "groupCheckIn": "Registro Grupal",
+    "footer": "Desarrollado por SafeSchool"
+  },
+  "checkIn": {
+    "header": "Registro de Visitante",
+    "step1Title": "Nombre",
+    "step2Title": "Motivo",
+    "step3Title": "Destino",
+    "step4Title": "Anfitrion",
+    "stepVisitorType": "Tipo de Visitante",
+    "stepPhoto": "Foto",
+    "stepPolicy": "Politica y Firma",
+    "enterName": "Por favor ingrese su nombre",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "firstNamePlaceholder": "Ingrese su nombre",
+    "lastNamePlaceholder": "Ingrese su apellido",
+    "visitorTypePrompt": "Seleccione su tipo de visitante",
+    "visitorTypes": {
+      "VISITOR": "Visitante",
+      "PARENT": "Padre / Tutor",
+      "CONTRACTOR": "Contratista",
+      "VENDOR": "Proveedor",
+      "VOLUNTEER": "Voluntario",
+      "SUBSTITUTE_TEACHER": "Maestro Sustituto",
+      "DELIVERY": "Entrega",
+      "EMERGENCY_CONTACT": "Contacto de Emergencia"
+    },
+    "purposePrompt": "Cual es el motivo de su visita?",
+    "destinationPrompt": "A donde se dirige?",
+    "hostPrompt": "A quien visita? (opcional)",
+    "hostPlaceholder": "Nombre del empleado",
+    "photoPrompt": "Por favor tome una foto para su credencial de visitante",
+    "signaturePrompt": "Por favor firme abajo para aceptar la politica de visitantes",
+    "skip": "Omitir",
+    "processingTitle": "Procesando Registro",
+    "processingMessage": "Realizando verificacion de antecedentes...",
+    "errorDefault": "El registro fallo. Por favor intente de nuevo.",
+    "purposes": {
+      "parentVisit": "Visita de Padre/Madre",
+      "vendor": "Proveedor / Contratista",
+      "meeting": "Reunion",
+      "volunteer": "Voluntario",
+      "delivery": "Entrega",
+      "emergencyContact": "Contacto de Emergencia",
+      "other": "Otro"
+    },
+    "destinations": {
+      "mainOffice": "Oficina Principal",
+      "room101": "Salon 101",
+      "room102": "Salon 102",
+      "room103": "Salon 103",
+      "room104": "Salon 104",
+      "cafeteria": "Cafeteria",
+      "gymnasium": "Gimnasio",
+      "library": "Biblioteca",
+      "nursesOffice": "Enfermeria"
+    }
+  },
+  "checkOut": {
+    "header": "Salida de Visitante",
+    "searchPrompt": "Busque su nombre o numero de credencial",
+    "searchPlaceholder": "Buscar por nombre o numero de credencial...",
+    "noMatchingVisitors": "No se encontraron visitantes",
+    "noActiveVisitors": "No hay visitantes activos",
+    "checkOutButton": "Registrar Salida",
+    "successMessage": "{{name}} ha sido registrado/a. Hasta luego!",
+    "errorLoad": "No se pudo cargar la lista de visitantes",
+    "errorDefault": "La salida fallo",
+    "badgeLabel": "Credencial"
+  },
+  "confirmed": {
+    "title": "Todo Listo!",
+    "welcome": "Bienvenido/a, {{name}}",
+    "badge": "Credencial #{{number}}",
+    "destination": "Destino: {{dest}}",
+    "instructions": "Por favor dirijase a la recepcion.",
+    "redirect": "Regresando al inicio en {{seconds}}s",
+    "done": "Listo"
+  },
+  "denied": {
+    "title": "Entrada No Autorizada",
+    "message": "Su entrada no puede ser procesada en este momento. Por favor dirijase a la oficina principal para asistencia.",
+    "returnButton": "Volver a la Pantalla de Inicio"
+  },
+  "screening": {
+    "title": "Verificando Identidad...",
+    "message": "Por favor espere mientras completamos el proceso de verificacion"
+  },
+  "qrScan": {
+    "title": "Escanee su Codigo QR",
+    "instruction": "Sostenga su codigo QR frente a la camara",
+    "notFound": "Codigo QR no reconocido. Intente de nuevo o registrese manualmente.",
+    "error": "No se pudo leer el codigo QR. Intente de nuevo."
+  },
+  "groupCheckIn": {
+    "title": "Registro Grupal",
+    "searchPrompt": "Ingrese el nombre del grupo para buscarlo",
+    "searchPlaceholder": "Buscar por nombre de grupo...",
+    "noGroupFound": "No se encontro grupo con ese nombre",
+    "members": "Miembros",
+    "checkInAll": "Registrar Todos",
+    "checkInSelected": "Registrar Seleccionados",
+    "processing": "Procesando...",
+    "success": "Registro grupal completado!",
+    "error": "El registro grupal fallo. Intente de nuevo."
+  },
+  "offline": {
+    "banner": "Modo Sin Conexion — Los registros se sincronizaran cuando se restablezca la conexion",
+    "syncing": "Sincronizando {{count}} registro(s) pendiente(s)..."
+  },
+  "common": {
+    "back": "Volver",
+    "next": "Siguiente",
+    "submit": "Enviar",
+    "cancel": "Cancelar",
+    "loading": "Cargando..."
+  }
+}

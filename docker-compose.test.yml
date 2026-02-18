@@ -1,0 +1,54 @@
+# SafeSchool OS — Test Runner
+# Usage: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+services:
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - DATABASE_URL=postgresql://safeschool:safeschool@test-postgres:5432/safeschool_test
+      - REDIS_URL=redis://test-redis:6379
+      - JWT_SECRET=test-secret-for-vitest
+      - AUTH_PROVIDER=dev
+      - OPERATING_MODE=edge
+      - NODE_ENV=test
+    depends_on:
+      test-postgres:
+        condition: service_healthy
+      test-redis:
+        condition: service_healthy
+    networks:
+      - safeschool-test
+
+  test-postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=safeschool_test
+      - POSTGRES_USER=safeschool
+      - POSTGRES_PASSWORD=safeschool
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safeschool -d safeschool_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - safeschool-test
+
+  test-redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    tmpfs:
+      - /data
+    networks:
+      - safeschool-test
+
+networks:
+  safeschool-test:
+    driver: bridge

@@ -1,0 +1,116 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  timezone: UTC
+
+  identity:
+    hostname: safeschoolos
+    username: safeschool
+    password: '$6$h.z5izS8L5S6ey.L$ALU4MoWu.dBHgY3WM0Lz07qIfp/9.LwhzcrDxBCzFc06MlVCq8q4QwPXfhR.HT/mlrqSCDWzTLQpP9TSbqaxP1'
+
+  ssh:
+    install-server: true
+    allow-pw: true
+    authorized-keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOkkRNjHpikLaDTxYfBbH4skE3axZGEzr6VAoH4Z+mAS safeschool-edge
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIMhqUXyK/P+vjoUN+7B02uHh6eKVDMFSqu5JoP2kW3L bwatt@safeschool
+
+  storage:
+    layout:
+      name: lvm
+
+  packages:
+    - docker.io
+    - docker-compose-v2
+    - curl
+    - wget
+    - git
+    - jq
+    - net-tools
+    - openssh-server
+    - ca-certificates
+    - ufw
+    - fail2ban
+    - unattended-upgrades
+    - htop
+    - logrotate
+    - python3
+    - sqlite3
+
+  late-commands:
+    # -----------------------------------------------------------------------
+    # Single resilient script block. Uses chroot instead of curtin in-target
+    # for portability. Every command has || true so one failure can't abort
+    # the rest. Logs everything to /var/log/safeschool-late-commands.log on
+    # the installed system for post-mortem debugging.
+    # -----------------------------------------------------------------------
+    - |
+      exec > /target/var/log/safeschool-late-commands.log 2>&1
+      set -x
+      echo "=== SafeSchool late-commands starting at $(date) ==="
+
+      # --- Enable docker (user setup deferred to first-boot.sh) ---
+      chroot /target systemctl enable docker || true
+
+      # --- Create admin user (uid 1001 so safeschool keeps 1000) ---
+      chroot /target useradd -m -s /bin/bash -u 1001 -G sudo,docker \
+        -p '$6$adminadmin123$A2sGPmK6T3itV2j6v.pCE.F1zNHuJ3GJ7FJCbKvFKrn5ss5UGPQuOFfSTUJWwKJCOSWdQVxjbkSVEIdPnXbN4.' \
+        admin || true
+
+      # --- NOPASSWD sudo ---
+      echo 'safeschool ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/safeschool
+      chmod 0440 /target/etc/sudoers.d/safeschool
+      echo 'admin ALL=(ALL) NOPASSWD: ALL' > /target/etc/sudoers.d/admin
+      chmod 0440 /target/etc/sudoers.d/admin
+
+      # --- Create directories (no brace expansion — /bin/sh) ---
+      mkdir -p /target/opt/safeschool/backups/daily
+      mkdir -p /target/opt/safeschool/backups/weekly
+      mkdir -p /target/opt/safeschool/deploy/edge
+      mkdir -p /target/opt/safeschool/docker-images
+      mkdir -p /target/etc/safeschool
+      mkdir -p /target/var/log/safeschool
+
+      # --- Copy scripts from installer media ---
+      for f in first-boot.sh safeschool-motd.sh network-admin.py admin-menu.sh; do
+        [ -f /cdrom/autoinstall/$f ] && cp /cdrom/autoinstall/$f /target/opt/safeschool/$f && chmod +x /target/opt/safeschool/$f || true
+      done
+
+      # --- Copy embedded Docker images ---
+      if [ -d /cdrom/autoinstall/docker-images ]; then
+        cp -r /cdrom/autoinstall/docker-images/* /target/opt/safeschool/docker-images/
+        echo "Copied Docker images: $(ls /cdrom/autoinstall/docker-images/)"
+      else
+        echo "WARNING: No embedded Docker images found at /cdrom/autoinstall/docker-images"
+      fi
+
+      # --- Copy deploy/edge files (use /. to include dotfiles like .env.example) ---
+      if [ -d /cdrom/autoinstall/deploy-edge ]; then
+        cp -a /cdrom/autoinstall/deploy-edge/. /target/opt/safeschool/deploy/edge/
+        echo "Copied deploy files: $(ls -a /cdrom/autoinstall/deploy-edge/)"
+      else
+        echo "WARNING: No deploy-edge files found at /cdrom/autoinstall/deploy-edge"
+      fi
+
+      # --- Install first-boot systemd service ---
+      if [ -f /cdrom/autoinstall/safeschool-first-boot.service ]; then
+        cp /cdrom/autoinstall/safeschool-first-boot.service /target/etc/systemd/system/
+        chroot /target systemctl enable safeschool-first-boot.service || true
+      else
+        echo "WARNING: safeschool-first-boot.service not found on installer media"
+      fi
+
+      # --- Install MOTD ---
+      if [ -f /cdrom/autoinstall/99-safeschool-motd ]; then
+        cp /cdrom/autoinstall/99-safeschool-motd /target/etc/update-motd.d/99-safeschool
+        chmod +x /target/etc/update-motd.d/99-safeschool
+      fi
+      chmod -x /target/etc/update-motd.d/10-help-text 2>/dev/null || true
+      chmod -x /target/etc/update-motd.d/50-motd-news 2>/dev/null || true
+
+      # --- Ownership deferred to first-boot.sh (user created by cloud-init on first boot) ---
+
+      echo "=== SafeSchool late-commands finished at $(date) ==="

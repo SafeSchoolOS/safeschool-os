@@ -1,0 +1,570 @@
+/**
+ * Grant & Funding Management Module
+ *
+ * Helps schools and districts find, apply for, and track grants
+ * to fund their SafeSchool deployment. Includes a searchable database
+ * of federal, state, and private funding sources with eligibility
+ * matching and application tracking.
+ */
+
+import type { Grant, GrantApplication, GrantSource, GrantStatus } from '@safeschool/core';
+
+/**
+ * Built-in grant database with known school safety funding programs.
+ * This serves as the seed data - schools can add custom grants too.
+ */
+export const KNOWN_GRANTS: Omit<Grant, 'id' | 'status'>[] = [
+  // ============ FEDERAL GRANTS ============
+  {
+    name: 'STOP School Violence Prevention Program (SVPP)',
+    source: 'FEDERAL' as GrantSource,
+    agency: 'DOJ / Bureau of Justice Assistance (BJA)',
+    programName: 'STOP School Violence Prevention Program',
+    description:
+      'Provides funding for evidence-based school safety programs including physical security improvements, threat assessment, and crisis intervention.',
+    fundingAmount: { min: 50000, max: 500000, typical: 250000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'],
+      requirements: [
+        'Must be a state, unit of local government, or Indian tribe',
+        'Partnership with school district required',
+        'Must implement evidence-based programs',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm / silent alert systems',
+      'Access control and lockdown systems',
+      'Security cameras and video surveillance',
+      'Training for school personnel',
+      'Threat assessment teams',
+      'Anonymous reporting systems',
+      'Crisis intervention programs',
+      'Coordination with law enforcement',
+    ],
+    url: 'https://bja.ojp.gov/program/stop-school-violence-prevention-program',
+  },
+  {
+    name: 'COPS School Violence Prevention Program (SVPP)',
+    source: 'FEDERAL' as GrantSource,
+    agency: 'DOJ / Community Oriented Policing Services (COPS)',
+    programName: 'COPS SVPP',
+    description:
+      'Funds improvements to school security including entry controls, panic buttons, and coordination with law enforcement.',
+    fundingAmount: { min: 500000, max: 2000000, typical: 1000000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'],
+      requirements: [
+        'Must be a state, local, or tribal law enforcement agency',
+        'Must partner with school district',
+        'Must be used for K-12 schools',
+      ],
+      matchRequired: true,
+      matchPercentage: 25,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Metal detectors and weapons screening',
+      'Panic alarm systems (Alyssa\'s Law compliance)',
+      'Access control systems and door locks',
+      'Security cameras',
+      'Communication systems',
+      'School resource officer equipment',
+      'Visitor management systems',
+      'Training and exercises',
+    ],
+    url: 'https://cops.usdoj.gov/svpp',
+  },
+  {
+    name: 'Bipartisan Safer Communities Act (BSCA) Funding',
+    source: 'FEDERAL' as GrantSource,
+    agency: 'DOJ / Various agencies',
+    programName: 'Bipartisan Safer Communities Act',
+    description:
+      'Historic bipartisan legislation providing ~$1 billion for school safety and mental health programs. Funding distributed through multiple existing grant programs.',
+    fundingAmount: { min: 50000, max: 1000000, typical: 300000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER', 'PRIVATE'],
+      requirements: [
+        'Varies by specific sub-program',
+        'Must address school safety or mental health',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'School safety infrastructure',
+      'Mental health services',
+      'Violence intervention programs',
+      'Threat assessment and prevention',
+      'School-based mental health professionals',
+    ],
+  },
+  {
+    name: 'E-Rate Program (Network Infrastructure)',
+    source: 'FEDERAL' as GrantSource,
+    agency: 'FCC / Universal Service Administrative Company (USAC)',
+    programName: 'E-Rate',
+    description:
+      'Provides discounts of 20-90% on telecommunications and internet access for schools. Can fund the network infrastructure underlying safety systems.',
+    fundingAmount: { min: 5000, max: 500000, typical: 50000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER', 'PRIVATE'],
+      requirements: [
+        'Must have approved technology plan',
+        'Discount based on poverty level and rural/urban status',
+        'Must follow competitive bidding process',
+      ],
+      matchRequired: true,
+      matchPercentage: 10, // Minimum 10% co-pay
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Network switches and routers',
+      'Wireless access points (for safety system connectivity)',
+      'Cabling and fiber',
+      'Firewall and network security',
+      'Internet access',
+      'Managed Wi-Fi services',
+    ],
+    url: 'https://www.usac.org/e-rate/',
+  },
+  {
+    name: 'FEMA Preparedness Grants',
+    source: 'FEDERAL' as GrantSource,
+    agency: 'DHS / FEMA',
+    programName: 'Homeland Security Grant Program / UASI',
+    description:
+      'DHS preparedness grants that can cover school security improvements in high-risk urban areas.',
+    fundingAmount: { min: 100000, max: 5000000, typical: 500000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'],
+      requirements: [
+        'Applied through state/local emergency management agency',
+        'Must align with FEMA preparedness goals',
+        'Urban Areas Security Initiative (UASI) for high-risk metro areas',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Emergency communications equipment',
+      'Interoperable communications',
+      'Physical security enhancements',
+      'Training and exercises',
+      'Planning and preparedness',
+    ],
+  },
+
+  // ============ STATE GRANTS (Alyssa's Law States) ============
+  {
+    name: 'NJ School Security Aid (Alyssa\'s Law)',
+    source: 'STATE' as GrantSource,
+    agency: 'New Jersey Department of Education',
+    programName: 'School Security Aid',
+    description:
+      'New Jersey was the first state to enact Alyssa\'s Law (2019), requiring all public schools to install panic alarm systems linked directly to law enforcement. State funding offsets costs for compliant systems.',
+    fundingAmount: { min: 10000, max: 150000, typical: 50000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['NJ'],
+      requirements: [
+        'Must be a NJ public elementary or secondary school',
+        'System must connect directly to local law enforcement',
+        'Must comply with NJ Alyssa\'s Law (P.L. 2019, c.50)',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm / silent alert systems',
+      'Direct law enforcement notification systems',
+      'Installation and training costs',
+      'Access control systems',
+    ],
+  },
+  {
+    name: 'Florida Safe Schools Allocation',
+    source: 'STATE' as GrantSource,
+    agency: 'Florida Department of Education',
+    programName: 'Safe Schools Allocation',
+    description:
+      'Florida allocates over $180M annually for school safety through the FEFP Safe Schools Allocation. Covers panic buttons (Alyssa\'s Law, SB 7030), threat assessments, school safety officers, and security technology.',
+    fundingAmount: { min: 25000, max: 500000, typical: 150000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['FL'],
+      requirements: [
+        'Must be a Florida public school district or charter school',
+        'Must comply with Marjory Stoneman Douglas Act requirements',
+        'Must have a district school safety specialist',
+        'Threat assessment teams required at each school',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm systems (Alyssa\'s Law compliance)',
+      'Mobile panic buttons',
+      'School safety officers',
+      'Threat assessment programs',
+      'Mental health services',
+      'Security cameras and monitoring',
+      'Physical security improvements',
+      'Safe-school officer training',
+    ],
+  },
+  {
+    name: 'New York School Safety Improvement Grant',
+    source: 'STATE' as GrantSource,
+    agency: 'New York Division of Criminal Justice Services',
+    programName: 'School Safety Improvement Program',
+    description:
+      'New York\'s Alyssa\'s Law (2023) requires all public schools to have silent panic alarm systems. DCJS provides grants for implementation of compliant systems and security infrastructure.',
+    fundingAmount: { min: 15000, max: 250000, typical: 75000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['NY'],
+      requirements: [
+        'Must be a NY public or charter school',
+        'Must implement system connecting to 911/local LE dispatch',
+        'Must comply with NY Education Law Section 2801-d',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic alarm systems',
+      'Emergency communication systems',
+      'Direct 911 dispatch integration',
+      'Staff training on panic systems',
+      'Access control and lockdown systems',
+    ],
+  },
+  {
+    name: 'Texas School Safety Grant (TxSSC)',
+    source: 'STATE' as GrantSource,
+    agency: 'Texas School Safety Center / TEA',
+    programName: 'School Safety and Security Fund',
+    description:
+      'Texas provides school safety funding through the Texas School Safety Center. SB 11 and subsequent legislation require silent panic alert technology, threat assessment, and hardened entries.',
+    fundingAmount: { min: 25000, max: 500000, typical: 100000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['TX'],
+      requirements: [
+        'Must be a Texas ISD or open-enrollment charter school',
+        'Must have multi-hazard emergency operations plan',
+        'Must conduct threat assessments',
+        'Must comply with TEC Chapter 37',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic alert technology',
+      'Visitor management systems',
+      'Access control and secured entries',
+      'Security cameras',
+      'Emergency communications',
+      'Threat assessment training',
+      'Mental health programs',
+    ],
+  },
+  {
+    name: 'Oklahoma School Security Grant Program',
+    source: 'STATE' as GrantSource,
+    agency: 'Oklahoma Office of Management and Enterprise Services',
+    programName: 'School Security Grant',
+    description:
+      'Oklahoma\'s Alyssa\'s Law (HB 3350, 2022) funds silent panic alert systems for public schools. Grants cover panic devices, dispatch integration, and security improvements.',
+    fundingAmount: { min: 10000, max: 100000, typical: 40000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['OK'],
+      requirements: [
+        'Must be an Oklahoma public school district',
+        'Must implement system that alerts local 911/dispatch',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm / silent alert systems',
+      'Emergency notification systems',
+      'Direct dispatch integration',
+      'Installation and staff training',
+    ],
+  },
+  {
+    name: 'Tennessee School Safety Grant',
+    source: 'STATE' as GrantSource,
+    agency: 'Tennessee Department of Education',
+    programName: 'School Safety Grant Program',
+    description:
+      'Tennessee enacted panic button legislation requiring schools to implement silent alert systems. State grants support panic devices, access control, and communication systems.',
+    fundingAmount: { min: 15000, max: 200000, typical: 60000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['TN'],
+      requirements: [
+        'Must be a Tennessee LEA or public charter school',
+        'Must have school safety plan on file',
+        'Must comply with TN Code 49-6-8xx',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic button systems',
+      'Emergency alert systems',
+      'Interoperable communications',
+      'Access control upgrades',
+      'Security cameras',
+    ],
+  },
+  {
+    name: 'Virginia School Safety Grant (DCJS)',
+    source: 'STATE' as GrantSource,
+    agency: 'Virginia Department of Criminal Justice Services',
+    programName: 'School Security Equipment Grant',
+    description:
+      'Virginia provides grants for school security equipment including panic alarm systems, access control, and surveillance. Virginia\'s panic alert legislation aligns with Alyssa\'s Law framework.',
+    fundingAmount: { min: 10000, max: 250000, typical: 75000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER', 'PRIVATE'] as any[],
+      states: ['VA'],
+      requirements: [
+        'Must be a Virginia school division or eligible private school',
+        'Must have current school crisis and emergency management plan',
+        'Equipment must be used solely for school safety',
+      ],
+      matchRequired: true,
+      matchPercentage: 25,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm systems',
+      'Access control systems',
+      'Security cameras and video surveillance',
+      'Communication systems',
+      'Mass notification systems',
+      'Visitor management systems',
+    ],
+  },
+  {
+    name: 'Arizona School Safety Program',
+    source: 'STATE' as GrantSource,
+    agency: 'Arizona Department of Education',
+    programName: 'School Safety Program',
+    description:
+      'Arizona allocates funding for school safety improvements including panic button systems, threat assessment, and physical security. Complies with Arizona\'s school safety legislation.',
+    fundingAmount: { min: 10000, max: 150000, typical: 50000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['AZ'],
+      requirements: [
+        'Must be an Arizona public school or charter',
+        'Must have board-approved school safety plan',
+        'Must participate in ADE safety reporting',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Silent panic button systems',
+      'Emergency communication technology',
+      'Physical security upgrades',
+      'Threat assessment training',
+      'School resource officer equipment',
+    ],
+  },
+  {
+    name: 'North Carolina School Safety Grants (CSSOG)',
+    source: 'STATE' as GrantSource,
+    agency: 'North Carolina Department of Public Instruction',
+    programName: 'Center for Safer Schools Grants',
+    description:
+      'North Carolina\'s Center for Safer Schools provides grants for security infrastructure, panic systems, threat assessment, and crisis response. Aligned with NC school safety legislation.',
+    fundingAmount: { min: 15000, max: 200000, typical: 65000 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER'] as any[],
+      states: ['NC'],
+      requirements: [
+        'Must be a NC public school unit or charter school',
+        'Must comply with NC Safe School Plans statute',
+        'Must participate in School Risk Management Plan',
+      ],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Panic alarm systems',
+      'Crisis alert technology',
+      'Access control and entry security',
+      'Security cameras',
+      'Anonymous tip systems',
+      'Emergency communications',
+    ],
+  },
+
+  // ============ PRIVATE / FOUNDATION GRANTS ============
+  {
+    name: 'Sandy Hook Promise Foundation Grants',
+    source: 'PRIVATE_FOUNDATION' as GrantSource,
+    agency: 'Sandy Hook Promise',
+    programName: 'Know the Signs Programs',
+    description:
+      'Provides free programs and training to schools including Say Something Anonymous Reporting System, Start With Hello, and Signs of Suicide prevention.',
+    fundingAmount: { min: 0, max: 0, typical: 0 },
+    eligibility: {
+      schoolTypes: ['PUBLIC', 'CHARTER', 'PRIVATE', 'PAROCHIAL'],
+      requirements: ['Must commit to implementing prevention programs'],
+      matchRequired: false,
+    },
+    timeline: {},
+    allowedExpenses: [
+      'Anonymous reporting system (Say Something)',
+      'Violence prevention training',
+      'Social-emotional learning programs',
+    ],
+    url: 'https://www.sandyhookpromise.org',
+  },
+];
+
+/**
+ * Module-to-expense mapping for grant budget planning.
+ * Maps SafeSchool modules to common grant-fundable expense categories.
+ */
+export const MODULE_FUNDING_MAP: Record<string, string[]> = {
+  'panic-alerts': [
+    'Panic alarm / silent alert systems',
+    'Panic alarm systems (Alyssa\'s Law compliance)',
+    'Emergency communications equipment',
+    'Wearable panic devices',
+  ],
+  'access-control': [
+    'Access control and lockdown systems',
+    'Access control systems and door locks',
+    'Physical security enhancements',
+    'Door hardware and electronic locks',
+  ],
+  'visitor-management': [
+    'Visitor management systems',
+    'ID scanning and screening equipment',
+    'Badge printing systems',
+  ],
+  '911-dispatch': [
+    'Emergency communications equipment',
+    'Interoperable communications',
+    'E911 integration',
+    'Cellular failover equipment',
+  ],
+  'cameras': [
+    'Security cameras and video surveillance',
+    'Security cameras',
+    'AI video analytics',
+  ],
+  'mass-notification': [
+    'Communication systems',
+    'Mass notification systems',
+    'PA and intercom systems',
+  ],
+  'threat-intel': [
+    'Threat assessment teams',
+    'Anonymous reporting systems',
+    'AI weapon detection',
+    'Behavioral threat assessment tools',
+  ],
+  'transportation': [
+    'Student tracking systems',
+    'Bus RFID readers',
+    'GPS tracking equipment',
+    'Parent notification systems',
+  ],
+  'network-infrastructure': [
+    'Network switches and routers',
+    'Wireless access points (for safety system connectivity)',
+    'Cabling and fiber',
+    'Firewall and network security',
+    'Cellular failover equipment',
+  ],
+  'training': [
+    'Training for school personnel',
+    'Training and exercises',
+    'Drill management systems',
+  ],
+  'mini-pc-edge': [
+    'Physical security enhancements',
+    'Emergency communications equipment',
+    'Server and edge computing hardware',
+    'UPS and backup power',
+  ],
+};
+
+export class GrantService {
+  /**
+   * Search grants matching school/district criteria.
+   */
+  searchGrants(filters: {
+    schoolType?: 'PUBLIC' | 'CHARTER' | 'PRIVATE' | 'PAROCHIAL';
+    state?: string;
+    source?: GrantSource;
+    modules?: string[]; // SafeSchool modules they want to fund
+  }): Omit<Grant, 'id' | 'status'>[] {
+    return KNOWN_GRANTS.filter((grant) => {
+      if (filters.schoolType && !grant.eligibility.schoolTypes.includes(filters.schoolType)) {
+        return false;
+      }
+      if (filters.state && grant.eligibility.states && !grant.eligibility.states.includes(filters.state)) {
+        return false;
+      }
+      if (filters.source && grant.source !== filters.source) {
+        return false;
+      }
+      if (filters.modules && filters.modules.length > 0) {
+        // Check if any of the school's desired modules match grant-fundable expenses
+        const fundableExpenses = filters.modules.flatMap((m) => MODULE_FUNDING_MAP[m] || []);
+        const hasOverlap = grant.allowedExpenses.some((expense) =>
+          fundableExpenses.some((f) => expense.toLowerCase().includes(f.toLowerCase()) || f.toLowerCase().includes(expense.toLowerCase())),
+        );
+        if (!hasOverlap) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Calculate potential funding for a SafeSchool deployment.
+   */
+  estimateFunding(modules: string[]): {
+    totalPotential: { min: number; max: number };
+    grantCount: number;
+    grants: { name: string; amount: { min?: number; max?: number } }[];
+  } {
+    const matchingGrants = this.searchGrants({ modules });
+    const totalMin = matchingGrants.reduce((sum, g) => sum + (g.fundingAmount.min || 0), 0);
+    const totalMax = matchingGrants.reduce((sum, g) => sum + (g.fundingAmount.max || 0), 0);
+
+    return {
+      totalPotential: { min: totalMin, max: totalMax },
+      grantCount: matchingGrants.length,
+      grants: matchingGrants.map((g) => ({
+        name: g.name,
+        amount: g.fundingAmount,
+      })),
+    };
+  }
+
+  /**
+   * Generate a budget template mapping SafeSchool modules to grant line items.
+   */
+  generateBudgetTemplate(modules: string[]): { category: string; items: string[]; estimatedCost: string }[] {
+    return modules.map((module) => ({
+      category: module,
+      items: MODULE_FUNDING_MAP[module] || ['General safety equipment'],
+      estimatedCost: 'TBD', // Schools fill in actual costs
+    }));
+  }
+}

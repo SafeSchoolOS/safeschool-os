@@ -1,0 +1,393 @@
+# ==============================================================================
+# SafeSchool Edge — Vagrantfile for Local Development & Testing
+# ==============================================================================
+#
+# Spins up a local VM that mirrors the production edge deployment.
+# Use this to test the edge stack, develop integrations, or validate
+# the provisioning process before flashing to physical hardware.
+#
+# Prerequisites:
+#   - Vagrant >= 2.3 (https://www.vagrantup.com/)
+#   - VirtualBox >= 7.0 (https://www.virtualbox.org/)
+#     OR libvirt + vagrant-libvirt plugin
+#
+# Usage:
+#   cd deploy/edge/image
+#   vagrant up                  # Create and provision the VM
+#   vagrant ssh                 # SSH into the VM
+#   vagrant halt                # Stop the VM (preserves data)
+#   vagrant destroy             # Delete the VM entirely
+#   vagrant provision           # Re-run provisioning scripts
+#
+# Port Mappings (access from host browser):
+#   http://localhost:8080       -> HTTP redirect (port 80)
+#   https://localhost:8443      -> Dashboard (port 443)
+#   https://localhost:3443      -> API / WebSocket (port 3443)
+#   http://localhost:9090       -> Admin panel (port 9090)
+#
+# ==============================================================================
+
+# Minimum Vagrant version required for the features used in this file.
+Vagrant.require_version ">= 2.3.0"
+
+Vagrant.configure("2") do |config|
+
+  # --------------------------------------------------------------------------
+  # Box Selection
+  # --------------------------------------------------------------------------
+  # Use Ubuntu 24.04 LTS (Noble Numbat) to match the production image.
+  # Falls back to 22.04 (Jammy Jellyfish) if 24.04 is not available.
+  config.vm.box = "bento/ubuntu-24.04"
+
+  # Hostname visible inside the VM and in `vagrant status` output.
+  config.vm.hostname = "safeschool-edge"
+
+  # --------------------------------------------------------------------------
+  # Network: Port Forwarding
+  # --------------------------------------------------------------------------
+  # Map host ports to guest ports so the SafeSchool services are accessible
+  # from the host machine's browser. Using different host ports avoids
+  # conflicts with services already running on the host.
+
+  # HTTP (Caddy redirect to HTTPS)
+  config.vm.network "forwarded_port", guest: 80, host: 8080,
+    auto_correct: true, host_ip: "127.0.0.1"
+
+  # HTTPS - Dashboard (Caddy TLS termination)
+  config.vm.network "forwarded_port", guest: 443, host: 8443,
+    auto_correct: true, host_ip: "127.0.0.1"
+
+  # HTTPS - API / WebSocket
+  config.vm.network "forwarded_port", guest: 3443, host: 3443,
+    auto_correct: true, host_ip: "127.0.0.1"
+
+  # HTTPS - Kiosk
+  config.vm.network "forwarded_port", guest: 8443, host: 18443,
+    auto_correct: true, host_ip: "127.0.0.1"
+
+  # Admin panel (HTTP, not exposed on production firewall outside localhost)
+  config.vm.network "forwarded_port", guest: 9090, host: 9090,
+    auto_correct: true, host_ip: "127.0.0.1"
+
+  # --------------------------------------------------------------------------
+  # Network: Private Network
+  # --------------------------------------------------------------------------
+  # A private network interface allows direct access from the host without
+  # port forwarding. Useful for testing with tools that need a real IP.
+  config.vm.network "private_network", type: "dhcp"
+
+  # --------------------------------------------------------------------------
+  # Synced Folder
+  # --------------------------------------------------------------------------
+  # Mount the repository root into the VM for development. Changes on the
+  # host are immediately visible inside the VM. The mount point at /vagrant
+  # is the Vagrant default; the SafeSchool install at /opt/safeschool is
+  # a separate clone (matching production layout).
+  #
+  # The synced folder maps the image directory (and by extension the repo)
+  # into the VM for convenience during development.
+  config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
+
+  # Also sync the full edge deploy directory for script access.
+  config.vm.synced_folder "..", "/vagrant/edge", type: "virtualbox"
+
+  # --------------------------------------------------------------------------
+  # Provider: VirtualBox
+  # --------------------------------------------------------------------------
+  config.vm.provider "virtualbox" do |vb|
+    vb.name   = "safeschool-edge-dev"
+    vb.memory = 4096
+    vb.cpus   = 2
+
+    # Performance tuning
+    vb.customize ["modifyvm", :id, "--ioapic", "on"]
+    vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+
+    # Nested virtualization (needed if testing Docker-in-Docker scenarios)
+    vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+
+    # Disable GUI window (run headless). Set to true to see the VM console.
+    vb.gui = false
+
+    # Linked clone for faster vagrant up (uses less disk space)
+    vb.linked_clone = true
+  end
+
+  # --------------------------------------------------------------------------
+  # Provider: libvirt (alternative to VirtualBox)
+  # --------------------------------------------------------------------------
+  config.vm.provider "libvirt" do |lv|
+    lv.memory = 4096
+    lv.cpus   = 2
+
+    # Use virtio for better I/O performance
+    lv.disk_bus     = "virtio"
+    lv.nic_model_type = "virtio"
+
+    # Nested virtualization
+    lv.nested = true
+  end
+
+  # --------------------------------------------------------------------------
+  # Provisioning: Shell Scripts
+  # --------------------------------------------------------------------------
+  # Run the same setup.sh used in production to provision the edge stack.
+  # This ensures the Vagrant environment matches physical deployments.
+
+  # Step 1: System prerequisites (Docker, Docker Compose, utilities)
+  config.vm.provision "shell", name: "system-prerequisites", inline: <<-SHELL
+    set -euo pipefail
+    export DEBIAN_FRONTEND=noninteractive
+
+    echo "========================================="
+    echo "  SafeSchool Edge — Vagrant Provisioning"
+    echo "========================================="
+
+    # Update package lists
+    apt-get update -qq
+
+    # Install prerequisites
+    apt-get install -y -qq \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg \
+      lsb-release \
+      git \
+      ufw \
+      unattended-upgrades
+
+    # Install Docker if not present
+    if ! command -v docker &>/dev/null; then
+      echo "[provision] Installing Docker..."
+      curl -fsSL https://get.docker.com | sh
+      systemctl enable docker
+      systemctl start docker
+      usermod -aG docker vagrant
+      echo "[provision] Docker installed."
+    else
+      echo "[provision] Docker already installed."
+    fi
+
+    # Verify Docker Compose
+    if ! docker compose version &>/dev/null; then
+      echo "[provision] Installing Docker Compose plugin..."
+      apt-get install -y -qq docker-compose-plugin
+    fi
+    echo "[provision] Docker Compose: $(docker compose version --short)"
+  SHELL
+
+  # Step 2: Clone the SafeSchool repository and run edge setup
+  config.vm.provision "shell", name: "safeschool-setup", inline: <<-SHELL
+    set -euo pipefail
+
+    INSTALL_DIR="/opt/safeschool"
+    COMPOSE_FILE="$INSTALL_DIR/deploy/edge/docker-compose.yml"
+    ENV_FILE="$INSTALL_DIR/deploy/edge/.env"
+
+    # Clone repo if not already present
+    if [ ! -d "$INSTALL_DIR/.git" ]; then
+      echo "[provision] Cloning SafeSchool repository..."
+      git clone https://github.com/bwattendorf/safeSchool.git "$INSTALL_DIR"
+    else
+      echo "[provision] Updating SafeSchool repository..."
+      cd "$INSTALL_DIR"
+      git pull --ff-only origin main || true
+    fi
+
+    # Generate .env from template if not present
+    if [ ! -f "$ENV_FILE" ]; then
+      echo "[provision] Generating .env from template..."
+      cp "$INSTALL_DIR/deploy/edge/.env.example" "$ENV_FILE"
+
+      # Generate secure random values
+      DB_PASS=$(openssl rand -base64 32 | tr -d '=/+' | head -c 32)
+      JWT_SEC=$(openssl rand -base64 48 | tr -d '=/+' | head -c 48)
+
+      sed -i "s/DB_PASSWORD=changeme_generate_random/DB_PASSWORD=$DB_PASS/" "$ENV_FILE"
+      sed -i "s/JWT_SECRET=changeme_generate_random/JWT_SECRET=$JWT_SEC/" "$ENV_FILE"
+
+      # Set development-friendly defaults
+      sed -i "s/^SITE_NAME=$/SITE_NAME=Vagrant Dev School/" "$ENV_FILE"
+      sed -i "s/^SITE_ID=$/SITE_ID=$(cat /proc/sys/kernel/random/uuid)/" "$ENV_FILE"
+
+      echo "[provision] .env generated with development defaults."
+    fi
+
+    # Create systemd service for auto-start
+    cat > /etc/systemd/system/safeschool.service <<'SVCEOF'
+[Unit]
+Description=SafeSchool OS Edge Platform
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/safeschool
+ExecStart=/usr/bin/docker compose -f /opt/safeschool/deploy/edge/docker-compose.yml --env-file /opt/safeschool/deploy/edge/.env up -d
+ExecStop=/usr/bin/docker compose -f /opt/safeschool/deploy/edge/docker-compose.yml --env-file /opt/safeschool/deploy/edge/.env down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+    systemctl daemon-reload
+    systemctl enable safeschool.service
+
+    echo "[provision] SafeSchool systemd service configured."
+  SHELL
+
+  # Step 3: Build and start the Docker stack
+  config.vm.provision "shell", name: "docker-stack", inline: <<-SHELL
+    set -euo pipefail
+
+    INSTALL_DIR="/opt/safeschool"
+    COMPOSE_FILE="$INSTALL_DIR/deploy/edge/docker-compose.yml"
+    ENV_FILE="$INSTALL_DIR/deploy/edge/.env"
+
+    echo "[provision] Building and starting SafeSchool Docker stack..."
+    echo "[provision] This may take several minutes on first run..."
+
+    cd "$INSTALL_DIR"
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+
+    # Wait for services to become healthy
+    echo "[provision] Waiting for services to start..."
+    WAITED=0
+    MAX_WAIT=180
+    while [ $WAITED -lt $MAX_WAIT ]; do
+      if curl -sf http://localhost:3000/health >/dev/null 2>&1; then
+        echo ""
+        echo "[provision] API is healthy."
+        break
+      fi
+      sleep 5
+      WAITED=$((WAITED + 5))
+      echo -n "."
+    done
+
+    if [ $WAITED -ge $MAX_WAIT ]; then
+      echo ""
+      echo "[provision] WARNING: Health check timed out. Services may still be starting."
+      echo "[provision] Run 'vagrant ssh' then 'docker compose -f $COMPOSE_FILE ps' to check."
+    fi
+  SHELL
+
+  # Step 4: Install the safeschool CLI and configure firewall
+  config.vm.provision "shell", name: "cli-and-firewall", inline: <<-SHELL
+    set -euo pipefail
+
+    # Install the safeschool CLI wrapper
+    cat > /usr/local/bin/safeschool <<'CLIEOF'
+#!/bin/bash
+set -euo pipefail
+
+INSTALL_DIR="/opt/safeschool"
+COMPOSE_FILE="$INSTALL_DIR/deploy/edge/docker-compose.yml"
+ENV_FILE="$INSTALL_DIR/deploy/edge/.env"
+
+case "${1:-help}" in
+  status)
+    docker compose -f "$COMPOSE_FILE" ps
+    ;;
+  logs)
+    shift
+    docker compose -f "$COMPOSE_FILE" logs -f "$@"
+    ;;
+  update)
+    sudo bash "$INSTALL_DIR/deploy/edge/update.sh"
+    ;;
+  backup)
+    sudo bash "$INSTALL_DIR/deploy/edge/backup.sh"
+    ;;
+  restore)
+    shift
+    sudo bash "$INSTALL_DIR/deploy/edge/restore.sh" "$@"
+    ;;
+  config)
+    sudo nano "$ENV_FILE"
+    ;;
+  restart)
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" restart
+    ;;
+  stop)
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
+    ;;
+  start)
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+    ;;
+  version)
+    cd "$INSTALL_DIR" && echo "SafeSchool Edge $(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)"
+    ;;
+  *)
+    echo "SafeSchool Edge CLI"
+    echo ""
+    echo "Usage: safeschool <command>"
+    echo ""
+    echo "Commands:"
+    echo "  status    Show status of all services"
+    echo "  logs      Tail service logs (optionally specify service name)"
+    echo "  update    Pull latest code and rebuild services"
+    echo "  backup    Trigger an immediate database backup"
+    echo "  restore   Restore database from a backup file"
+    echo "  config    Edit edge configuration (.env)"
+    echo "  restart   Restart all services"
+    echo "  stop      Stop all services"
+    echo "  start     Start all services"
+    echo "  version   Show installed version"
+    ;;
+esac
+CLIEOF
+    chmod +x /usr/local/bin/safeschool
+
+    # Configure UFW firewall (permissive for development)
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp   comment 'SSH'
+    ufw allow 80/tcp   comment 'HTTP redirect'
+    ufw allow 443/tcp  comment 'Dashboard HTTPS'
+    ufw allow 3443/tcp comment 'API HTTPS'
+    ufw allow 8443/tcp comment 'Kiosk HTTPS'
+    ufw allow 9090/tcp comment 'Admin panel'
+    ufw --force enable
+
+    echo ""
+    echo "========================================="
+    echo "  SafeSchool Edge — Vagrant Ready"
+    echo "========================================="
+    echo ""
+    echo "  Dashboard:  https://localhost:8443/"
+    echo "  API:        https://localhost:3443/"
+    echo "  Kiosk:      https://localhost:18443/"
+    echo "  Admin:      http://localhost:9090/"
+    echo ""
+    echo "  SSH:        vagrant ssh"
+    echo "  CLI:        safeschool status"
+    echo ""
+  SHELL
+
+  # --------------------------------------------------------------------------
+  # Trigger: Display info after vagrant up
+  # --------------------------------------------------------------------------
+  config.trigger.after :up do |trigger|
+    trigger.info = <<-INFO
+
+    =============================================
+     SafeSchool Edge VM is running.
+
+     Dashboard:  https://localhost:8443/
+     API:        https://localhost:3443/
+     Kiosk:      https://localhost:18443/
+     Admin:      http://localhost:9090/
+
+     SSH:        vagrant ssh
+     CLI:        safeschool status
+    =============================================
+
+    INFO
+  end
+
+end
