@@ -207,8 +207,8 @@ safeschool/
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/safeschool.git
-cd safeschool
+git clone https://github.com/SafeSchoolOS/safeschool-os.git
+cd safeschool-os
 
 # Install dependencies
 npm install
