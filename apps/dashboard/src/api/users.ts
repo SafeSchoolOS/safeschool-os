@@ -69,3 +69,32 @@ export function useDeactivateUser() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 }
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+export function useImportUsers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, dryRun }: { file: File; dryRun?: boolean }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const qs = dryRun ? '?dryRun=true' : '';
+      const token = localStorage.getItem('safeschool_token');
+      const res = await fetch(`${API_BASE}/api/v1/users/import${qs}`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Import failed: ${res.status}`);
+      }
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      if (!variables.dryRun) {
+        qc.invalidateQueries({ queryKey: ['users'] });
+      }
+    },
+  });
+}

@@ -9,7 +9,7 @@
  * ================================================
  *
  * DISTRICT ADMIN:
- *   bruce@newark.k12.nj.us    SUPER_ADMIN   (district-wide)
+ *   admin@newark.k12.nj.us    SUPER_ADMIN   (district-wide)
  *
  * LINCOLN ELEMENTARY (K-5):
  *   admin@lincoln.edu          SITE_ADMIN
@@ -307,7 +307,7 @@ async function main() {
 
   const users: UserDef[] = [
     // District admin
-    { id: uuid('d000', 1), email: 'bruce@newark.k12.nj.us', name: 'Bruce Wattendorf', role: 'SUPER_ADMIN', siteIds: [ID.lincoln, ID.washington, ID.jefferson] },
+    { id: uuid('d000', 1), email: 'admin@newark.k12.nj.us', name: 'District Admin', role: 'SUPER_ADMIN', siteIds: [ID.lincoln, ID.washington, ID.jefferson] },
 
     // ---- Lincoln Elementary ----
     { id: uuid('a000', 0x1001), email: 'admin@lincoln.edu',       name: 'Dr. Sarah Mitchell',    role: 'SITE_ADMIN',       phone: '+15551000001', siteIds: [ID.lincoln] },
@@ -607,15 +607,82 @@ async function main() {
     });
   }
 
-  // Students + cards (2 per school for demo)
-  const studentDefs = [
-    { id: uuid('a000', 0x7001), siteId: ID.lincoln,    fn: 'Alex',    ln: 'Thompson', num: 'STU-LIN-001', grade: '3', dob: '2017-03-15', bld: ID.linMain,  room: uuid('a000', 0x101) },
-    { id: uuid('a000', 0x7002), siteId: ID.lincoln,    fn: 'Maya',    ln: 'Patel',    num: 'STU-LIN-002', grade: '4', dob: '2016-07-22', bld: ID.linMain,  room: uuid('a000', 0x102) },
-    { id: uuid('b000', 0x7001), siteId: ID.washington,  fn: 'Jordan',  ln: 'Williams', num: 'STU-WAS-001', grade: '7', dob: '2013-01-10', bld: ID.wasMain,  room: uuid('b000', 0x201) },
-    { id: uuid('b000', 0x7002), siteId: ID.washington,  fn: 'Sophia',  ln: 'Chen',     num: 'STU-WAS-002', grade: '8', dob: '2012-11-05', bld: ID.wasMain,  room: uuid('b000', 0x202) },
-    { id: uuid('c000', 0x7001), siteId: ID.jefferson,   fn: 'Marcus',  ln: 'Taylor',   num: 'STU-JEF-001', grade: '10', dob: '2010-06-18', bld: ID.jefMain, room: uuid('c000', 0x201) },
-    { id: uuid('c000', 0x7002), siteId: ID.jefferson,   fn: 'Aisha',   ln: 'Brooks',   num: 'STU-JEF-002', grade: '11', dob: '2009-09-30', bld: ID.jefMain, room: uuid('c000', 0x202) },
+  // Students — realistic roster across all three schools
+  type StudentDef = {
+    id: string; siteId: string; fn: string; ln: string; num: string; grade: string;
+    dob: string; bld: string; room: string;
+    medical?: string; allergies?: string; badgePrinted?: boolean; inactive?: boolean;
+  };
+
+  const studentDefs: StudentDef[] = [
+    // ---- Lincoln Elementary (K-5) — 20 students ----
+    { id: uuid('a000', 0x7001), siteId: ID.lincoln, fn: 'Alex',      ln: 'Thompson',   num: 'STU-LIN-001', grade: '3',   dob: '2017-03-15', bld: ID.linMain, room: uuid('a000', 0x101), badgePrinted: true },
+    { id: uuid('a000', 0x7002), siteId: ID.lincoln, fn: 'Maya',      ln: 'Patel',       num: 'STU-LIN-002', grade: '4',   dob: '2016-07-22', bld: ID.linMain, room: uuid('a000', 0x102), badgePrinted: true, allergies: 'Peanuts, tree nuts' },
+    { id: uuid('a000', 0x7003), siteId: ID.lincoln, fn: 'Ethan',     ln: 'Rivera',      num: 'STU-LIN-003', grade: 'K',   dob: '2020-01-08', bld: ID.linMain, room: uuid('a000', 0x103) },
+    { id: uuid('a000', 0x7004), siteId: ID.lincoln, fn: 'Olivia',    ln: 'Kim',         num: 'STU-LIN-004', grade: 'K',   dob: '2020-05-19', bld: ID.linMain, room: uuid('a000', 0x103) },
+    { id: uuid('a000', 0x7005), siteId: ID.lincoln, fn: 'Liam',      ln: 'Johnson',     num: 'STU-LIN-005', grade: '1',   dob: '2019-09-12', bld: ID.linMain, room: uuid('a000', 0x104), badgePrinted: true, medical: 'Asthma — inhaler in nurse office' },
+    { id: uuid('a000', 0x7006), siteId: ID.lincoln, fn: 'Sophia',    ln: 'Zhang',       num: 'STU-LIN-006', grade: '1',   dob: '2019-11-30', bld: ID.linMain, room: uuid('a000', 0x104) },
+    { id: uuid('a000', 0x7007), siteId: ID.lincoln, fn: 'Noah',      ln: 'Hernandez',   num: 'STU-LIN-007', grade: '2',   dob: '2018-04-25', bld: ID.linMain, room: uuid('a000', 0x111), badgePrinted: true },
+    { id: uuid('a000', 0x7008), siteId: ID.lincoln, fn: 'Emma',      ln: 'Davis',       num: 'STU-LIN-008', grade: '2',   dob: '2018-08-14', bld: ID.linMain, room: uuid('a000', 0x111), allergies: 'Dairy' },
+    { id: uuid('a000', 0x7009), siteId: ID.lincoln, fn: 'James',     ln: 'Wilson',      num: 'STU-LIN-009', grade: '3',   dob: '2017-06-03', bld: ID.linMain, room: uuid('a000', 0x101) },
+    { id: uuid('a000', 0x700a), siteId: ID.lincoln, fn: 'Ava',       ln: 'Martinez',    num: 'STU-LIN-010', grade: '3',   dob: '2017-12-20', bld: ID.linMain, room: uuid('a000', 0x101), badgePrinted: true, medical: 'Type 1 diabetes — insulin pump' },
+    { id: uuid('a000', 0x700b), siteId: ID.lincoln, fn: 'Benjamin',  ln: 'Lee',         num: 'STU-LIN-011', grade: '4',   dob: '2016-02-11', bld: ID.linMain, room: uuid('a000', 0x102) },
+    { id: uuid('a000', 0x700c), siteId: ID.lincoln, fn: 'Isabella',  ln: 'Garcia',      num: 'STU-LIN-012', grade: '4',   dob: '2016-10-05', bld: ID.linMain, room: uuid('a000', 0x102), badgePrinted: true },
+    { id: uuid('a000', 0x700d), siteId: ID.lincoln, fn: 'Lucas',     ln: 'Brown',       num: 'STU-LIN-013', grade: '5',   dob: '2015-07-17', bld: ID.linMain, room: uuid('a000', 0x112) },
+    { id: uuid('a000', 0x700e), siteId: ID.lincoln, fn: 'Mia',       ln: 'Anderson',    num: 'STU-LIN-014', grade: '5',   dob: '2015-03-28', bld: ID.linMain, room: uuid('a000', 0x112), badgePrinted: true, allergies: 'Bee stings — EpiPen in nurse office' },
+    { id: uuid('a000', 0x700f), siteId: ID.lincoln, fn: 'Henry',     ln: 'Okafor',      num: 'STU-LIN-015', grade: '2',   dob: '2018-11-09', bld: ID.linMain, room: uuid('a000', 0x111) },
+    { id: uuid('a000', 0x7010), siteId: ID.lincoln, fn: 'Charlotte', ln: 'Santos',      num: 'STU-LIN-016', grade: '1',   dob: '2019-06-15', bld: ID.linMain, room: uuid('a000', 0x104), badgePrinted: true },
+    { id: uuid('a000', 0x7011), siteId: ID.lincoln, fn: 'Daniel',    ln: 'Park',        num: 'STU-LIN-017', grade: 'K',   dob: '2020-08-22', bld: ID.linMain, room: uuid('a000', 0x103) },
+    { id: uuid('a000', 0x7012), siteId: ID.lincoln, fn: 'Amelia',    ln: 'White',       num: 'STU-LIN-018', grade: '5',   dob: '2015-01-14', bld: ID.linMain, room: uuid('a000', 0x112), badgePrinted: true },
+    { id: uuid('a000', 0x7013), siteId: ID.lincoln, fn: 'William',   ln: 'Nguyen',      num: 'STU-LIN-019', grade: '3',   dob: '2017-09-07', bld: ID.linMain, room: uuid('a000', 0x101) },
+    { id: uuid('a000', 0x7014), siteId: ID.lincoln, fn: 'Harper',    ln: 'Clark',       num: 'STU-LIN-020', grade: '4',   dob: '2016-04-30', bld: ID.linMain, room: uuid('a000', 0x102), inactive: true },
+
+    // ---- Washington Middle School (6-8) — 20 students ----
+    { id: uuid('b000', 0x7001), siteId: ID.washington, fn: 'Jordan',   ln: 'Williams',   num: 'STU-WAS-001', grade: '7',  dob: '2013-01-10', bld: ID.wasMain, room: uuid('b000', 0x201), badgePrinted: true },
+    { id: uuid('b000', 0x7002), siteId: ID.washington, fn: 'Sophia',   ln: 'Chen',       num: 'STU-WAS-002', grade: '8',  dob: '2012-11-05', bld: ID.wasMain, room: uuid('b000', 0x202), badgePrinted: true, allergies: 'Shellfish' },
+    { id: uuid('b000', 0x7003), siteId: ID.washington, fn: 'Tyler',    ln: 'Brooks',     num: 'STU-WAS-003', grade: '6',  dob: '2014-03-20', bld: ID.wasMain, room: uuid('b000', 0x101) },
+    { id: uuid('b000', 0x7004), siteId: ID.washington, fn: 'Zoe',      ln: 'Foster',     num: 'STU-WAS-004', grade: '6',  dob: '2014-07-14', bld: ID.wasMain, room: uuid('b000', 0x101), badgePrinted: true },
+    { id: uuid('b000', 0x7005), siteId: ID.washington, fn: 'Connor',   ln: 'Adams',      num: 'STU-WAS-005', grade: '6',  dob: '2014-10-02', bld: ID.wasMain, room: uuid('b000', 0x102), medical: 'ADHD — medication at nurse office' },
+    { id: uuid('b000', 0x7006), siteId: ID.washington, fn: 'Riley',    ln: 'Pham',       num: 'STU-WAS-006', grade: '7',  dob: '2013-05-18', bld: ID.wasMain, room: uuid('b000', 0x201), badgePrinted: true },
+    { id: uuid('b000', 0x7007), siteId: ID.washington, fn: 'Nathan',   ln: 'Diaz',       num: 'STU-WAS-007', grade: '7',  dob: '2013-08-30', bld: ID.wasMain, room: uuid('b000', 0x203) },
+    { id: uuid('b000', 0x7008), siteId: ID.washington, fn: 'Lily',     ln: 'Scott',      num: 'STU-WAS-008', grade: '7',  dob: '2013-12-12', bld: ID.wasMain, room: uuid('b000', 0x203), badgePrinted: true, allergies: 'Latex, penicillin' },
+    { id: uuid('b000', 0x7009), siteId: ID.washington, fn: 'Owen',     ln: 'Garcia',     num: 'STU-WAS-009', grade: '8',  dob: '2012-02-25', bld: ID.wasMain, room: uuid('b000', 0x204) },
+    { id: uuid('b000', 0x700a), siteId: ID.washington, fn: 'Chloe',    ln: 'Jackson',    num: 'STU-WAS-010', grade: '8',  dob: '2012-06-08', bld: ID.wasMain, room: uuid('b000', 0x204), badgePrinted: true },
+    { id: uuid('b000', 0x700b), siteId: ID.washington, fn: 'Caleb',    ln: 'Martinez',   num: 'STU-WAS-011', grade: '6',  dob: '2014-11-19', bld: ID.wasMain, room: uuid('b000', 0x102) },
+    { id: uuid('b000', 0x700c), siteId: ID.washington, fn: 'Grace',    ln: 'Okonkwo',    num: 'STU-WAS-012', grade: '6',  dob: '2014-01-27', bld: ID.wasMain, room: uuid('b000', 0x103), badgePrinted: true },
+    { id: uuid('b000', 0x700d), siteId: ID.washington, fn: 'Elijah',   ln: 'Lee',        num: 'STU-WAS-013', grade: '7',  dob: '2013-04-09', bld: ID.wasMain, room: uuid('b000', 0x201), medical: 'Epilepsy — seizure protocol on file' },
+    { id: uuid('b000', 0x700e), siteId: ID.washington, fn: 'Aria',     ln: 'Kim',        num: 'STU-WAS-014', grade: '7',  dob: '2013-09-22', bld: ID.wasMain, room: uuid('b000', 0x203), badgePrinted: true },
+    { id: uuid('b000', 0x700f), siteId: ID.washington, fn: 'Isaac',    ln: 'Rodriguez',  num: 'STU-WAS-015', grade: '8',  dob: '2012-03-17', bld: ID.wasMain, room: uuid('b000', 0x301) },
+    { id: uuid('b000', 0x7010), siteId: ID.washington, fn: 'Savannah', ln: 'Taylor',     num: 'STU-WAS-016', grade: '8',  dob: '2012-07-04', bld: ID.wasMain, room: uuid('b000', 0x301), badgePrinted: true },
+    { id: uuid('b000', 0x7011), siteId: ID.washington, fn: 'Gabriel',  ln: 'Nguyen',     num: 'STU-WAS-017', grade: '8',  dob: '2012-10-31', bld: ID.wasMain, room: uuid('b000', 0x302) },
+    { id: uuid('b000', 0x7012), siteId: ID.washington, fn: 'Layla',    ln: 'Hassan',     num: 'STU-WAS-018', grade: '6',  dob: '2014-06-13', bld: ID.wasMain, room: uuid('b000', 0x103), allergies: 'Gluten' },
+    { id: uuid('b000', 0x7013), siteId: ID.washington, fn: 'Andrew',   ln: 'Clark',      num: 'STU-WAS-019', grade: '7',  dob: '2013-02-28', bld: ID.wasMain, room: uuid('b000', 0x203), badgePrinted: true },
+    { id: uuid('b000', 0x7014), siteId: ID.washington, fn: 'Nora',     ln: 'Wright',     num: 'STU-WAS-020', grade: '8',  dob: '2012-12-15', bld: ID.wasMain, room: uuid('b000', 0x302), inactive: true },
+
+    // ---- Jefferson High School (9-12) — 20 students ----
+    { id: uuid('c000', 0x7001), siteId: ID.jefferson, fn: 'Marcus',   ln: 'Taylor',     num: 'STU-JEF-001', grade: '10', dob: '2010-06-18', bld: ID.jefMain, room: uuid('c000', 0x201), badgePrinted: true },
+    { id: uuid('c000', 0x7002), siteId: ID.jefferson, fn: 'Aisha',    ln: 'Brooks',     num: 'STU-JEF-002', grade: '11', dob: '2009-09-30', bld: ID.jefMain, room: uuid('c000', 0x202), badgePrinted: true },
+    { id: uuid('c000', 0x7003), siteId: ID.jefferson, fn: 'Dylan',    ln: 'Morales',    num: 'STU-JEF-003', grade: '9',  dob: '2011-02-14', bld: ID.jefMain, room: uuid('c000', 0x101) },
+    { id: uuid('c000', 0x7004), siteId: ID.jefferson, fn: 'Jasmine',  ln: 'Patel',      num: 'STU-JEF-004', grade: '9',  dob: '2011-05-22', bld: ID.jefMain, room: uuid('c000', 0x101), badgePrinted: true, allergies: 'Peanuts' },
+    { id: uuid('c000', 0x7005), siteId: ID.jefferson, fn: 'Elias',    ln: 'Washington', num: 'STU-JEF-005', grade: '9',  dob: '2011-08-10', bld: ID.jefMain, room: uuid('c000', 0x102) },
+    { id: uuid('c000', 0x7006), siteId: ID.jefferson, fn: 'Naomi',    ln: 'Sullivan',   num: 'STU-JEF-006', grade: '10', dob: '2010-01-30', bld: ID.jefMain, room: uuid('c000', 0x201), badgePrinted: true, medical: 'Severe asthma — emergency inhaler in bag' },
+    { id: uuid('c000', 0x7007), siteId: ID.jefferson, fn: 'Adrian',   ln: 'Singh',      num: 'STU-JEF-007', grade: '10', dob: '2010-04-25', bld: ID.jefMain, room: uuid('c000', 0x203) },
+    { id: uuid('c000', 0x7008), siteId: ID.jefferson, fn: 'Valentina',ln: 'Reyes',      num: 'STU-JEF-008', grade: '10', dob: '2010-09-08', bld: ID.jefMain, room: uuid('c000', 0x203), badgePrinted: true },
+    { id: uuid('c000', 0x7009), siteId: ID.jefferson, fn: 'Jayden',   ln: 'Okafor',     num: 'STU-JEF-009', grade: '11', dob: '2009-03-17', bld: ID.jefMain, room: uuid('c000', 0x204) },
+    { id: uuid('c000', 0x700a), siteId: ID.jefferson, fn: 'Samantha', ln: 'Foster',     num: 'STU-JEF-010', grade: '11', dob: '2009-07-05', bld: ID.jefMain, room: uuid('c000', 0x204), badgePrinted: true, allergies: 'Penicillin, sulfa drugs' },
+    { id: uuid('c000', 0x700b), siteId: ID.jefferson, fn: 'Xavier',   ln: 'Dupont',     num: 'STU-JEF-011', grade: '11', dob: '2009-11-21', bld: ID.jefMain, room: uuid('c000', 0x301) },
+    { id: uuid('c000', 0x700c), siteId: ID.jefferson, fn: 'Aaliyah',  ln: 'Chen',       num: 'STU-JEF-012', grade: '12', dob: '2008-04-12', bld: ID.jefMain, room: uuid('c000', 0x301), badgePrinted: true },
+    { id: uuid('c000', 0x700d), siteId: ID.jefferson, fn: 'Dominic',  ln: 'Ruiz',       num: 'STU-JEF-013', grade: '12', dob: '2008-08-29', bld: ID.jefMain, room: uuid('c000', 0x302), medical: 'Type 1 diabetes — insulin pump, nurse notified' },
+    { id: uuid('c000', 0x700e), siteId: ID.jefferson, fn: 'Skylar',   ln: 'Bennett',    num: 'STU-JEF-014', grade: '12', dob: '2008-12-01', bld: ID.jefMain, room: uuid('c000', 0x302), badgePrinted: true },
+    { id: uuid('c000', 0x700f), siteId: ID.jefferson, fn: 'Kai',      ln: 'Yamamoto',   num: 'STU-JEF-015', grade: '9',  dob: '2011-10-15', bld: ID.jefMain, room: uuid('c000', 0x102) },
+    { id: uuid('c000', 0x7010), siteId: ID.jefferson, fn: 'Destiny',  ln: 'Williams',   num: 'STU-JEF-016', grade: '10', dob: '2010-12-07', bld: ID.jefMain, room: uuid('c000', 0x203), badgePrinted: true },
+    { id: uuid('c000', 0x7011), siteId: ID.jefferson, fn: 'Leo',      ln: 'Nakamura',   num: 'STU-JEF-017', grade: '9',  dob: '2011-03-03', bld: ID.jefMain, room: uuid('c000', 0x103) },
+    { id: uuid('c000', 0x7012), siteId: ID.jefferson, fn: 'Camila',   ln: 'Harper',     num: 'STU-JEF-018', grade: '11', dob: '2009-06-19', bld: ID.jefMain, room: uuid('c000', 0x202), badgePrinted: true },
+    { id: uuid('c000', 0x7013), siteId: ID.jefferson, fn: 'Miles',    ln: 'Papadopoulos', num: 'STU-JEF-019', grade: '12', dob: '2008-02-14', bld: ID.jefMain, room: uuid('c000', 0x303), allergies: 'Latex' },
+    { id: uuid('c000', 0x7014), siteId: ID.jefferson, fn: 'Isabelle', ln: 'Hassan',     num: 'STU-JEF-020', grade: '12', dob: '2008-10-20', bld: ID.jefMain, room: uuid('c000', 0x303), badgePrinted: true, inactive: true },
   ];
+
+  const badgePrintedDate = new Date('2026-01-15');
 
   for (const s of studentDefs) {
     await prisma.student.upsert({
@@ -625,20 +692,38 @@ async function main() {
         id: s.id, siteId: s.siteId, firstName: s.fn, lastName: s.ln,
         studentNumber: s.num, grade: s.grade,
         dateOfBirth: new Date(s.dob), buildingId: s.bld, roomId: s.room,
-        enrollmentDate: new Date('2023-09-01'), isActive: true,
+        enrollmentDate: new Date('2025-09-02'), isActive: s.inactive ? false : true,
+        medicalNotes: s.medical ?? null,
+        allergies: s.allergies ?? null,
+        badgePrintedAt: s.badgePrinted ? badgePrintedDate : null,
       },
     });
   }
 
-  // Student cards
-  const cardDefs = studentDefs.map((s, i) => ({
-    id: uuid(s.siteId === ID.lincoln ? 'a000' : s.siteId === ID.washington ? 'b000' : 'c000', 0x4001 + (i % 2)),
-    siteId: s.siteId,
-    studentId: s.id,
-    studentName: `${s.fn} ${s.ln}`,
-    cardId: `RFID-${s.num}`,
-    grade: s.grade,
-  }));
+  // Student cards — first 2 students per school have stable card IDs (used by parent contacts / transport)
+  // plus cards for additional students to show realistic card counts
+  const cardIndices = new Set([
+    0, 1, 4, 6, 8,          // Lincoln extras
+    20, 21, 24, 26,          // Washington extras
+    40, 41, 44, 46,          // Jefferson extras
+  ]);
+  const cardStudents = studentDefs.filter((_s, i) => cardIndices.has(i));
+
+  const cardDefs = cardStudents.map((s) => {
+    const prefix = s.siteId === ID.lincoln ? 'a000' : s.siteId === ID.washington ? 'b000' : 'c000';
+    const schoolStudents = studentDefs.filter((sd) => sd.siteId === s.siteId);
+    const indexInSchool = schoolStudents.indexOf(s);
+    // First 2 per school keep stable IDs 0x4001/0x4002 for parent contact references
+    const seq = indexInSchool < 2 ? 0x4001 + indexInSchool : 0x4010 + indexInSchool;
+    return {
+      id: uuid(prefix, seq),
+      siteId: s.siteId,
+      studentId: s.id,
+      studentName: `${s.fn} ${s.ln}`,
+      cardId: `RFID-${s.num}`,
+      grade: s.grade,
+    };
+  });
 
   for (const c of cardDefs) {
     await prisma.studentCard.upsert({
@@ -1020,6 +1105,44 @@ async function main() {
   console.log(`       ${auditDefs.length} audit log entries`);
 
   // --------------------------------------------------------------------------
+  // BadgeKiosk Integration (pre-configured for demo)
+  // --------------------------------------------------------------------------
+  console.log('13/13 BadgeKiosk integration...');
+
+  const BK_API_URL = 'https://backend-production-345e.up.railway.app';
+  const bkIntegrationDefs = [
+    { id: uuid('a000', 0xe001), siteId: ID.lincoln,    apiUrl: BK_API_URL, apiKey: 'bk_e64c87be4e841e3af239e6591ef7a1983ea89e667cc16be1', tenantId: '96f5c240-e415-4981-ba37-f3233d83c0ec' },
+    { id: uuid('b000', 0xe001), siteId: ID.washington,  apiUrl: BK_API_URL, apiKey: 'bk_592f449684fc040bac32c6d5167f102330ff9d0238d574be', tenantId: '5641d4f9-9f92-4c21-9875-9880f4a35f25' },
+    { id: uuid('c000', 0xe001), siteId: ID.jefferson,   apiUrl: BK_API_URL, apiKey: 'bk_265593298c729ca9fd38450c9c4c3d08e0f3595aa813ed2e', tenantId: 'ef1e5fae-ce96-4e23-afb2-3984fe2e56fd' },
+  ];
+
+  for (const bk of bkIntegrationDefs) {
+    await prisma.badgeKioskIntegration.upsert({
+      where: { siteId: bk.siteId },
+      update: {},
+      create: {
+        id: bk.id,
+        siteId: bk.siteId,
+        apiUrl: bk.apiUrl,
+        apiKey: bk.apiKey,
+        enabled: true,
+        autoSync: true,
+        autoPrint: false,
+        features: {
+          badgePrinting: true,
+          guardConsole: true,
+          photoVerification: true,
+          qrValidation: true,
+          visitorPreRegistration: true,
+          multiSite: true,
+          tier: 'professional',
+        },
+      },
+    });
+  }
+  console.log(`       ${bkIntegrationDefs.length} BadgeKiosk integrations configured`);
+
+  // --------------------------------------------------------------------------
   // Done
   // --------------------------------------------------------------------------
   console.log('\n=== Demo seed complete! ===');
@@ -1041,6 +1164,7 @@ Summary:
   Visitor Bans: ${banDefs.length}
   Threat Reports: ${threatDefs.length}
   Social Media Alerts: ${smaDefs.length}
+  BadgeKiosk Integrations: ${bkIntegrationDefs.length} (all sites)
 
 Demo Scenarios:
   1. Active Lockdown at Jefferson HS (login as admin@jefferson.edu)
@@ -1050,6 +1174,7 @@ Demo Scenarios:
   5. High CO2 reading (1850 ppm) in Jefferson HS Room 301
   6. Anonymous tips under review at Washington MS
   7. Visitor bans across all 3 schools
+  8. BadgeKiosk badge printing configured for all sites
 
 All passwords: safeschool123
 `);

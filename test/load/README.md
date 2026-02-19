@@ -33,14 +33,14 @@ sudo apt-get update && sudo apt-get install k6
 
 1. The SafeSchool API must be running (locally or remotely).
 2. The database must be seeded with test data (`npm run db:seed` in the API package).
-3. The seeded admin user (bwattendorf@gmail.com) must exist.
+3. The seeded admin user (admin@lincoln.edu) must exist.
 
 ## Environment Variables
 
 | Variable        | Default                    | Description                        |
 |-----------------|----------------------------|------------------------------------|
 | `API_URL`       | `http://localhost:3000`    | Base URL of the SafeSchool API     |
-| `TEST_EMAIL`    | `bwattendorf@gmail.com`   | Email for authentication           |
+| `TEST_EMAIL`    | `admin@lincoln.edu`   | Email for authentication           |
 | `TEST_PASSWORD` | `safeschool123`            | Password for authentication        |
 | `SITE_ID`       | `00000000-0000-4000-a000-000000000001` | Site ID for subscription tests |
 

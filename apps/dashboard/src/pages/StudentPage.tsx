@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useSites } from '../api/sites';
 import {
   useStudents,
@@ -8,10 +8,59 @@ import {
   useDeleteStudentPhoto,
   useLinkTransportCard,
   usePrintIdCard,
+  useImportStudents,
 } from '../api/students';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const GRADES = ['Pre-K', 'K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+const STUDENT_CSV_TEMPLATE = 'firstName,lastName,studentNumber,grade,dateOfBirth,buildingId,roomId,enrollmentDate,medicalNotes,allergies,externalId\n';
+
+const ALLOWED_PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+function downloadTemplate() {
+  const blob = new Blob([STUDENT_CSV_TEMPLATE], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'student-import-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsvField(val: string): string {
+  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
+
+function exportStudentsCsv(students: any[]) {
+  const headers = ['firstName', 'lastName', 'studentNumber', 'grade', 'building', 'room', 'status', 'badgePrinted', 'dateOfBirth', 'enrollmentDate', 'medicalNotes', 'allergies'];
+  const rows = students.map((s: any) => [
+    s.firstName || '',
+    s.lastName || '',
+    s.studentNumber || '',
+    s.grade || '',
+    s.building?.name || '',
+    s.room ? `${s.room.number} - ${s.room.name}` : '',
+    s.isActive ? 'Active' : 'Inactive',
+    s.badgePrintedAt ? new Date(s.badgePrintedAt).toLocaleDateString() : '',
+    s.dateOfBirth ? new Date(s.dateOfBirth).toISOString().split('T')[0] : '',
+    s.enrollmentDate ? new Date(s.enrollmentDate).toISOString().split('T')[0] : '',
+    s.medicalNotes || '',
+    s.allergies || '',
+  ].map(escapeCsvField).join(','));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `students-export-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function StudentPhotoAvatar({ student, size = 'sm' }: { student: any; size?: 'sm' | 'lg' }) {
   const dim = size === 'lg' ? 'w-24 h-24' : 'w-10 h-10';
@@ -47,6 +96,7 @@ export function StudentPage() {
   const [activeFilter, setActiveFilter] = useState('true');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
 
   const { data: students = [], isLoading } = useStudents({
@@ -62,12 +112,69 @@ export function StudentPage() {
   const deletePhoto = useDeleteStudentPhoto();
   const linkCard = useLinkTransportCard();
   const printId = usePrintIdCard();
+  const importStudents = useImportStudents();
 
   // Create form state
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', studentNumber: '', grade: '',
     dateOfBirth: '', buildingId: '', roomId: '', medicalNotes: '', allergies: '',
   });
+
+  // Import state
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<any>(null);
+
+  // Bulk photo upload state
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
+  const [photoDragging, setPhotoDragging] = useState(false);
+  const [photoUploadProgress, setPhotoUploadProgress] = useState<{ total: number; done: number; matched: number; errors: string[] } | null>(null);
+
+  const handleBulkPhotoDrop = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter((f) => ALLOWED_PHOTO_TYPES.includes(f.type));
+    if (imageFiles.length === 0) return;
+
+    const progress = { total: imageFiles.length, done: 0, matched: 0, errors: [] as string[] };
+    setPhotoUploadProgress({ ...progress });
+
+    for (const file of imageFiles) {
+      const nameWithoutExt = file.name.replace(/\.(png|jpg|jpeg|webp)$/i, '');
+      const match = students.find((s: any) =>
+        s.studentNumber === nameWithoutExt || s.studentNumber.toLowerCase() === nameWithoutExt.toLowerCase()
+      );
+
+      if (!match) {
+        progress.errors.push(`${file.name}: no student with number "${nameWithoutExt}"`);
+        progress.done++;
+        setPhotoUploadProgress({ ...progress });
+        continue;
+      }
+
+      try {
+        await uploadPhoto.mutateAsync({ id: match.id, file });
+        progress.matched++;
+      } catch (err: any) {
+        progress.errors.push(`${file.name}: ${err.message}`);
+      }
+      progress.done++;
+      setPhotoUploadProgress({ ...progress });
+    }
+  }, [students, uploadPhoto]);
+
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setPhotoDragging(true);
+  }, []);
+
+  const onDragLeave = useCallback(() => setPhotoDragging(false), []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setPhotoDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    handleBulkPhotoDrop(files);
+  }, [handleBulkPhotoDrop]);
+
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +191,22 @@ export function StudentPage() {
     });
     setFormData({ firstName: '', lastName: '', studentNumber: '', grade: '', dateOfBirth: '', buildingId: '', roomId: '', medicalNotes: '', allergies: '' });
     setShowCreate(false);
+  };
+
+  const handlePreview = async () => {
+    if (!importFile) return;
+    try {
+      const result = await importStudents.mutateAsync({ file: importFile, dryRun: true });
+      setImportResult(result);
+    } catch { /* error shown by mutation */ }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    try {
+      const result = await importStudents.mutateAsync({ file: importFile, dryRun: false });
+      setImportResult(result);
+    } catch { /* error shown by mutation */ }
   };
 
   const selectedBuilding = buildings.find((b: any) => b.id === formData.buildingId);
@@ -118,7 +241,26 @@ export function StudentPage() {
             </button>
           </div>
           <button
-            onClick={() => setShowCreate(!showCreate)}
+            onClick={() => exportStudentsCsv(students)}
+            disabled={students.length === 0}
+            className="dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => { setShowPhotoUpload(!showPhotoUpload); setShowImport(false); setShowCreate(false); }}
+            className="dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            Upload Photos
+          </button>
+          <button
+            onClick={() => { setShowImport(!showImport); setShowCreate(false); setShowPhotoUpload(false); }}
+            className="dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            Import CSV
+          </button>
+          <button
+            onClick={() => { setShowCreate(!showCreate); setShowImport(false); setShowPhotoUpload(false); }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             + Add Student
@@ -165,6 +307,159 @@ export function StudentPage() {
           <option value="">All</option>
         </select>
       </div>
+
+      {/* Bulk Photo Upload Panel */}
+      {showPhotoUpload && (
+        <div className="dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900">Bulk Photo Upload</h3>
+          <p className="text-sm dark:text-gray-400 text-gray-500">
+            Name each image file with the student number (e.g. <code className="dark:bg-gray-700 bg-gray-100 px-1 rounded">STU-2026-001.jpg</code>).
+            Supported formats: PNG, JPEG, WebP.
+          </p>
+          <div
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            onClick={() => photoInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+              photoDragging
+                ? 'dark:border-blue-400 border-blue-500 dark:bg-blue-900/20 bg-blue-50'
+                : 'dark:border-gray-600 border-gray-300 dark:hover:border-gray-500 hover:border-gray-400'
+            }`}
+          >
+            <div className="dark:text-gray-400 text-gray-500 text-sm">
+              {photoDragging ? 'Drop photos here...' : 'Drag and drop photo files here, or click to select'}
+            </div>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length > 0) handleBulkPhotoDrop(files);
+                e.target.value = '';
+              }}
+            />
+          </div>
+          {photoUploadProgress && (
+            <div className="space-y-2">
+              <div className="flex gap-4 text-sm">
+                <span className="dark:text-gray-300 text-gray-600">
+                  Progress: {photoUploadProgress.done}/{photoUploadProgress.total}
+                </span>
+                <span className="dark:text-green-400 text-green-600 font-medium">
+                  Matched: {photoUploadProgress.matched}
+                </span>
+                <span className="dark:text-red-400 text-red-600 font-medium">
+                  Errors: {photoUploadProgress.errors.length}
+                </span>
+              </div>
+              {photoUploadProgress.done < photoUploadProgress.total && (
+                <div className="w-full dark:bg-gray-700 bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all"
+                    style={{ width: `${(photoUploadProgress.done / photoUploadProgress.total) * 100}%` }}
+                  />
+                </div>
+              )}
+              {photoUploadProgress.errors.length > 0 && (
+                <div className="max-h-32 overflow-auto text-sm dark:text-red-400 text-red-600 space-y-1">
+                  {photoUploadProgress.errors.map((err, i) => (
+                    <div key={i}>{err}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={() => { setShowPhotoUpload(false); setPhotoUploadProgress(null); }}
+            className="dark:text-gray-400 text-gray-500 hover:dark:text-white hover:text-gray-900 text-sm">
+            Close
+          </button>
+        </div>
+      )}
+
+      {/* CSV Import Panel */}
+      {showImport && (
+        <div className="dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900">Import Students from CSV</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={downloadTemplate}
+              className="text-blue-400 hover:text-blue-300 text-sm underline">
+              Download Template
+            </button>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }}
+              className="text-sm dark:text-gray-300 text-gray-600"
+            />
+          </div>
+          {importFile && (
+            <div className="flex gap-3">
+              <button onClick={handlePreview} disabled={importStudents.isPending}
+                className="dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                {importStudents.isPending ? 'Processing...' : 'Preview'}
+              </button>
+              <button onClick={handleImport} disabled={importStudents.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                {importStudents.isPending ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          )}
+          {importStudents.error && (
+            <p className="text-red-400 text-sm">{(importStudents.error as Error).message}</p>
+          )}
+          {importResult && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-4 text-sm">
+                <span className="dark:text-green-400 text-green-600 font-medium">
+                  {importResult.dryRun ? 'Would import' : 'Imported'}: {importResult.imported}
+                </span>
+                <span className="dark:text-yellow-400 text-yellow-600 font-medium">
+                  Skipped (duplicates): {importResult.skipped}
+                </span>
+                <span className="dark:text-red-400 text-red-600 font-medium">
+                  Errors: {importResult.errors?.length || 0}
+                </span>
+                <span className="dark:text-gray-400 text-gray-500">
+                  Total rows: {importResult.total}
+                </span>
+                {importResult.dryRun && (
+                  <span className="dark:text-blue-400 text-blue-600 font-medium">(Dry run — no changes made)</span>
+                )}
+              </div>
+              {importResult.errors?.length > 0 && (
+                <div className="max-h-48 overflow-auto dark:bg-gray-750 bg-gray-50 rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="dark:text-gray-400 text-gray-500 text-left">
+                        <th className="px-3 py-2">Row</th>
+                        <th className="px-3 py-2">Field</th>
+                        <th className="px-3 py-2">Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-gray-700 divide-gray-200">
+                      {importResult.errors.map((err: any, i: number) => (
+                        <tr key={i} className="dark:text-gray-300 text-gray-600">
+                          <td className="px-3 py-1.5">{err.row}</td>
+                          <td className="px-3 py-1.5">{err.field}</td>
+                          <td className="px-3 py-1.5 text-red-400">{err.error}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={() => { setShowImport(false); setImportFile(null); setImportResult(null); }}
+            className="dark:text-gray-400 text-gray-500 hover:dark:text-white hover:text-gray-900 text-sm">
+            Close
+          </button>
+        </div>
+      )}
 
       {/* Create Form */}
       {showCreate && (
@@ -234,6 +529,7 @@ export function StudentPage() {
                 <th className="px-4 py-3 text-xs font-medium dark:text-gray-400 text-gray-500 uppercase">Classroom</th>
                 <th className="px-4 py-3 text-xs font-medium dark:text-gray-400 text-gray-500 uppercase">Cards</th>
                 <th className="px-4 py-3 text-xs font-medium dark:text-gray-400 text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-xs font-medium dark:text-gray-400 text-gray-500 uppercase">Badge</th>
                 <th className="px-4 py-3 text-xs font-medium dark:text-gray-400 text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -251,9 +547,9 @@ export function StudentPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm dark:text-gray-300 text-gray-600">{student.studentNumber}</td>
-                  <td className="px-4 py-3 text-sm dark:text-gray-300 text-gray-600">{student.grade || '—'}</td>
+                  <td className="px-4 py-3 text-sm dark:text-gray-300 text-gray-600">{student.grade || '\u2014'}</td>
                   <td className="px-4 py-3 text-sm dark:text-gray-300 text-gray-600">
-                    {student.room ? `${student.room.number} - ${student.room.name}` : student.building?.name || '—'}
+                    {student.room ? `${student.room.number} - ${student.room.name}` : student.building?.name || '\u2014'}
                   </td>
                   <td className="px-4 py-3 text-sm dark:text-gray-300 text-gray-600">{student._count?.transportCards || 0}</td>
                   <td className="px-4 py-3">
@@ -263,6 +559,15 @@ export function StudentPage() {
                         : 'bg-gray-500/20 dark:text-gray-400 text-gray-500'
                     }`}>
                       {student.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
+                      student.badgePrintedAt
+                        ? 'bg-purple-500/20 text-purple-400'
+                        : 'bg-gray-500/20 dark:text-gray-400 text-gray-500'
+                    }`}>
+                      {student.badgePrintedAt ? 'Printed' : 'Not printed'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -277,7 +582,7 @@ export function StudentPage() {
               ))}
               {students.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center dark:text-gray-500 text-gray-400">
+                  <td colSpan={8} className="px-4 py-12 text-center dark:text-gray-500 text-gray-400">
                     No students found
                   </td>
                 </tr>
@@ -298,8 +603,11 @@ export function StudentPage() {
                 selectedStudent === student.id ? 'ring-2 ring-blue-500' : ''
               }`}
             >
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-3 relative">
                 <StudentPhotoAvatar student={student} size="lg" />
+                {student.badgePrintedAt && (
+                  <div className="absolute top-0 right-0 w-3 h-3 rounded-full bg-purple-500" title="Badge printed" />
+                )}
                 <div className="text-center">
                   <div className="font-medium dark:text-white text-gray-900 text-sm">
                     {student.firstName} {student.lastName}
@@ -511,8 +819,13 @@ function StudentDetailPanel({ student, buildings, onClose, updateStudent, upload
       <div className="flex items-center gap-4 pt-2 dark:border-gray-700 border-gray-200 border-t">
         <button onClick={handlePrint} disabled={printId.isPending}
           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
-          {printId.isPending ? 'Printing...' : 'Print ID Card'}
+          {printId.isPending ? 'Printing...' : student.badgePrintedAt ? 'Reprint Badge' : 'Print ID Card'}
         </button>
+        {student.badgePrintedAt && (
+          <span className="text-sm dark:text-gray-400 text-gray-500">
+            Last printed {new Date(student.badgePrintedAt).toLocaleDateString()}
+          </span>
+        )}
         {printId.isSuccess && <span className="text-green-400 text-sm">Print job submitted</span>}
         {printId.error && <span className="text-red-400 text-sm">{(printId.error as Error).message}</span>}
       </div>

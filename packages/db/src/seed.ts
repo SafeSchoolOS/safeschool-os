@@ -238,7 +238,7 @@ async function main() {
 
   // Users (all seed users get the same dev password: 'safeschool123')
   const users = [
-    { id: IDS.users.owner, email: 'bwattendorf@gmail.com', name: 'Bruce Wattendorf', role: 'SITE_ADMIN' as const, phone: null, passwordHash: DEV_PASSWORD_HASH },
+    { id: IDS.users.owner, email: 'admin@safeschool.example.com', name: 'Admin User', role: 'SITE_ADMIN' as const, phone: null, passwordHash: DEV_PASSWORD_HASH },
     { id: IDS.users.admin, email: 'admin@lincoln.edu', name: 'Dr. Sarah Mitchell', role: 'SITE_ADMIN' as const, phone: '+15551000001', passwordHash: DEV_PASSWORD_HASH },
     { id: IDS.users.operator, email: 'operator@lincoln.edu', name: 'James Rodriguez', role: 'OPERATOR' as const, phone: '+15551000002', passwordHash: DEV_PASSWORD_HASH },
     { id: IDS.users.teacher1, email: 'teacher1@lincoln.edu', name: 'Emily Chen', role: 'TEACHER' as const, phone: '+15551000003', wearableDeviceId: 'CX-BADGE-001', passwordHash: DEV_PASSWORD_HASH },

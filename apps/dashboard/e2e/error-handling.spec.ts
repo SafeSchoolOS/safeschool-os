@@ -68,7 +68,6 @@ test.describe('Error Handling', () => {
         '/reunification',
         '/grants',
         '/audit-log',
-        '/badgekiosk',
         '/floor-plan',
         '/reports',
       ];

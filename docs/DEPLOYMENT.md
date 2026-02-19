@@ -115,7 +115,7 @@ Push to `main` to trigger automatic deploys. Railway builds each service using t
 
 The `start-api.sh` script runs on API startup and automatically:
 1. Runs `prisma migrate deploy` (applies pending migrations).
-2. Seeds the owner account (`bwattendorf@gmail.com` / SITE_ADMIN).
+2. Seeds the owner account (`admin@safeschool.example.com` / SITE_ADMIN).
 3. Starts the Node.js server.
 
 ### Step 6 -- Verify

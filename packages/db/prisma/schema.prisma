@@ -107,14 +107,14 @@ model Site {
   rollCalls               RollCall[]
   integrationHealths      IntegrationHealth[]
   visitorBans             VisitorBan[]
-  badgeKioskIntegration   BadgeKioskIntegration?
-  badgeGuardIntegration   BadgeGuardIntegration?
   visitorPolicies         VisitorPolicy[]
   visitorGroups           VisitorGroup[]
   visitorSettings         SiteVisitorSettings?
   fireAlarmZones          FireAlarmZone[]
   fireAlarmEvents         FireAlarmEvent[]
   evacuationRoutes        EvacuationRoute[]
+  badgeKioskIntegration   BadgeKioskIntegration?
+  badgeGuardIntegration   BadgeGuardIntegration?
 
   @@index([organizationId])
   @@map("sites")
@@ -764,6 +764,7 @@ model Student {
   allergies      String?
   notes          String?
   externalId     String?   @map("external_id")
+  badgePrintedAt DateTime? @map("badge_printed_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
@@ -2276,52 +2277,6 @@ model GatewayStateSync {
   @@map("gateway_state_syncs")
 }
 
-// ============================================================================
-// BadgeKiosk Integration
-// ============================================================================
-
-model BadgeKioskIntegration {
-  id              String    @id @default(uuid())
-  siteId          String    @unique @map("site_id")
-  apiUrl          String    @default("https://api.badgekiosk.com") @map("api_url")
-  apiKey          String    @map("api_key")
-  enabled         Boolean   @default(true)
-  autoSync        Boolean   @default(true) @map("auto_sync")
-  defaultTemplate String?   @map("default_template_id")
-  defaultPrinter  String?   @map("default_printer_id")
-  autoPrint       Boolean   @default(false) @map("auto_print")
-  features        Json      @default("{}")
-  lastSyncAt      DateTime? @map("last_sync_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  site Site @relation(fields: [siteId], references: [id])
-
-  @@map("badgekiosk_integrations")
-}
-
-// ============================================================================
-// BadgeGuard Access Control Analytics
-// ============================================================================
-
-model BadgeGuardIntegration {
-  id           String    @id @default(uuid())
-  siteId       String    @unique @map("site_id")
-  apiUrl       String    @default("https://badgeguard-production.up.railway.app") @map("api_url")
-  apiKey       String    @map("api_key")
-  deviceId     String?   @map("device_id")
-  enabled      Boolean   @default(true)
-  pushInterval Int       @default(300) @map("push_interval_seconds")
-  lastPushAt   DateTime? @map("last_push_at")
-  lastAlertAt  DateTime? @map("last_alert_at")
-  alertCount   Int       @default(0) @map("alert_count")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  site Site @relation(fields: [siteId], references: [id])
-
-  @@map("badgeguard_integrations")
-}
 
 model DoorCommand {
   id            String    @id @default(uuid())
@@ -2770,4 +2725,47 @@ model EvacuationRoute {
 
   @@index([siteId])
   @@map("evacuation_routes")
+}
+
+// ============================================================================
+// BadgeKiosk Integration
+// ============================================================================
+
+model BadgeKioskIntegration {
+  id              String    @id @default(uuid())
+  siteId          String    @unique @map("site_id")
+  apiUrl          String    @default("https://backend-production-345e.up.railway.app") @map("api_url")
+  apiKey          String    @map("api_key")
+  enabled         Boolean   @default(true)
+  autoSync        Boolean   @default(true) @map("auto_sync")
+  defaultTemplate String?   @map("default_template_id")
+  defaultPrinter  String?   @map("default_printer_id")
+  autoPrint       Boolean   @default(false) @map("auto_print")
+  features        Json      @default("{}")
+  lastSyncAt      DateTime? @map("last_sync_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("badgekiosk_integrations")
+}
+
+model BadgeGuardIntegration {
+  id           String    @id @default(uuid())
+  siteId       String    @unique @map("site_id")
+  apiUrl       String    @default("https://badgeguard-production.up.railway.app") @map("api_url")
+  apiKey       String    @map("api_key")
+  deviceId     String?   @map("device_id")
+  enabled      Boolean   @default(true)
+  pushInterval Int       @default(300) @map("push_interval_seconds")
+  lastPushAt   DateTime? @map("last_push_at")
+  lastAlertAt  DateTime? @map("last_alert_at")
+  alertCount   Int       @default(0) @map("alert_count")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("badgeguard_integrations")
 }

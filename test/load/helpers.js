@@ -24,7 +24,7 @@ export const SEED = {
  */
 export function login(email, password) {
   const payload = JSON.stringify({
-    email: email || __ENV.TEST_EMAIL || 'bwattendorf@gmail.com',
+    email: email || __ENV.TEST_EMAIL || 'admin@lincoln.edu',
     password: password || __ENV.TEST_PASSWORD || 'safeschool123',
   });
 

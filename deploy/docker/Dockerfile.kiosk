@@ -14,7 +14,7 @@ ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
 
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm install --legacy-peer-deps
-RUN npx turbo run build --filter=@safeschool/badgekiosk
+RUN npx turbo run build --filter=@safeschool/kiosk
 
 FROM nginx:alpine AS runner
 

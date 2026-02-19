@@ -30,9 +30,6 @@ const PanicDevicesPage = lazy(() => import('./pages/PanicDevicesPage').then(m =>
 const WeaponsDetectionPage = lazy(() => import('./pages/WeaponsDetectionPage').then(m => ({ default: m.WeaponsDetectionPage })));
 const CameraPage = lazy(() => import('./pages/CameraPage').then(m => ({ default: m.CameraPage })));
 const ZoneManagementPage = lazy(() => import('./pages/ZoneManagementPage').then(m => ({ default: m.ZoneManagementPage })));
-const BadgeKioskSettingsPage = lazy(() => import('./pages/BadgeKioskSettingsPage').then(m => ({ default: m.BadgeKioskSettingsPage })));
-const AccessAnalyticsPage = lazy(() => import('./pages/AccessAnalyticsPage').then(m => ({ default: m.AccessAnalyticsPage })));
-const BadgeGuardSettingsPage = lazy(() => import('./pages/BadgeGuardSettingsPage').then(m => ({ default: m.BadgeGuardSettingsPage })));
 const VisitorSettingsPage = lazy(() => import('./pages/VisitorSettingsPage').then(m => ({ default: m.VisitorSettingsPage })));
 const VisitorAnalyticsPage = lazy(() => import('./pages/VisitorAnalyticsPage').then(m => ({ default: m.VisitorAnalyticsPage })));
 const EventsPage = lazy(() => import('./pages/EventsPage').then(m => ({ default: m.EventsPage })));
@@ -42,6 +39,9 @@ const RollCallPage = lazy(() => import('./pages/RollCallPage').then(m => ({ defa
 const VisitorBanListPage = lazy(() => import('./pages/VisitorBanListPage').then(m => ({ default: m.VisitorBanListPage })));
 const WidgetDesktopPage = lazy(() => import('./pages/WidgetDesktopPage').then(m => ({ default: m.WidgetDesktopPage })));
 const FireAlarmPASPage = lazy(() => import('./pages/FireAlarmPASPage').then(m => ({ default: m.FireAlarmPASPage })));
+const BadgeKioskSettingsPage = lazy(() => import('./pages/BadgeKioskSettingsPage').then(m => ({ default: m.BadgeKioskSettingsPage })));
+const BadgeGuardSettingsPage = lazy(() => import('./pages/BadgeGuardSettingsPage').then(m => ({ default: m.BadgeGuardSettingsPage })));
+const AccessAnalyticsPage = lazy(() => import('./pages/AccessAnalyticsPage').then(m => ({ default: m.AccessAnalyticsPage })));
 
 function NavigateWithSearch({ to }: { to: string }) {
   const location = useLocation();
@@ -119,9 +119,6 @@ export function App() {
         <Route path="/zones" element={<LazyRoute><ZoneManagementPage /></LazyRoute>} />
         <Route path="/users" element={<LazyRoute><UsersPage /></LazyRoute>} />
         <Route path="/settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
-        <Route path="/badgekiosk" element={<LazyRoute><BadgeKioskSettingsPage /></LazyRoute>} />
-        <Route path="/access-analytics" element={<LazyRoute><AccessAnalyticsPage /></LazyRoute>} />
-        <Route path="/access-analytics/settings" element={<LazyRoute><BadgeGuardSettingsPage /></LazyRoute>} />
         <Route path="/visitor-settings" element={<LazyRoute><VisitorSettingsPage /></LazyRoute>} />
         <Route path="/visitor-analytics" element={<LazyRoute><VisitorAnalyticsPage /></LazyRoute>} />
         <Route path="/events" element={<LazyRoute><EventsPage /></LazyRoute>} />
@@ -131,6 +128,9 @@ export function App() {
         <Route path="/visitor-bans" element={<LazyRoute><VisitorBanListPage /></LazyRoute>} />
         <Route path="/monitor" element={<LazyRoute><WidgetDesktopPage /></LazyRoute>} />
         <Route path="/fire-alarm" element={<LazyRoute><FireAlarmPASPage /></LazyRoute>} />
+        <Route path="/badgekiosk-settings" element={<LazyRoute><BadgeKioskSettingsPage /></LazyRoute>} />
+        <Route path="/access-analytics" element={<LazyRoute><AccessAnalyticsPage /></LazyRoute>} />
+        <Route path="/access-analytics/settings" element={<LazyRoute><BadgeGuardSettingsPage /></LazyRoute>} />
       </Route>
     </Routes>
   );

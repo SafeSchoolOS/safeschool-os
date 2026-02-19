@@ -23,14 +23,4 @@ export { ConsoleScreeningAdapter } from './adapters/console.js';
 export { InformDataSorAdapter } from './adapters/informdata-sor.js';
 export { VisitorService } from './visitor-service.js';
 export { BadgeKioskClient } from './adapters/badgekiosk.js';
-export type {
-  BadgeKioskConfig,
-  BKCardholder,
-  BKTemplate,
-  BKPrintServer,
-  BKPrintJob,
-  BKFeatureFlags,
-  BKCheckpoint,
-  BKValidationResult,
-  BKSessionStats,
-} from './adapters/badgekiosk.js';
+export type { BadgeKioskConfig, BKCardholder, BKTemplate, BKPrintServer, BKPrintJob, BKFeatureFlags, BKCheckpoint, BKValidationResult, BKSessionStats } from './adapters/badgekiosk.js';

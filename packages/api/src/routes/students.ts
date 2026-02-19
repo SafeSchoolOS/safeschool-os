@@ -3,7 +3,8 @@ import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { requireMinRole } from '../middleware/rbac.js';
-import { sanitizeText } from '../utils/sanitize.js';
+import { sanitizeText, isValidDateString } from '../utils/sanitize.js';
+import { parseCsv } from '../utils/csv.js';
 import { createBadgePrinter } from '@safeschool/badge-printing';
 
 const STUDENT_PHOTO_DIR = process.env.STUDENT_PHOTO_DIR || '/app/data/students';
@@ -66,7 +67,7 @@ const studentRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /api/v1/students — create
-  fastify.post('/', { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] }, async (request, reply) => {
+  fastify.post('/', { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] }, async (request, reply) => {
     const body = request.body as any;
     const siteId = body.siteId || request.jwtUser.siteIds[0];
 
@@ -334,9 +335,139 @@ const studentRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(500).send({ error: result.error || 'Print failed' });
       }
 
+      await fastify.prisma.student.update({
+        where: { id: request.params.id },
+        data: { badgePrintedAt: new Date() },
+      });
+
       return { message: 'Print job submitted', jobId: result.jobId };
     }
   );
+
+  // POST /api/v1/students/import — bulk CSV import (must be registered BEFORE /:id routes)
+  // Note: Fastify matches routes in registration order; since this is registered after /:id,
+  // we use a distinct path segment to avoid ambiguity.
+  fastify.post('/import', {
+    preHandler: [fastify.authenticate, requireMinRole('OPERATOR')],
+  }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) return reply.code(400).send({ error: 'No CSV file uploaded' });
+
+    const buffer = await file.toBuffer();
+    if (buffer.length > 5 * 1024 * 1024) {
+      return reply.code(400).send({ error: 'File too large. Maximum 5MB.' });
+    }
+
+    const raw = buffer.toString('utf-8');
+    let rows: Record<string, string>[];
+    try {
+      rows = parseCsv(raw);
+    } catch {
+      return reply.code(400).send({ error: 'Invalid CSV format' });
+    }
+
+    if (rows.length === 0) {
+      return reply.code(400).send({ error: 'CSV file is empty or has no data rows' });
+    }
+    if (rows.length > 5000) {
+      return reply.code(400).send({ error: `Too many rows (${rows.length}). Maximum 5000.` });
+    }
+
+    // Check for dryRun field (may come as a separate multipart field or query param)
+    const dryRun = (request.query as any).dryRun === 'true';
+
+    const siteId = (request.query as any).siteId || request.jwtUser.siteIds[0];
+    const errors: { row: number; field: string; error: string }[] = [];
+    let imported = 0;
+    let skipped = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2; // 1-indexed, +1 for header
+
+      // Validate required fields
+      if (!row.firstname && !row.first_name) {
+        errors.push({ row: rowNum, field: 'firstName', error: 'Required' });
+        continue;
+      }
+      if (!row.lastname && !row.last_name) {
+        errors.push({ row: rowNum, field: 'lastName', error: 'Required' });
+        continue;
+      }
+      if (!row.studentnumber && !row.student_number) {
+        errors.push({ row: rowNum, field: 'studentNumber', error: 'Required' });
+        continue;
+      }
+
+      const firstName = sanitizeText(row.firstname || row.first_name);
+      const lastName = sanitizeText(row.lastname || row.last_name);
+      const studentNumber = sanitizeText(row.studentnumber || row.student_number);
+      const grade = row.grade ? sanitizeText(row.grade) : null;
+      const dateOfBirth = row.dateofbirth || row.date_of_birth;
+      const enrollmentDate = row.enrollmentdate || row.enrollment_date;
+      const medicalNotes = row.medicalnotes || row.medical_notes;
+      const allergies = row.allergies;
+      const externalId = row.externalid || row.external_id;
+      const buildingId = row.buildingid || row.building_id || null;
+      const roomId = row.roomid || row.room_id || null;
+
+      // Validate dates if provided
+      if (dateOfBirth && !isValidDateString(dateOfBirth)) {
+        errors.push({ row: rowNum, field: 'dateOfBirth', error: `Invalid date: ${dateOfBirth}` });
+        continue;
+      }
+      if (enrollmentDate && !isValidDateString(enrollmentDate)) {
+        errors.push({ row: rowNum, field: 'enrollmentDate', error: `Invalid date: ${enrollmentDate}` });
+        continue;
+      }
+
+      if (dryRun) {
+        imported++;
+        continue;
+      }
+
+      try {
+        await fastify.prisma.student.create({
+          data: {
+            siteId,
+            firstName,
+            lastName,
+            studentNumber,
+            grade,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+            buildingId,
+            roomId,
+            enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : null,
+            medicalNotes: medicalNotes ? sanitizeText(medicalNotes) : null,
+            allergies: allergies ? sanitizeText(allergies) : null,
+            externalId: externalId || null,
+          },
+        });
+        imported++;
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          skipped++;
+        } else {
+          errors.push({ row: rowNum, field: 'studentNumber', error: err.message || 'Database error' });
+        }
+      }
+    }
+
+    if (!dryRun && imported > 0) {
+      await fastify.prisma.auditLog.create({
+        data: {
+          siteId,
+          userId: request.jwtUser.id,
+          action: 'BULK_IMPORT',
+          entity: 'Student',
+          entityId: siteId,
+          details: { imported, skipped, errorCount: errors.length, total: rows.length },
+        },
+      });
+    }
+
+    return { imported, skipped, errors, total: rows.length, dryRun };
+  });
 };
 
 export default studentRoutes;

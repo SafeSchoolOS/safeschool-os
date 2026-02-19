@@ -5,6 +5,7 @@ import {
   useUpdateUser,
   useResetPassword,
   useDeactivateUser,
+  useImportUsers,
   type User,
   type CreateUserPayload,
 } from '../api/users';
@@ -22,20 +23,67 @@ const ROLE_COLORS: Record<string, string> = {
 
 const EMPTY_FORM: CreateUserPayload = { email: '', name: '', role: 'TEACHER', password: '', phone: '' };
 
+const USER_CSV_TEMPLATE = 'email,name,role,phone,password\n';
+
+function downloadTemplate() {
+  const blob = new Blob([USER_CSV_TEMPLATE], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'user-import-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsvField(val: string): string {
+  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
+
+function exportUsersCsv(users: User[]) {
+  const headers = ['name', 'email', 'role', 'phone', 'status', 'sites', 'createdAt'];
+  const rows = users.map((u) => [
+    u.name,
+    u.email,
+    u.role,
+    u.phone || '',
+    u.isActive ? 'Active' : 'Inactive',
+    u.sites.map((s) => s.name).join('; '),
+    u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '',
+  ].map(escapeCsvField).join(','));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `users-export-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function UsersPage() {
   const { data: users, isLoading } = useUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const resetPassword = useResetPassword();
   const deactivateUser = useDeactivateUser();
+  const importUsers = useImportUsers();
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [form, setForm] = useState<CreateUserPayload>({ ...EMPTY_FORM });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ name: string; email: string; role: string; phone: string }>({ name: '', email: '', role: '', phone: '' });
   const [resetPwId, setResetPwId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Import state
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<any>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +150,22 @@ export function UsersPage() {
     }
   };
 
+  const handlePreview = async () => {
+    if (!importFile) return;
+    try {
+      const result = await importUsers.mutateAsync({ file: importFile, dryRun: true });
+      setImportResult(result);
+    } catch { /* error shown by mutation */ }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    try {
+      const result = await importUsers.mutateAsync({ file: importFile, dryRun: false });
+      setImportResult(result);
+    } catch { /* error shown by mutation */ }
+  };
+
   const activeUsers = users?.filter((u) => u.isActive) || [];
   const inactiveUsers = users?.filter((u) => !u.isActive) || [];
 
@@ -116,12 +180,27 @@ export function UsersPage() {
             {inactiveUsers.length > 0 && `, ${inactiveUsers.length} inactive`}
           </p>
         </div>
-        <button
-          onClick={() => { setShowAddForm(!showAddForm); setMessage(null); }}
-          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          {showAddForm ? 'Cancel' : 'Add User'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => users && exportUsersCsv(users)}
+            disabled={!users || users.length === 0}
+            className="px-4 py-2 text-sm font-medium dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 rounded-lg transition-colors disabled:opacity-50"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => { setShowImport(!showImport); setShowAddForm(false); setMessage(null); }}
+            className="px-4 py-2 text-sm font-medium dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 rounded-lg transition-colors"
+          >
+            Import CSV
+          </button>
+          <button
+            onClick={() => { setShowAddForm(!showAddForm); setShowImport(false); setMessage(null); }}
+            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {showAddForm ? 'Cancel' : 'Add User'}
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -132,6 +211,90 @@ export function UsersPage() {
             : 'bg-red-900/20 border border-red-500 text-red-300'
         }`}>
           {message.text}
+        </div>
+      )}
+
+      {/* CSV Import Panel */}
+      {showImport && (
+        <div className="dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 border rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900">Import Users from CSV</h3>
+          <div className="dark:bg-yellow-900/20 bg-yellow-50 dark:border-yellow-700 border-yellow-300 border rounded-lg p-3 text-sm dark:text-yellow-300 text-yellow-700">
+            Passwords in CSV must be at least 12 characters. Delete the CSV file after import.
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={downloadTemplate}
+              className="text-blue-400 hover:text-blue-300 text-sm underline">
+              Download Template
+            </button>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }}
+              className="text-sm dark:text-gray-300 text-gray-600"
+            />
+          </div>
+          {importFile && (
+            <div className="flex gap-3">
+              <button onClick={handlePreview} disabled={importUsers.isPending}
+                className="dark:bg-gray-700 bg-gray-200 hover:dark:bg-gray-600 hover:bg-gray-300 dark:text-white text-gray-900 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                {importUsers.isPending ? 'Processing...' : 'Preview'}
+              </button>
+              <button onClick={handleImport} disabled={importUsers.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                {importUsers.isPending ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          )}
+          {importUsers.error && (
+            <p className="text-red-400 text-sm">{(importUsers.error as Error).message}</p>
+          )}
+          {importResult && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-4 text-sm">
+                <span className="dark:text-green-400 text-green-600 font-medium">
+                  {importResult.dryRun ? 'Would import' : 'Imported'}: {importResult.imported}
+                </span>
+                <span className="dark:text-yellow-400 text-yellow-600 font-medium">
+                  Skipped (duplicates): {importResult.skipped}
+                </span>
+                <span className="dark:text-red-400 text-red-600 font-medium">
+                  Errors: {importResult.errors?.length || 0}
+                </span>
+                <span className="dark:text-gray-400 text-gray-500">
+                  Total rows: {importResult.total}
+                </span>
+                {importResult.dryRun && (
+                  <span className="dark:text-blue-400 text-blue-600 font-medium">(Dry run — no changes made)</span>
+                )}
+              </div>
+              {importResult.errors?.length > 0 && (
+                <div className="max-h-48 overflow-auto dark:bg-gray-750 bg-gray-50 rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="dark:text-gray-400 text-gray-500 text-left">
+                        <th className="px-3 py-2">Row</th>
+                        <th className="px-3 py-2">Field</th>
+                        <th className="px-3 py-2">Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-gray-700 divide-gray-200">
+                      {importResult.errors.map((err: any, i: number) => (
+                        <tr key={i} className="dark:text-gray-300 text-gray-600">
+                          <td className="px-3 py-1.5">{err.row}</td>
+                          <td className="px-3 py-1.5">{err.field}</td>
+                          <td className="px-3 py-1.5 text-red-400">{err.error}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={() => { setShowImport(false); setImportFile(null); setImportResult(null); }}
+            className="dark:text-gray-400 text-gray-500 hover:dark:text-white hover:text-gray-900 text-sm">
+            Close
+          </button>
         </div>
       )}
 
@@ -332,13 +495,13 @@ export function UsersPage() {
                         className="w-full px-2 py-1 text-sm rounded dark:bg-gray-700 bg-gray-100 dark:text-white text-gray-900 border dark:border-gray-600 border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
                     ) : (
-                      user.phone || '—'
+                      user.phone || '\u2014'
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm dark:text-gray-400 text-gray-500">
                     {user.sites.length > 0
                       ? user.sites.map((s) => s.name).join(', ')
-                      : '—'}
+                      : '\u2014'}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${

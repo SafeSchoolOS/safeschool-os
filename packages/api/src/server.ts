@@ -62,8 +62,6 @@ import responderReunificationRoutes from './routes/responder-reunification.js';
 import frTipsPublicRoutes from './routes/fr-tips-public.js';
 import frTipsAdminRoutes from './routes/fr-tips-admin.js';
 import frTipsIntegrationsRoutes from './routes/fr-tips-integrations.js';
-import badgekioskRoutes from './routes/badgekiosk.js';
-import badgeguardAnalyticsRoutes from './routes/badgeguard-analytics.js';
 import zeroeyesWebhookRoutes from './routes/webhooks/zeroeyes.js';
 import panicWebhookRoutes from './routes/webhooks/panic.js';
 import weaponsDetectionWebhookRoutes from './routes/webhooks/weapons-detection.js';
@@ -78,6 +76,8 @@ import rollCallRoutes from './routes/roll-call.js';
 import integrationHealthRoutes from './routes/integration-health.js';
 import visitorBanRoutes from './routes/visitor-bans.js';
 import fireAlarmRoutes from './routes/fire-alarm.js';
+import badgekioskRoutes from './routes/badgekiosk.js';
+import badgeguardAnalyticsRoutes from './routes/badgeguard-analytics.js';
 import wsHandler from './ws/handler.js';
 
 // Side-effect: import types for augmentation
@@ -281,8 +281,11 @@ export async function buildServer() {
   await app.register(frTipsPublicRoutes, { prefix: '/api/v1/tips/public' });
   await app.register(frTipsAdminRoutes, { prefix: '/api/v1/tips/admin' });
   await app.register(frTipsIntegrationsRoutes, { prefix: '/api/v1/tips/integrations' });
-  await app.register(badgekioskRoutes, { prefix: '/api/v1/badgekiosk' });
-  await app.register(badgeguardAnalyticsRoutes, { prefix: '/api/v1/badgeguard' });
+  // Optional proprietary plugins (installed as npm package at deploy time)
+  try {
+    const { register } = await import('@safeschool/proprietary');
+    await register(app);
+  } catch { /* @safeschool/proprietary not installed — skip */ }
 
   // Panic device management
   await app.register(panicDeviceRoutes, { prefix: '/api/v1/panic-devices' });
@@ -301,6 +304,8 @@ export async function buildServer() {
   await app.register(integrationHealthRoutes, { prefix: '/api/v1/integration-health' });
   await app.register(visitorBanRoutes, { prefix: '/api/v1/visitor-bans' });
   await app.register(fireAlarmRoutes, { prefix: '/api/v1/fire-alarm' });
+  await app.register(badgekioskRoutes, { prefix: '/api/v1/badgekiosk' });
+  await app.register(badgeguardAnalyticsRoutes, { prefix: '/api/v1/badgeguard' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });

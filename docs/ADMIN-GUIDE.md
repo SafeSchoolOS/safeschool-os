@@ -34,7 +34,7 @@ After deployment, the platform seeds an initial admin account and sample site da
 
 | Field    | Value                        |
 |----------|------------------------------|
-| Email    | `bwattendorf@gmail.com`      |
+| Email    | `admin@safeschool.example.com` |
 | Password | `safeschool123`              |
 | Role     | SITE_ADMIN                   |
 
@@ -583,5 +583,5 @@ If you lose access to the admin account, re-run the seed script on the API conta
 ```bash
 # Edge
 docker compose -f /opt/safeschool/deploy/edge/docker-compose.yml exec api \
-  node -e "const { PrismaClient } = require('@prisma/client'); const bcrypt = require('bcryptjs'); const p = new PrismaClient(); (async () => { await p.user.update({ where: { email: 'bwattendorf@gmail.com' }, data: { passwordHash: bcrypt.hashSync('safeschool123', 10) } }); console.log('Password reset'); await p.\$disconnect(); })()"
+  node -e "const { PrismaClient } = require('@prisma/client'); const bcrypt = require('bcryptjs'); const p = new PrismaClient(); (async () => { await p.user.update({ where: { email: 'admin@safeschool.example.com' }, data: { passwordHash: bcrypt.hashSync('safeschool123', 10) } }); console.log('Password reset'); await p.\$disconnect(); })()"
 ```

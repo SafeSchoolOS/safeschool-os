@@ -98,7 +98,7 @@ const badgekioskRoutes: FastifyPluginAsync = async (fastify) => {
         update: data,
         create: {
           siteId,
-          apiUrl: apiUrl || 'https://api.badgekiosk.com',
+          apiUrl: apiUrl || 'https://backend-production-345e.up.railway.app',
           apiKey: apiKey!,
           enabled: enabled ?? true,
           autoSync: autoSync ?? true,

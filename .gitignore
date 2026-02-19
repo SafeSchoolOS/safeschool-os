@@ -68,6 +68,9 @@ gh_installer.msi
 gh.zip
 gh_cli/
 
+# Claude Code
+.claude/
+
 # Secrets - NEVER commit these
 *.pem
 *.key

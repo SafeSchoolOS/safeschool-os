@@ -1,7 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
+import { parseCsv } from '../utils/csv.js';
 import bcrypt from 'bcryptjs';
+
+const VALID_ROLES = new Set(['SUPER_ADMIN', 'SITE_ADMIN', 'OPERATOR', 'TEACHER', 'FIRST_RESPONDER', 'PARENT']);
 
 export default async function userRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -239,5 +242,109 @@ export default async function userRoutes(app: FastifyInstance) {
     });
 
     return { message: 'User deactivated' };
+  });
+
+  // POST /api/v1/users/import — bulk CSV import
+  app.post('/import', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const file = await (request as any).file();
+    if (!file) return reply.code(400).send({ error: 'No CSV file uploaded' });
+
+    const buffer = await file.toBuffer();
+    if (buffer.length > 5 * 1024 * 1024) {
+      return reply.code(400).send({ error: 'File too large. Maximum 5MB.' });
+    }
+
+    const raw = buffer.toString('utf-8');
+    let rows: Record<string, string>[];
+    try {
+      rows = parseCsv(raw);
+    } catch {
+      return reply.code(400).send({ error: 'Invalid CSV format' });
+    }
+
+    if (rows.length === 0) {
+      return reply.code(400).send({ error: 'CSV file is empty or has no data rows' });
+    }
+    if (rows.length > 5000) {
+      return reply.code(400).send({ error: `Too many rows (${rows.length}). Maximum 5000.` });
+    }
+
+    const dryRun = ((request.query as any).dryRun === 'true');
+    const siteId = (request as any).jwtUser.siteIds[0];
+    const errors: { row: number; field: string; error: string }[] = [];
+    let imported = 0;
+    let skipped = 0;
+
+    // Cap bcrypt concurrency to avoid CPU freeze
+    const BATCH_SIZE = 10;
+    const batches: Record<string, string>[][] = [];
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      batches.push(rows.slice(i, i + BATCH_SIZE));
+    }
+
+    let globalIdx = 0;
+    for (const batch of batches) {
+      await Promise.all(batch.map(async (row) => {
+        const rowIdx = globalIdx++;
+        const rowNum = rowIdx + 2; // 1-indexed + header
+
+        const email = (row.email || '').trim().toLowerCase();
+        const name = (row.name || '').trim();
+        const role = (row.role || '').trim().toUpperCase();
+        const phone = (row.phone || '').trim();
+        const password = (row.password || '').trim();
+
+        if (!email) { errors.push({ row: rowNum, field: 'email', error: 'Required' }); return; }
+        if (!name) { errors.push({ row: rowNum, field: 'name', error: 'Required' }); return; }
+        if (!role) { errors.push({ row: rowNum, field: 'role', error: 'Required' }); return; }
+        if (!VALID_ROLES.has(role)) {
+          errors.push({ row: rowNum, field: 'role', error: `Invalid role: ${role}. Must be one of: ${[...VALID_ROLES].join(', ')}` });
+          return;
+        }
+        if (!password) { errors.push({ row: rowNum, field: 'password', error: 'Required' }); return; }
+        if (password.length < 12) {
+          errors.push({ row: rowNum, field: 'password', error: 'Password must be at least 12 characters' });
+          return;
+        }
+
+        if (dryRun) { imported++; return; }
+
+        try {
+          const passwordHash = await bcrypt.hash(password, 12);
+          await app.prisma.user.create({
+            data: {
+              email: sanitizeText(email),
+              name: sanitizeText(name),
+              role: role as any,
+              phone: phone ? sanitizeText(phone) : null,
+              passwordHash,
+              sites: { create: [{ siteId }] },
+            },
+          });
+          imported++;
+        } catch (err: any) {
+          if (err.code === 'P2002') {
+            skipped++;
+          } else {
+            errors.push({ row: rowNum, field: 'email', error: err.message || 'Database error' });
+          }
+        }
+      }));
+    }
+
+    if (!dryRun && imported > 0) {
+      await app.prisma.auditLog.create({
+        data: {
+          siteId,
+          userId: (request as any).jwtUser.id,
+          action: 'BULK_IMPORT',
+          entity: 'User',
+          entityId: siteId,
+          details: { imported, skipped, errorCount: errors.length, total: rows.length },
+        },
+      });
+    }
+
+    return { imported, skipped, errors, total: rows.length, dryRun };
   });
 }

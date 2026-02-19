@@ -40,7 +40,7 @@ export function BadgeKioskSettingsPage() {
   const queryClient = useQueryClient();
 
   // Form state
-  const [apiUrl, setApiUrl] = useState('https://api.badgekiosk.com');
+  const [apiUrl, setApiUrl] = useState('https://backend-production-345e.up.railway.app');
   const [apiKey, setApiKey] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
@@ -139,7 +139,7 @@ export function BadgeKioskSettingsPage() {
                   value={apiUrl}
                   onChange={(e) => setApiUrl(e.target.value)}
                   className="w-full px-3 py-2 dark:bg-gray-900 bg-gray-50 rounded-lg dark:border-gray-700 border-gray-200 border dark:text-white text-gray-900 text-sm"
-                  placeholder="https://api.badgekiosk.com"
+                  placeholder="https://backend-production-345e.up.railway.app"
                 />
               </div>
 

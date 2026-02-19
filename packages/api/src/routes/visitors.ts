@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { VisitorService, ConsoleScreeningAdapter, BadgeKioskClient } from '@safeschool/visitor-mgmt';
+import { VisitorService, ConsoleScreeningAdapter } from '@safeschool/visitor-mgmt';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText, isValidDateString } from '../utils/sanitize.js';
 import { randomUUID } from 'crypto';
@@ -341,49 +341,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        // BadgeKiosk integration: auto-sync and auto-print
-        let badgePrinted = false;
-        let printJobId: string | null = null;
-        try {
-          const bkIntegration = await fastify.prisma.badgeKioskIntegration.findUnique({
-            where: { siteId: visitor.siteId },
-          });
-
-          if (bkIntegration?.enabled && visitor.status === 'CHECKED_IN') {
-            const bkClient = new BadgeKioskClient({
-              apiUrl: bkIntegration.apiUrl,
-              apiKey: bkIntegration.apiKey,
-            });
-
-            if (bkIntegration.autoSync) {
-              const cardholder = await bkClient.createCardholder({
-                firstName: visitor.firstName,
-                lastName: visitor.lastName,
-                destination: visitor.destination,
-                badgeNumber: visitor.badgeNumber || undefined,
-                photo: visitor.photo || undefined,
-              });
-
-              if (
-                bkIntegration.autoPrint &&
-                bkIntegration.defaultTemplate &&
-                bkIntegration.defaultPrinter
-              ) {
-                const printJob = await bkClient.submitPrintJob(
-                  bkIntegration.defaultTemplate,
-                  cardholder.id,
-                  bkIntegration.defaultPrinter,
-                );
-                badgePrinted = true;
-                printJobId = printJob.id;
-              }
-            }
-          }
-        } catch (bkErr) {
-          fastify.log.warn({ err: bkErr, visitorId: visitor.id }, 'BadgeKiosk sync/print failed');
-        }
-
-        return { ...visitor, badgePrinted, printJobId };
+        return visitor;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Check-in failed';
         return reply.code(400).send({ error: message });

@@ -1,9 +1,12 @@
 /**
- * BadgeKiosk API Client Adapter
+ * BadgeKiosk External API Client
  *
- * Integrates SafeSchool with BadgeKiosk's cloud API for:
+ * Integrates SafeSchool with BadgeKiosk's external API for:
  * - Badge printing on thermal printers (free with SafeSchool)
  * - Guard console features (paid, requires BadgeKiosk subscription)
+ *
+ * Uses X-API-Key header authentication (machine-to-machine).
+ * All routes are under /api/external/*.
  */
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -89,14 +92,23 @@ export interface BKSessionStats {
   sessionStart: string;
 }
 
+export interface BKCustomField {
+  id: string;
+  fieldName: string;
+  fieldLabel: string;
+  fieldType: 'text' | 'number' | 'date' | 'select' | 'textarea' | 'checkbox';
+  options?: string[];
+  required: boolean;
+  sortOrder: number;
+  createdAt?: string;
+}
+
 // ── Client ─────────────────────────────────────────────────────────────────
 
 export class BadgeKioskClient {
   private apiUrl: string;
   private apiKey: string;
   private tenantId?: string;
-  private jwt: string | null = null;
-  private jwtExpiresAt: number = 0;
 
   constructor(config: BadgeKioskConfig) {
     this.apiUrl = config.apiUrl.replace(/\/$/, '');
@@ -104,52 +116,38 @@ export class BadgeKioskClient {
     this.tenantId = config.tenantId;
   }
 
-  // ── Auth ───────────────────────────────────────────────────────────────
-
-  /**
-   * Authenticate with BadgeKiosk API using the API key.
-   * Caches JWT until expiry.
-   */
-  async authenticate(): Promise<void> {
-    // Skip if we have a valid cached JWT (with 60s buffer)
-    if (this.jwt && Date.now() < this.jwtExpiresAt - 60_000) {
-      return;
-    }
-
-    const res = await this.rawFetch('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ apiKey: this.apiKey }),
-    });
-
-    this.jwt = res.token;
-    // Default 1h expiry if not provided
-    this.jwtExpiresAt = Date.now() + (res.expiresIn || 3600) * 1000;
-  }
+  // ── Features ─────────────────────────────────────────────────────────────
 
   /**
    * Get feature flags for the current subscription tier.
    */
   async getFeatureFlags(): Promise<BKFeatureFlags> {
-    return this.fetch('/api/auth/me/features');
+    return this.fetch('/api/external/features');
   }
 
   // ── Cardholders ────────────────────────────────────────────────────────
 
   /**
-   * Create a cardholder in BadgeKiosk from a SafeSchool visitor.
+   * Create or update a cardholder in BadgeKiosk from a SafeSchool visitor.
+   * Uses externalId for upsert. Any keys in customFields will auto-create
+   * field definitions in BadgeKiosk if they don't already exist.
    */
   async createCardholder(visitor: {
+    externalId: string;
     firstName: string;
     lastName: string;
     company?: string;
     email?: string;
     phone?: string;
     photo?: string;
+    department?: string;
+    title?: string;
     destination?: string;
     hostName?: string;
     badgeNumber?: string;
-  }): Promise<BKCardholder> {
-    return this.fetch('/api/cardholders', {
+    customFields?: Record<string, unknown>;
+  }): Promise<BKCardholder & { autoCreatedFields?: string[] }> {
+    return this.fetch('/api/external/cardholders', {
       method: 'POST',
       body: JSON.stringify(visitor),
     });
@@ -159,7 +157,7 @@ export class BadgeKioskClient {
    * Update an existing cardholder.
    */
   async updateCardholder(id: string, data: Partial<BKCardholder>): Promise<BKCardholder> {
-    return this.fetch(`/api/cardholders/${id}`, {
+    return this.fetch(`/api/external/cardholders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -169,7 +167,7 @@ export class BadgeKioskClient {
    * Get a cardholder by ID.
    */
   async getCardholder(id: string): Promise<BKCardholder> {
-    return this.fetch(`/api/cardholders/${id}`);
+    return this.fetch(`/api/external/cardholders/${id}`);
   }
 
   // ── Templates ──────────────────────────────────────────────────────────
@@ -178,7 +176,7 @@ export class BadgeKioskClient {
    * List available badge templates.
    */
   async getTemplates(): Promise<BKTemplate[]> {
-    return this.fetch('/api/templates');
+    return this.fetch('/api/external/templates');
   }
 
   // ── Print Jobs ─────────────────────────────────────────────────────────
@@ -191,7 +189,7 @@ export class BadgeKioskClient {
     cardholderId: string,
     serverId: string,
   ): Promise<BKPrintJob> {
-    return this.fetch('/api/print-jobs', {
+    return this.fetch('/api/external/print', {
       method: 'POST',
       body: JSON.stringify({ templateId, cardholderId, serverId }),
     });
@@ -201,7 +199,7 @@ export class BadgeKioskClient {
    * Check print job status.
    */
   async getPrintJobStatus(jobId: string): Promise<BKPrintJob> {
-    return this.fetch(`/api/print-jobs/${jobId}`);
+    return this.fetch(`/api/external/jobs/${jobId}`);
   }
 
   // ── Print Servers ──────────────────────────────────────────────────────
@@ -210,7 +208,54 @@ export class BadgeKioskClient {
    * List available print servers/printers.
    */
   async getPrintServers(): Promise<BKPrintServer[]> {
-    return this.fetch('/api/print-servers');
+    return this.fetch('/api/external/servers');
+  }
+
+  // ── Custom Fields ──────────────────────────────────────────────────────
+
+  /**
+   * List custom field definitions for this site.
+   * Fields are auto-created when cardholders are pushed with customFields.
+   */
+  async getCustomFields(): Promise<BKCustomField[]> {
+    const res = await this.fetch('/api/external/custom-fields');
+    return res.fields;
+  }
+
+  /**
+   * Create a custom field definition explicitly.
+   */
+  async createCustomField(field: {
+    fieldName: string;
+    fieldLabel: string;
+    fieldType: BKCustomField['fieldType'];
+    options?: string[];
+    required?: boolean;
+    sortOrder?: number;
+  }): Promise<BKCustomField> {
+    return this.fetch('/api/external/custom-fields', {
+      method: 'POST',
+      body: JSON.stringify(field),
+    });
+  }
+
+  /**
+   * Update a custom field definition.
+   */
+  async updateCustomField(id: string, data: Partial<Omit<BKCustomField, 'id' | 'fieldName'>>): Promise<BKCustomField> {
+    return this.fetch(`/api/external/custom-fields/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Delete a custom field definition.
+   */
+  async deleteCustomField(id: string): Promise<{ deleted: boolean; fieldName: string }> {
+    return this.fetch(`/api/external/custom-fields/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   // ── Guard Console (paid feature) ──────────────────────────────────────
@@ -219,7 +264,7 @@ export class BadgeKioskClient {
    * List guard checkpoints.
    */
   async getCheckpoints(): Promise<BKCheckpoint[]> {
-    return this.fetch('/api/guard/checkpoints');
+    return this.fetch('/api/external/guard/checkpoints');
   }
 
   /**
@@ -229,7 +274,7 @@ export class BadgeKioskClient {
     scanData: string;
     checkpointId?: string;
   }): Promise<BKValidationResult> {
-    return this.fetch('/api/guard/validate', {
+    return this.fetch('/api/external/guard/validate', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -239,17 +284,16 @@ export class BadgeKioskClient {
    * Get guard session statistics.
    */
   async getSessionStats(): Promise<BKSessionStats> {
-    return this.fetch('/api/guard/session/stats');
+    return this.fetch('/api/external/guard/session/stats');
   }
 
   // ── Connection Test ────────────────────────────────────────────────────
 
   /**
-   * Test the API connection. Returns true if authentication succeeds.
+   * Test the API connection. Returns true if the API key is valid.
    */
   async testConnection(): Promise<{ ok: boolean; features?: BKFeatureFlags; error?: string }> {
     try {
-      await this.authenticate();
       const features = await this.getFeatureFlags();
       return { ok: true, features };
     } catch (err) {
@@ -260,23 +304,13 @@ export class BadgeKioskClient {
     }
   }
 
-  // ── Internal HTTP helpers ──────────────────────────────────────────────
+  // ── Internal HTTP helper ─────────────────────────────────────────────
 
   private async fetch(path: string, init?: RequestInit): Promise<any> {
-    await this.authenticate();
-    return this.rawFetch(path, {
-      ...init,
-      headers: {
-        ...((init?.headers as Record<string, string>) || {}),
-        Authorization: `Bearer ${this.jwt}`,
-      },
-    });
-  }
-
-  private async rawFetch(path: string, init?: RequestInit): Promise<any> {
     const url = `${this.apiUrl}${path}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-API-Key': this.apiKey,
       ...((init?.headers as Record<string, string>) || {}),
     };
     if (this.tenantId) {

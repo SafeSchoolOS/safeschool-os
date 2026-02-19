@@ -20,12 +20,13 @@ services:
           try {
             const orgId = '00000000-0000-4000-a000-000000008001';
             const siteId = '00000000-0000-4000-a000-000000000001';
-            const passwordHash = bcrypt.hashSync('safeschool123', 10);
+            const seedPw = process.env.SEED_ADMIN_PASSWORD || 'safeschool123';
+            const passwordHash = bcrypt.hashSync(seedPw, 10);
             await p.organization.upsert({ where: { id: orgId }, update: {}, create: { id: orgId, name: 'Newark Public Schools', slug: 'newark-public-schools', type: 'DISTRICT', address: '765 Broad St', city: 'Newark', state: 'NJ', zip: '07102' } });
             console.log('Organization ready');
             await p.site.upsert({ where: { id: siteId }, update: { organizationId: orgId }, create: { id: siteId, name: 'Lincoln Elementary School', district: 'Newark Public Schools', organizationId: orgId, address: '123 Lincoln Ave', city: 'Newark', state: 'NJ', zip: '07104', latitude: 40.7357, longitude: -74.1724, timezone: 'America/New_York' } });
             console.log('Site ready');
-            const u = await p.user.upsert({ where: { email: 'bwattendorf@gmail.com' }, update: { passwordHash }, create: { id: '00000000-0000-4000-a000-000000001000', email: 'bwattendorf@gmail.com', name: 'Bruce Wattendorf', role: 'SITE_ADMIN', passwordHash, sites: { create: { siteId } } } });
+            const u = await p.user.upsert({ where: { email: 'admin@safeschool.example.com' }, update: { passwordHash }, create: { id: '00000000-0000-4000-a000-000000001000', email: 'admin@safeschool.example.com', name: 'Admin User', role: 'SITE_ADMIN', passwordHash, sites: { create: { siteId } } } });
             console.log('Owner account ready:', u.email);
           } catch(e) { console.error('Seed error:', e.message); }
           finally { await p.\$$disconnect(); }

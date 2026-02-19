@@ -7,6 +7,30 @@ echo "AUTH_PROVIDER=${AUTH_PROVIDER:-dev}"
 echo "DATABASE_URL set: $(test -n "$DATABASE_URL" && echo YES || echo NO)"
 echo "REDIS_URL set: $(test -n "$REDIS_URL" && echo YES || echo NO)"
 
+if [ -n "$PROPRIETARY_REPO_URL" ]; then
+  echo "=== Installing proprietary plugin ==="
+  npm install "git+https://x-access-token:${GITHUB_TOKEN}@github.com/${PROPRIETARY_REPO_URL}.git" --no-save
+
+  # Patch Prisma schema with proprietary models
+  PROP_DIR=$(node -e "console.log(require.resolve('@safeschool/proprietary').replace(/dist.*/, ''))")
+  if [ -f "${PROP_DIR}schema-patch.prisma" ]; then
+    # Add relation fields to Site model
+    sed -i '/visitorSettings.*SiteVisitorSettings/a\  badgeKioskIntegration   BadgeKioskIntegration?\n  badgeGuardIntegration   BadgeGuardIntegration?' packages/db/prisma/schema.prisma
+    cat "${PROP_DIR}schema-patch.prisma" >> packages/db/prisma/schema.prisma
+    echo "Schema patched"
+  fi
+
+  # Copy migrations
+  if [ -d "${PROP_DIR}migrations" ]; then
+    cp -r "${PROP_DIR}migrations/"* packages/db/prisma/migrations/
+    echo "Migrations copied"
+  fi
+
+  # Regenerate Prisma client with new models
+  npx prisma generate --schema=packages/db/prisma/schema.prisma
+  echo "=== Proprietary plugin installed ==="
+fi
+
 echo "=== Running migrations ==="
 npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma || {
   echo "=== migrate deploy failed, falling back to db push ==="
@@ -23,7 +47,8 @@ const p = new PrismaClient();
   try {
     const orgId = '00000000-0000-4000-a000-000000008001';
     const siteId = '00000000-0000-4000-a000-000000000001';
-    const passwordHash = bcrypt.hashSync('safeschool123', 12);
+    const seedPassword = process.env.SEED_ADMIN_PASSWORD || 'safeschool123';
+    const passwordHash = bcrypt.hashSync(seedPassword, 12);
 
     await p.organization.upsert({
       where: { id: orgId },
@@ -61,12 +86,12 @@ const p = new PrismaClient();
     console.log('Site ready');
 
     const u = await p.user.upsert({
-      where: { email: 'bwattendorf@gmail.com' },
+      where: { email: 'admin@safeschool.example.com' },
       update: { passwordHash: passwordHash },
       create: {
         id: '00000000-0000-4000-a000-000000001000',
-        email: 'bwattendorf@gmail.com',
-        name: 'Bruce Wattendorf',
+        email: 'admin@safeschool.example.com',
+        name: 'Admin User',
         role: 'SITE_ADMIN',
         passwordHash: passwordHash,
         sites: { create: { siteId: siteId } }

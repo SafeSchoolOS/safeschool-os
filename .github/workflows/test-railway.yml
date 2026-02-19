@@ -1,0 +1,57 @@
+name: Test Railway Deployment
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test-railway:
+    name: E2E Tests (Railway)
+    runs-on: ubuntu-latest
+    # Only run on manual trigger or after successful CI deploy
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/dashboard
+
+      - name: Wait for Railway deploy to settle
+        if: github.event_name == 'workflow_run'
+        run: sleep 60
+
+      - name: Run E2E tests against Railway
+        run: npx playwright test --config=playwright.railway.config.ts
+        working-directory: apps/dashboard
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-e2e-report
+          path: apps/dashboard/playwright-report/
+          retention-days: 14
+
+      - name: Upload test artifacts (screenshots/videos)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-e2e-artifacts
+          path: apps/dashboard/test-results/
+          retention-days: 14

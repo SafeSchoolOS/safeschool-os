@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "SafeSchool OS — Comprehensive school safety platform - Alyssa's Law compliant",
-  "author": "bwattendorf",
-  "license": "MIT",
+  "author": "SafeSchool OS <info@safeschoolos.com> (https://safeschoolos.com)",
+  "license": "AGPL-3.0-only",
   "workspaces": [
     "apps/*",
     "packages/*",

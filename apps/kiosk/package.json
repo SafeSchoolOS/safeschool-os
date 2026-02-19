@@ -1,5 +1,5 @@
 {
-  "name": "@safeschool/badgekiosk",
+  "name": "@safeschool/kiosk",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
@@ -40,7 +40,6 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { label: 'Cameras', path: '/cameras', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' },
       { label: 'Door Health', path: '/door-health', icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', minRole: 'OPERATOR' },
       { label: 'Zones', path: '/zones', icon: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z', minRole: 'OPERATOR' },
-      { label: 'Access Analytics', path: '/access-analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
     ],
   },
   {
@@ -50,6 +49,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { label: 'Visitors', path: '/visitors', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
       { label: 'Visitor Bans', path: '/visitor-bans', icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', minRole: 'OPERATOR' },
       { label: 'Visitor Analytics', path: '/visitor-analytics', icon: 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z' },
+      { label: 'Access Analytics', path: '/access-analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', minRole: 'OPERATOR' },
       { label: 'Transportation', path: '/transportation', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
       { label: 'Students', path: '/students', icon: 'M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5' },
       { label: 'Reports', path: '/reports', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
@@ -66,7 +66,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { label: 'Fleet', path: '/fleet', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01', minRole: 'SITE_ADMIN' },
       { label: 'New Site Setup', path: '/onboarding', icon: 'M12 4.5v15m7.5-7.5h-15', minRole: 'SITE_ADMIN' },
       { label: 'Visitor Settings', path: '/visitor-settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', minRole: 'SITE_ADMIN' },
-      { label: 'BadgeKiosk', path: '/badgekiosk', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z', minRole: 'SITE_ADMIN' },
+      { label: 'BadgeKiosk', path: '/badgekiosk-settings', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', minRole: 'SITE_ADMIN' },
       { label: 'Settings', path: '/settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
     ],
   },
@@ -91,6 +91,8 @@ export function DashboardLayout() {
   // Desktop: expanded by default. Mobile: closed by default.
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const mainRef = useRef<HTMLElement>(null);
 
   const isParent = user?.role === 'PARENT';
   const siteId = user?.siteIds[0];
@@ -111,12 +113,16 @@ export function DashboardLayout() {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  // Close mobile sidebar on route change
+  // Close mobile sidebar on route change + scroll main content to top
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
+    mainRef.current?.scrollTo(0, 0);
   }, [location.pathname, isMobile]);
 
   const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
+  const toggleSection = useCallback((title: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  }, []);
 
   // Find current page title
   const navItems = isParent ? PARENT_NAV_ITEMS : NAV_SECTIONS.flatMap((s) => s.items);
@@ -152,35 +158,51 @@ export function DashboardLayout() {
           })}
         </div>
       ) : (
-        NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="mb-2">
-            {(sidebarOpen || isMobile) && (
-              <div className="px-4 py-1 text-xs font-semibold dark:text-gray-500 text-gray-400 uppercase tracking-wider">
-                {section.title}
-              </div>
-            )}
-            {section.items.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${
-                    isActive
-                      ? 'bg-blue-600/20 text-blue-400'
-                      : 'dark:text-gray-400 text-gray-600 dark:hover:text-white hover:text-gray-900 dark:hover:bg-gray-700/50 hover:bg-gray-100'
-                  }`}
-                  title={!sidebarOpen && !isMobile ? item.label : undefined}
+        NAV_SECTIONS.map((section) => {
+          const isCollapsed = collapsedSections[section.title];
+          const hasActiveItem = section.items.some((item) => location.pathname === item.path);
+          return (
+            <div key={section.title} className="mb-1">
+              {(sidebarOpen || isMobile) ? (
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold dark:text-gray-500 text-gray-400 uppercase tracking-wider hover:dark:text-gray-300 hover:text-gray-600 transition-colors"
                 >
-                  <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                  <span>{section.title}</span>
+                  <svg
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
-                  {(sidebarOpen || isMobile) && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </div>
-        ))
+                </button>
+              ) : (
+                <div className="mx-2 my-1 border-t dark:border-gray-700 border-gray-200" />
+              )}
+              {(!isCollapsed || hasActiveItem) && section.items.map((item) => {
+                const isActive = location.pathname === item.path;
+                if (isCollapsed && !isActive) return null;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm transition-colors ${
+                      isActive
+                        ? 'bg-blue-600/20 text-blue-400'
+                        : 'dark:text-gray-400 text-gray-600 dark:hover:text-white hover:text-gray-900 dark:hover:bg-gray-700/50 hover:bg-gray-100'
+                    }`}
+                    title={!sidebarOpen && !isMobile ? item.label : undefined}
+                  >
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                    </svg>
+                    {(sidebarOpen || isMobile) && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })
       )}
     </nav>
   );
@@ -337,7 +359,7 @@ export function DashboardLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+        <main ref={mainRef} className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>
