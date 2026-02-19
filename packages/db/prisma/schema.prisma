@@ -115,6 +115,19 @@ model Site {
   evacuationRoutes        EvacuationRoute[]
   badgeKioskIntegration   BadgeKioskIntegration?
   badgeGuardIntegration   BadgeGuardIntegration?
+  // Threat Assessment Workflow
+  threatAssessmentTeamMembers ThreatAssessmentTeamMember[]
+  threatAssessmentNotes       ThreatAssessmentNote[]
+  threatAssessmentInterviews  ThreatAssessmentInterview[]
+  safetyPlans                 SafetyPlan[]
+  // Drill Management
+  drillTemplates              DrillTemplate[]
+  drillObservations           DrillObservation[]
+  drillScores                 DrillScore[]
+  recurringDrillSchedules     RecurringDrillSchedule[]
+  // Substitute & Contractor Tracking
+  dailyAccessPasses           DailyAccessPass[]
+  staffTrainingRecords        StaffTrainingRecord[]
 
   @@index([organizationId])
   @@map("sites")
@@ -205,6 +218,14 @@ model User {
   createdEvents           Event[]                  @relation("EventCreatedBy")
   rollCallReports         RollCallReport[]
   visitorBans             VisitorBan[]             @relation("BannedBy")
+  // Threat Assessment Workflow
+  threatAssessmentTeamMemberships ThreatAssessmentTeamMember[]
+  threatAssessmentNotes           ThreatAssessmentNote[]
+  threatAssessmentInterviews      ThreatAssessmentInterview[] @relation("InterviewConductedBy")
+  safetyPlansCreated              SafetyPlan[]
+  // Drill Management
+  drillObservations               DrillObservation[]
+  drillScoresGiven                DrillScore[]
 
   @@map("users")
 }
@@ -827,12 +848,24 @@ model Drill {
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
-  site         Site               @relation(fields: [siteId], references: [id])
-  participants DrillParticipant[]
+  site          Site               @relation(fields: [siteId], references: [id])
+  participants  DrillParticipant[]
+  // Enhanced drill management relations
+  observations  DrillObservation[]
+  scores        DrillScore[]
+  templateId    String?            @map("template_id")
+  template      DrillTemplate?     @relation(fields: [templateId], references: [id])
+  recurringScheduleId String?      @map("recurring_schedule_id")
+  recurringSchedule   RecurringDrillSchedule? @relation(fields: [recurringScheduleId], references: [id])
+  afterActionNotes    String?      @map("after_action_notes")
+  afterActionJson     Json?        @map("after_action_json")
+  notifiedAt          DateTime?    @map("notified_at")
 
   @@index([siteId, scheduledAt])
   @@index([siteId, status]) // drill list filtered by status
   @@index([siteId, status, completedAt]) // compliance reporting: completed drills by date range
+  @@index([templateId])
+  @@index([recurringScheduleId])
   @@map("drills")
 }
 
@@ -1044,6 +1077,12 @@ model ThreatReport {
   updatedAt    DateTime           @updatedAt @map("updated_at")
 
   site Site @relation(fields: [siteId], references: [id])
+  // Threat Assessment Workflow relations
+  teamMembers ThreatAssessmentTeamMember[]
+  notes       ThreatAssessmentNote[]
+  interviews  ThreatAssessmentInterview[]
+  safetyPlans SafetyPlan[]
+  linkedTips  ThreatReportTipLink[]
 
   @@index([siteId, status])
   @@index([siteId, riskLevel])
@@ -2768,4 +2807,400 @@ model BadgeGuardIntegration {
   site Site @relation(fields: [siteId], references: [id])
 
   @@map("badgeguard_integrations")
+}
+
+// ============================================================================
+// Threat Assessment Workflow — Case Management & Collaboration
+// ============================================================================
+
+model ThreatAssessmentTeamMember {
+  id              String   @id @default(uuid())
+  siteId          String   @map("site_id")
+  threatReportId  String   @map("threat_report_id")
+  userId          String   @map("user_id")
+  role            ThreatTeamRole
+  assignedAt      DateTime @default(now()) @map("assigned_at")
+  acknowledgedAt  DateTime? @map("acknowledged_at")
+
+  site         Site         @relation(fields: [siteId], references: [id])
+  threatReport ThreatReport @relation(fields: [threatReportId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([threatReportId, userId])
+  @@index([siteId])
+  @@index([threatReportId])
+  @@map("threat_assessment_team_members")
+}
+
+enum ThreatTeamRole {
+  LEAD_ASSESSOR
+  COUNSELOR
+  ADMINISTRATOR
+  SRO          // School Resource Officer
+  PSYCHOLOGIST
+  SOCIAL_WORKER
+  TEACHER_REP
+  OBSERVER
+}
+
+model ThreatAssessmentNote {
+  id              String   @id @default(uuid())
+  siteId          String   @map("site_id")
+  threatReportId  String   @map("threat_report_id")
+  authorId        String   @map("author_id")
+  noteType        ThreatNoteType @default(GENERAL)
+  content         String
+  isConfidential  Boolean  @default(false) @map("is_confidential")
+  attachmentUrls  String[] @default([]) @map("attachment_urls")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  site         Site         @relation(fields: [siteId], references: [id])
+  threatReport ThreatReport @relation(fields: [threatReportId], references: [id], onDelete: Cascade)
+  author       User         @relation(fields: [authorId], references: [id])
+
+  @@index([threatReportId, createdAt])
+  @@index([siteId])
+  @@map("threat_assessment_notes")
+}
+
+enum ThreatNoteType {
+  GENERAL
+  OBSERVATION
+  INTERVIEW_SUMMARY
+  PARENT_CONTACT
+  LE_CONTACT       // Law enforcement contact
+  COUNSELOR_NOTE
+  FOLLOW_UP
+  DECISION
+  ESCALATION
+}
+
+model ThreatAssessmentInterview {
+  id              String   @id @default(uuid())
+  siteId          String   @map("site_id")
+  threatReportId  String   @map("threat_report_id")
+  conductedById   String   @map("conducted_by_id")
+  intervieweeType IntervieweeType
+  intervieweeName String   @map("interviewee_name")
+  scheduledAt     DateTime? @map("scheduled_at")
+  conductedAt     DateTime? @map("conducted_at")
+  status          InterviewStatus @default(SCHEDULED)
+  questions       Json?    // Structured interview questions
+  responses       Json?    // Structured interview responses
+  summary         String?
+  riskIndicators  String[] @default([]) @map("risk_indicators")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  site         Site         @relation(fields: [siteId], references: [id])
+  threatReport ThreatReport @relation(fields: [threatReportId], references: [id], onDelete: Cascade)
+  conductedBy  User         @relation("InterviewConductedBy", fields: [conductedById], references: [id])
+
+  @@index([threatReportId])
+  @@index([siteId])
+  @@map("threat_assessment_interviews")
+}
+
+enum IntervieweeType {
+  SUBJECT
+  VICTIM
+  WITNESS
+  PARENT_GUARDIAN
+  TEACHER
+  PEER
+  STAFF
+  OTHER
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model SafetyPlan {
+  id              String   @id @default(uuid())
+  siteId          String   @map("site_id")
+  threatReportId  String   @map("threat_report_id")
+  createdById     String   @map("created_by_id")
+  planType        SafetyPlanType
+  status          SafetyPlanStatus @default(DRAFT)
+  objectives      Json     // Array of plan objectives
+  interventions   Json     // Array of intervention steps
+  monitoringPlan  Json?    @map("monitoring_plan") // Check-in schedule
+  restrictions    Json?    // Campus restrictions, zone limits
+  supportServices Json?    @map("support_services") // Referrals, counseling
+  parentNotified  Boolean  @default(false) @map("parent_notified")
+  parentNotifiedAt DateTime? @map("parent_notified_at")
+  reviewDate      DateTime? @map("review_date")
+  expiresAt       DateTime? @map("expires_at")
+  approvedAt      DateTime? @map("approved_at")
+  approvedById    String?  @map("approved_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  site         Site         @relation(fields: [siteId], references: [id])
+  threatReport ThreatReport @relation(fields: [threatReportId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([threatReportId])
+  @@index([siteId, status])
+  @@map("safety_plans")
+}
+
+enum SafetyPlanType {
+  BEHAVIORAL_CONTRACT
+  SAFETY_ASSESSMENT
+  RETURN_TO_SCHOOL
+  MONITORING_PLAN
+  INTERVENTION_PLAN
+  CRISIS_PLAN
+}
+
+enum SafetyPlanStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  UNDER_REVIEW
+  COMPLETED
+  EXPIRED
+}
+
+model ThreatReportTipLink {
+  id              String   @id @default(uuid())
+  threatReportId  String   @map("threat_report_id")
+  tipId           String   @map("tip_id")
+  tipSource       String   @map("tip_source") // "anonymous_tip" or "fr_tip"
+  linkedAt        DateTime @default(now()) @map("linked_at")
+  linkedById      String   @map("linked_by_id")
+  notes           String?
+
+  threatReport ThreatReport @relation(fields: [threatReportId], references: [id], onDelete: Cascade)
+
+  @@unique([threatReportId, tipId, tipSource])
+  @@index([threatReportId])
+  @@index([tipId])
+  @@map("threat_report_tip_links")
+}
+
+// ============================================================================
+// Enhanced Drill Management — Templates, Observations, Scoring, Recurring
+// ============================================================================
+
+model DrillTemplate {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  name            String
+  type            DrillType
+  description     String?
+  objectives      Json?     // Array of drill objectives
+  procedures      Json?     // Step-by-step procedure checklist
+  requiredRoles   String[]  @default([]) @map("required_roles") // Roles that must participate
+  estimatedDurationMin Int? @map("estimated_duration_min")
+  scoringRubric   Json?     @map("scoring_rubric") // Evaluation criteria
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site   Site   @relation(fields: [siteId], references: [id])
+  drills Drill[]
+
+  @@index([siteId, type])
+  @@map("drill_templates")
+}
+
+model DrillObservation {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  drillId     String   @map("drill_id")
+  observerId  String   @map("observer_id")
+  location    String?  // Area observed (e.g. "Building A, 2nd floor")
+  category    DrillObservationCategory
+  finding     String
+  severity    DrillFindingSeverity @default(INFO)
+  photoUrls   String[] @default([]) @map("photo_urls")
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  site     Site  @relation(fields: [siteId], references: [id])
+  drill    Drill @relation(fields: [drillId], references: [id], onDelete: Cascade)
+  observer User  @relation(fields: [observerId], references: [id])
+
+  @@index([drillId])
+  @@index([siteId])
+  @@map("drill_observations")
+}
+
+enum DrillObservationCategory {
+  EVACUATION_PROCEDURE
+  LOCKDOWN_PROCEDURE
+  COMMUNICATION
+  DOOR_SECURITY
+  STUDENT_BEHAVIOR
+  STAFF_RESPONSE
+  TIMING
+  ACCESSIBILITY
+  EQUIPMENT
+  OTHER
+}
+
+enum DrillFindingSeverity {
+  INFO
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+model DrillScore {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  drillId     String   @map("drill_id")
+  scoredById  String   @map("scored_by_id")
+  category    String   // Matches scoring rubric category from template
+  score       Int      // 1-5 rating
+  maxScore    Int      @default(5) @map("max_score")
+  comments    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  site     Site  @relation(fields: [siteId], references: [id])
+  drill    Drill @relation(fields: [drillId], references: [id], onDelete: Cascade)
+  scoredBy User  @relation(fields: [scoredById], references: [id])
+
+  @@unique([drillId, scoredById, category])
+  @@index([drillId])
+  @@index([siteId])
+  @@map("drill_scores")
+}
+
+model RecurringDrillSchedule {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  templateId      String?   @map("template_id")
+  type            DrillType
+  frequency       DrillFrequency
+  dayOfWeek       Int?      @map("day_of_week") // 0-6 for weekly
+  dayOfMonth      Int?      @map("day_of_month") // 1-31 for monthly
+  monthOfYear     Int?      @map("month_of_year") // 1-12 for specific months
+  preferredTime   String?   @map("preferred_time") // HH:MM format
+  buildingId      String?   @map("building_id")
+  autoNotifyDays  Int       @default(7) @map("auto_notify_days") // Days before to notify staff
+  isActive        Boolean   @default(true) @map("is_active")
+  lastScheduledAt DateTime? @map("last_scheduled_at")
+  nextScheduledAt DateTime? @map("next_scheduled_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site   Site   @relation(fields: [siteId], references: [id])
+  drills Drill[]
+
+  @@index([siteId, isActive])
+  @@map("recurring_drill_schedules")
+}
+
+enum DrillFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+}
+
+// ============================================================================
+// Substitute & Contractor Tracking — Daily Access Passes & Training
+// ============================================================================
+
+model DailyAccessPass {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  firstName       String    @map("first_name")
+  lastName        String    @map("last_name")
+  email           String?
+  phone           String?
+  companyName     String?   @map("company_name")
+  passType        AccessPassType
+  purpose         String
+  hostUserId      String?   @map("host_user_id")
+  assignedZoneIds String[]  @default([]) @map("assigned_zone_ids")
+  assignedRoomIds String[]  @default([]) @map("assigned_room_ids")
+  validFrom       DateTime  @map("valid_from")
+  validUntil      DateTime  @map("valid_until")
+  checkedInAt     DateTime? @map("checked_in_at")
+  checkedOutAt    DateTime? @map("checked_out_at")
+  status          AccessPassStatus @default(PENDING)
+  idVerified      Boolean   @default(false) @map("id_verified")
+  backgroundCheck String?   @map("background_check") // CLEAR, PENDING, FLAGGED
+  trainingVerified Boolean  @default(false) @map("training_verified")
+  credentialId    String?   @map("credential_id") // Link to CardholderCredential
+  visitorId       String?   @map("visitor_id") // Link to Visitor record
+  badgeNumber     String?   @map("badge_number")
+  notes           String?
+  emergencyContact String?  @map("emergency_contact")
+  emergencyPhone  String?   @map("emergency_phone")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+  trainingRecords StaffTrainingRecord[]
+
+  @@index([siteId, status])
+  @@index([siteId, validFrom, validUntil])
+  @@index([siteId, passType])
+  @@map("daily_access_passes")
+}
+
+enum AccessPassType {
+  SUBSTITUTE_TEACHER
+  CONTRACTOR
+  MAINTENANCE
+  DELIVERY
+  VOLUNTEER
+  TEMPORARY_STAFF
+}
+
+enum AccessPassStatus {
+  PENDING
+  APPROVED
+  ACTIVE        // Checked in
+  EXPIRED
+  REVOKED
+  DENIED
+}
+
+model StaffTrainingRecord {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  accessPassId    String?   @map("access_pass_id")
+  personName      String    @map("person_name")
+  personEmail     String?   @map("person_email")
+  trainingType    TrainingType @map("training_type")
+  completedAt     DateTime? @map("completed_at")
+  expiresAt       DateTime? @map("expires_at")
+  certificateUrl  String?   @map("certificate_url")
+  verified        Boolean   @default(false)
+  verifiedById    String?   @map("verified_by_id")
+  verifiedAt      DateTime? @map("verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site       Site             @relation(fields: [siteId], references: [id])
+  accessPass DailyAccessPass? @relation(fields: [accessPassId], references: [id], onDelete: SetNull)
+
+  @@index([siteId, trainingType])
+  @@index([accessPassId])
+  @@map("staff_training_records")
+}
+
+enum TrainingType {
+  SAFETY_ORIENTATION
+  EMERGENCY_PROCEDURES
+  ACTIVE_SHOOTER
+  MANDATED_REPORTER
+  STUDENT_SUPERVISION
+  BUILDING_SPECIFIC
+  HAZMAT
+  FIRST_AID_CPR
+  CUSTOM
 }

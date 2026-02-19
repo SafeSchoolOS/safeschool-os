@@ -78,6 +78,9 @@ import visitorBanRoutes from './routes/visitor-bans.js';
 import fireAlarmRoutes from './routes/fire-alarm.js';
 import badgekioskRoutes from './routes/badgekiosk.js';
 import badgeguardAnalyticsRoutes from './routes/badgeguard-analytics.js';
+import threatAssessmentWorkflowRoutes from './routes/threat-assessment-workflow.js';
+import drillManagementRoutes from './routes/drill-management.js';
+import substituteTrackingRoutes from './routes/substitute-tracking.js';
 import wsHandler from './ws/handler.js';
 
 // Side-effect: import types for augmentation
@@ -306,6 +309,11 @@ export async function buildServer() {
   await app.register(fireAlarmRoutes, { prefix: '/api/v1/fire-alarm' });
   await app.register(badgekioskRoutes, { prefix: '/api/v1/badgekiosk' });
   await app.register(badgeguardAnalyticsRoutes, { prefix: '/api/v1/badgeguard' });
+
+  // Threat Assessment Workflow, Drill Management, Substitute Tracking
+  await app.register(threatAssessmentWorkflowRoutes, { prefix: '/api/v1/threat-assessment-workflow' });
+  await app.register(drillManagementRoutes, { prefix: '/api/v1/drill-management' });
+  await app.register(substituteTrackingRoutes, { prefix: '/api/v1/substitute-tracking' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });
