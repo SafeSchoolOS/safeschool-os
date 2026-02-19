@@ -81,6 +81,13 @@ import badgeguardAnalyticsRoutes from './routes/badgeguard-analytics.js';
 import threatAssessmentWorkflowRoutes from './routes/threat-assessment-workflow.js';
 import drillManagementRoutes from './routes/drill-management.js';
 import substituteTrackingRoutes from './routes/substitute-tracking.js';
+import wellnessCheckInRoutes from './routes/wellness-checkins.js';
+import attendanceRoutes from './routes/attendance.js';
+import afterActionReportRoutes from './routes/after-action-reports.js';
+import reunificationQRRoutes from './routes/reunification-qr.js';
+import audioMonitoringRoutes from './routes/audio-monitoring.js';
+import doorScheduleRoutes from './routes/door-schedules.js';
+import audioDetectionWebhookRoutes from './routes/webhooks/audio-detection.js';
 import wsHandler from './ws/handler.js';
 
 // Side-effect: import types for augmentation
@@ -315,11 +322,20 @@ export async function buildServer() {
   await app.register(drillManagementRoutes, { prefix: '/api/v1/drill-management' });
   await app.register(substituteTrackingRoutes, { prefix: '/api/v1/substitute-tracking' });
 
+  // Student Wellness, Attendance, AAR, Reunification QR, Audio Monitoring, Door Schedules
+  await app.register(wellnessCheckInRoutes, { prefix: '/api/v1/wellness' });
+  await app.register(attendanceRoutes, { prefix: '/api/v1/attendance' });
+  await app.register(afterActionReportRoutes, { prefix: '/api/v1/after-action-reports' });
+  await app.register(reunificationQRRoutes, { prefix: '/api/v1/reunification' });
+  await app.register(audioMonitoringRoutes, { prefix: '/api/v1/audio-monitoring' });
+  await app.register(doorScheduleRoutes, { prefix: '/api/v1/door-schedules' });
+
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });
   await app.register(panicWebhookRoutes, { prefix: '/webhooks/panic' });
   await app.register(weaponsDetectionWebhookRoutes, { prefix: '/webhooks/weapons-detection' });
   await app.register(busFleetWebhookRoutes, { prefix: '/webhooks/bus-fleet' });
+  await app.register(audioDetectionWebhookRoutes, { prefix: '/webhooks/audio-detection' });
 
   // Sync routes (cloud mode only)
   if (process.env.OPERATING_MODE === 'cloud') {

@@ -128,6 +128,25 @@ model Site {
   // Substitute & Contractor Tracking
   dailyAccessPasses           DailyAccessPass[]
   staffTrainingRecords        StaffTrainingRecord[]
+  // Student Wellness Check-In
+  wellnessCheckIns            WellnessCheckIn[]
+  wellnessSchedules           WellnessSchedule[]
+  wellnessInterventions       WellnessIntervention[]
+  // Attendance via Badge Access
+  attendanceRecords           AttendanceRecord[]
+  attendanceScans             AttendanceScan[]
+  attendanceConfig            AttendanceConfig?
+  // Post-Incident AAR
+  afterActionReports          AfterActionReport[]
+  correctiveActions           CorrectiveAction[]
+  // Audio Monitoring
+  audioSensors                AudioSensor[]
+  audioDetectionEvents        AudioDetectionEvent[]
+  audioMonitorConfig          AudioMonitorConfig?
+  // Scheduled Door Locks
+  classSchedules              ClassSchedule[]
+  doorLockSchedules           DoorLockSchedule[]
+  doorScheduleOverrides       DoorScheduleOverride[]
 
   @@index([organizationId])
   @@map("sites")
@@ -142,11 +161,12 @@ model Building {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  site       Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  rooms      Room[]
-  doors      Door[]
-  students   Student[]
-  floorPlans FloorPlan[]
+  site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  rooms        Room[]
+  doors        Door[]
+  students     Student[]
+  floorPlans   FloorPlan[]
+  audioSensors AudioSensor[]
 
   @@map("buildings")
 }
@@ -226,6 +246,12 @@ model User {
   // Drill Management
   drillObservations               DrillObservation[]
   drillScoresGiven                DrillScore[]
+  // Student Wellness Check-In
+  wellnessCheckInsAsCounselor     WellnessCheckIn[]   @relation("WellnessCheckInCounselor")
+  wellnessSchedulesAsCounselor    WellnessSchedule[]  @relation("WellnessScheduleCounselor")
+  wellnessInterventionsAsCounselor WellnessIntervention[] @relation("WellnessInterventionCounselor")
+  // Post-Incident AAR
+  afterActionReportsAuthored      AfterActionReport[]  @relation("AARAuthor")
 
   @@map("users")
 }
@@ -344,12 +370,13 @@ model Door {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  site            Site                 @relation(fields: [siteId], references: [id])
-  building        Building             @relation(fields: [buildingId], references: [id])
-  zoneAssignments DoorZoneAssignment[]
-  eventDoorGrants EventDoorGrant[]
-  healthEvents    DoorHealthEvent[]
-  workOrders      WorkOrder[]
+  site              Site                 @relation(fields: [siteId], references: [id])
+  building          Building             @relation(fields: [buildingId], references: [id])
+  zoneAssignments   DoorZoneAssignment[]
+  eventDoorGrants   EventDoorGrant[]
+  healthEvents      DoorHealthEvent[]
+  workOrders        WorkOrder[]
+  doorLockSchedules DoorLockSchedule[]
 
   @@index([siteId])
   @@index([buildingId])
@@ -794,6 +821,12 @@ model Student {
   room           Room?           @relation(fields: [roomId], references: [id])
   transportCards StudentCard[]
   parentContacts ParentContact[]
+  // Student Wellness Check-In
+  wellnessCheckIns      WellnessCheckIn[]
+  wellnessSchedules     WellnessSchedule[]
+  wellnessInterventions WellnessIntervention[]
+  // Attendance via Badge Access
+  attendanceRecords     AttendanceRecord[]
 
   @@unique([siteId, studentNumber])
   @@index([siteId, grade])
@@ -1583,6 +1616,7 @@ model Incident {
   doorCommands          DoorCommand[]
   frReunificationEvents FRReunificationEvent[]
   rollCalls             RollCall[]
+  afterActionReport     AfterActionReport?
 
   @@index([siteId])
   @@index([status])
@@ -1823,7 +1857,8 @@ model StagingArea {
   notes       String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  site Site @relation(fields: [siteId], references: [id])
+  site                    Site                            @relation(fields: [siteId], references: [id])
+  reunificationAssignments ReunificationStagingAssignment[]
 
   @@index([siteId])
   @@map("staging_areas")
@@ -1883,11 +1918,13 @@ model FRReunificationEvent {
   studentsInjured     Int                   @default(0) @map("students_injured")
   updatedAt           DateTime              @updatedAt @map("updated_at")
 
-  incident          Incident             @relation(fields: [incidentId], references: [id])
-  site              Site                 @relation(fields: [siteId], references: [id])
-  reunificationSite FRReunificationSite? @relation(fields: [reunificationSiteId], references: [id])
-  guardianCheckIns  GuardianCheckIn[]
-  studentReleases   StudentRelease[]
+  incident              Incident                      @relation(fields: [incidentId], references: [id])
+  site                  Site                          @relation(fields: [siteId], references: [id])
+  reunificationSite     FRReunificationSite?          @relation(fields: [reunificationSiteId], references: [id])
+  guardianCheckIns      GuardianCheckIn[]
+  studentReleases       StudentRelease[]
+  qrCodes               ReunificationQRCode[]
+  stagingAssignments    ReunificationStagingAssignment[]
 
   @@index([incidentId])
   @@index([siteId])
@@ -3203,4 +3240,540 @@ enum TrainingType {
   HAZMAT
   FIRST_AID_CPR
   CUSTOM
+}
+
+// ============================================================================
+// Student Wellness Check-In — Proactive Mental Health Monitoring
+// ============================================================================
+
+model WellnessCheckIn {
+  id              String              @id @default(uuid())
+  siteId          String              @map("site_id")
+  studentId       String              @map("student_id")
+  counselorId     String              @map("counselor_id")
+  scheduleId      String?             @map("schedule_id")
+  mood            WellnessMood
+  riskFlags       String[]            @default([]) @map("risk_flags") // WITHDRAWN, AGGRESSION, SELF_HARM_INDICATORS, SUBSTANCE_USE, ANXIETY, PEER_CONFLICT
+  academicConcern Boolean             @default(false) @map("academic_concern")
+  attendanceConcern Boolean           @default(false) @map("attendance_concern")
+  notes           String?
+  isConfidential  Boolean             @default(false) @map("is_confidential")
+  followUpNeeded  Boolean             @default(false) @map("follow_up_needed")
+  followUpDate    DateTime?           @map("follow_up_date")
+  referralMade    Boolean             @default(false) @map("referral_made")
+  referralType    String?             @map("referral_type") // INTERNAL_COUNSELING, EXTERNAL_THERAPY, CRISIS_TEAM, ADMIN
+  checkedInAt     DateTime            @default(now()) @map("checked_in_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  site      Site              @relation(fields: [siteId], references: [id])
+  student   Student           @relation(fields: [studentId], references: [id])
+  counselor User              @relation("WellnessCheckInCounselor", fields: [counselorId], references: [id])
+  schedule  WellnessSchedule? @relation(fields: [scheduleId], references: [id])
+
+  @@index([siteId, studentId])
+  @@index([siteId, counselorId])
+  @@index([siteId, checkedInAt])
+  @@index([studentId, checkedInAt])
+  @@map("wellness_check_ins")
+}
+
+enum WellnessMood {
+  EXCELLENT
+  GOOD
+  NEUTRAL
+  LOW
+  DISTRESSED
+  CRISIS
+}
+
+model WellnessSchedule {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  studentId       String    @map("student_id")
+  counselorId     String    @map("counselor_id")
+  frequency       String    // DAILY, WEEKLY, BIWEEKLY, MONTHLY
+  dayOfWeek       Int?      @map("day_of_week") // 0-6
+  preferredTime   String?   @map("preferred_time") // HH:MM
+  reason          String?
+  priority        WellnessPriority @default(ROUTINE)
+  isActive        Boolean   @default(true) @map("is_active")
+  startDate       DateTime  @map("start_date")
+  endDate         DateTime? @map("end_date")
+  lastCheckInAt   DateTime? @map("last_check_in_at")
+  nextCheckInAt   DateTime? @map("next_check_in_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site      Site              @relation(fields: [siteId], references: [id])
+  student   Student           @relation(fields: [studentId], references: [id])
+  counselor User              @relation("WellnessScheduleCounselor", fields: [counselorId], references: [id])
+  checkIns  WellnessCheckIn[]
+
+  @@unique([siteId, studentId, counselorId])
+  @@index([siteId, isActive])
+  @@index([siteId, nextCheckInAt])
+  @@map("wellness_schedules")
+}
+
+enum WellnessPriority {
+  ROUTINE
+  ELEVATED
+  HIGH
+  URGENT
+}
+
+model WellnessIntervention {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  studentId       String    @map("student_id")
+  counselorId     String    @map("counselor_id")
+  type            InterventionType
+  description     String
+  outcome         String?
+  parentNotified  Boolean   @default(false) @map("parent_notified")
+  parentNotifiedAt DateTime? @map("parent_notified_at")
+  externalReferral Boolean  @default(false) @map("external_referral")
+  externalAgency  String?   @map("external_agency")
+  status          InterventionStatus @default(PLANNED)
+  scheduledAt     DateTime? @map("scheduled_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site      Site    @relation(fields: [siteId], references: [id])
+  student   Student @relation(fields: [studentId], references: [id])
+  counselor User    @relation("WellnessInterventionCounselor", fields: [counselorId], references: [id])
+
+  @@index([siteId, studentId])
+  @@index([siteId, status])
+  @@map("wellness_interventions")
+}
+
+enum InterventionType {
+  INDIVIDUAL_COUNSELING
+  GROUP_COUNSELING
+  PEER_MEDIATION
+  BEHAVIORAL_PLAN
+  PARENT_CONFERENCE
+  CRISIS_INTERVENTION
+  SUBSTANCE_ABUSE_REFERRAL
+  EXTERNAL_THERAPY_REFERRAL
+  CHECK_IN_ADJUSTMENT
+  ACADEMIC_SUPPORT
+}
+
+enum InterventionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DEFERRED
+}
+
+// ============================================================================
+// Student Attendance via Badge Access — Automated Attendance Tracking
+// ============================================================================
+
+model AttendanceRecord {
+  id              String           @id @default(uuid())
+  siteId          String           @map("site_id")
+  studentId       String           @map("student_id")
+  date            DateTime         @db.Date
+  status          AttendanceStatus @default(ABSENT)
+  firstScanAt     DateTime?        @map("first_scan_at")
+  lastScanAt      DateTime?        @map("last_scan_at")
+  totalScans      Int              @default(0) @map("total_scans")
+  tardyMinutes    Int?             @map("tardy_minutes")
+  earlyDepartureAt DateTime?       @map("early_departure_at")
+  excused         Boolean          @default(false)
+  excuseReason    String?          @map("excuse_reason")
+  markedById      String?          @map("marked_by_id") // null = automated via badge scan
+  overrideReason  String?          @map("override_reason")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  site    Site    @relation(fields: [siteId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([siteId, studentId, date])
+  @@index([siteId, date])
+  @@index([siteId, date, status])
+  @@index([studentId, date])
+  @@map("attendance_records")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  TARDY
+  ABSENT
+  EARLY_DEPARTURE
+  EXCUSED_ABSENT
+}
+
+model AttendanceScan {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  studentId       String?   @map("student_id")
+  cardholderCredentialId String? @map("cardholder_credential_id")
+  doorId          String?   @map("door_id")
+  scanDirection   String?   @map("scan_direction") // ENTRY, EXIT
+  cardNumber      String?   @map("card_number")
+  facilityCode    String?   @map("facility_code")
+  granted         Boolean   @default(true)
+  scannedAt       DateTime  @default(now()) @map("scanned_at")
+
+  site    Site    @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, scannedAt])
+  @@index([siteId, studentId, scannedAt])
+  @@index([cardNumber, scannedAt])
+  @@map("attendance_scans")
+}
+
+model AttendanceConfig {
+  id              String    @id @default(uuid())
+  siteId          String    @unique @map("site_id")
+  schoolStartTime String    @map("school_start_time") // HH:MM
+  schoolEndTime   String    @map("school_end_time")   // HH:MM
+  tardyThresholdMin Int     @default(10) @map("tardy_threshold_min") // Minutes after start = tardy
+  absentThresholdMin Int    @default(120) @map("absent_threshold_min") // Minutes after start = absent
+  autoMarkAbsent  Boolean   @default(true) @map("auto_mark_absent")
+  scanDoorsOnly   String[]  @default([]) @map("scan_doors_only") // Door IDs that count for attendance
+  excludeWeekends Boolean   @default(true) @map("exclude_weekends")
+  excludeDates    DateTime[] @default([]) @map("exclude_dates") // Holidays, breaks
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("attendance_configs")
+}
+
+// ============================================================================
+// Post-Incident After-Action Reports & Corrective Actions
+// ============================================================================
+
+model AfterActionReport {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  incidentId      String    @map("incident_id")
+  authorId        String    @map("author_id")
+  title           String
+  executiveSummary String   @map("executive_summary")
+  timelineSummary String?   @map("timeline_summary")
+  whatWorked      Json?     @map("what_worked")      // Array of strengths
+  whatFailed      Json?     @map("what_failed")       // Array of failures
+  lessonsLearned  Json?     @map("lessons_learned")   // Array of lessons
+  recommendations Json?     // Array of recommendations
+  participantCount Int?     @map("participant_count")
+  injuryCount     Int?      @map("injury_count")
+  evacuationTimeS Int?      @map("evacuation_time_s")
+  doorPerformance Json?     @map("door_performance")  // Summary of door lock/unlock data
+  commPerformance Json?     @map("comm_performance")  // Communication effectiveness metrics
+  status          AARStatus @default(DRAFT)
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  approvedById    String?   @map("approved_by_id")
+  approvedAt      DateTime? @map("approved_at")
+  publishedAt     DateTime? @map("published_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site             Site              @relation(fields: [siteId], references: [id])
+  incident         Incident          @relation(fields: [incidentId], references: [id])
+  author           User              @relation("AARAuthor", fields: [authorId], references: [id])
+  correctiveActions CorrectiveAction[]
+
+  @@unique([incidentId])
+  @@index([siteId, status])
+  @@index([siteId, createdAt])
+  @@map("after_action_reports")
+}
+
+enum AARStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+model CorrectiveAction {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  afterActionReportId String @map("after_action_report_id")
+  assigneeId      String?   @map("assignee_id")
+  title           String
+  description     String
+  priority        CorrectiveActionPriority @default(MEDIUM)
+  category        String?   // POLICY, TRAINING, EQUIPMENT, COMMUNICATION, PROCEDURE
+  dueDate         DateTime? @map("due_date")
+  status          CorrectiveActionStatus @default(OPEN)
+  completedAt     DateTime? @map("completed_at")
+  completionNotes String?   @map("completion_notes")
+  verifiedById    String?   @map("verified_by_id")
+  verifiedAt      DateTime? @map("verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site              Site              @relation(fields: [siteId], references: [id])
+  afterActionReport AfterActionReport @relation(fields: [afterActionReportId], references: [id], onDelete: Cascade)
+
+  @@index([afterActionReportId])
+  @@index([siteId, status])
+  @@index([siteId, dueDate])
+  @@map("corrective_actions")
+}
+
+enum CorrectiveActionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CorrectiveActionStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+  CANCELLED
+}
+
+// ============================================================================
+// Reunification QR Code Check-In & Staging Area Integration
+// ============================================================================
+
+model ReunificationQRCode {
+  id                    String    @id @default(uuid())
+  reunificationEventId  String    @map("reunification_event_id")
+  guardianName          String    @map("guardian_name")
+  guardianPhone         String?   @map("guardian_phone")
+  guardianEmail         String?   @map("guardian_email")
+  requestedStudentIds   String[]  @default([]) @map("requested_student_ids")
+  qrToken               String    @unique @map("qr_token") // Unique scannable token
+  isUsed                Boolean   @default(false) @map("is_used")
+  usedAt                DateTime? @map("used_at")
+  expiresAt             DateTime  @map("expires_at")
+  generatedAt           DateTime  @default(now()) @map("generated_at")
+
+  reunificationEvent FRReunificationEvent @relation(fields: [reunificationEventId], references: [id], onDelete: Cascade)
+
+  @@index([reunificationEventId])
+  @@index([qrToken])
+  @@map("reunification_qr_codes")
+}
+
+model ReunificationStagingAssignment {
+  id                    String    @id @default(uuid())
+  reunificationEventId  String    @map("reunification_event_id")
+  stagingAreaId         String    @map("staging_area_id")
+  gradeLevel            String?   @map("grade_level")
+  buildingId            String?   @map("building_id")
+  studentCount          Int       @default(0) @map("student_count")
+  staffAssignedIds      String[]  @default([]) @map("staff_assigned_ids")
+  status                String    @default("PREPARING") // PREPARING, ACTIVE, CLEARED
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  reunificationEvent FRReunificationEvent @relation(fields: [reunificationEventId], references: [id], onDelete: Cascade)
+  stagingArea        StagingArea          @relation(fields: [stagingAreaId], references: [id])
+
+  @@unique([reunificationEventId, stagingAreaId, gradeLevel])
+  @@index([reunificationEventId])
+  @@map("reunification_staging_assignments")
+}
+
+// ============================================================================
+// Classroom Audio Monitoring — Environmental Threat Detection via Microphones
+// ============================================================================
+
+model AudioSensor {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  buildingId      String    @map("building_id")
+  roomId          String?   @map("room_id")
+  name            String
+  serialNumber    String?   @map("serial_number")
+  manufacturer    String?
+  model           String?
+  firmwareVersion String?   @map("firmware_version")
+  installLocation String?   @map("install_location") // "Room 101 ceiling", "Hallway B east"
+  status          AudioSensorStatus @default(OFFLINE)
+  sensitivity     Int       @default(75) // 0-100 sensitivity threshold
+  enabledDetections String[] @default(["GUNSHOT", "FIRE_ALARM", "GLASS_BREAKING", "SCREAMING", "EXPLOSION"]) @map("enabled_detections")
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  lastCalibrationAt DateTime? @map("last_calibration_at")
+  installedAt     DateTime? @map("installed_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site      Site                  @relation(fields: [siteId], references: [id])
+  building  Building              @relation(fields: [buildingId], references: [id])
+  events    AudioDetectionEvent[]
+
+  @@index([siteId, status])
+  @@index([siteId, buildingId])
+  @@index([serialNumber])
+  @@map("audio_sensors")
+}
+
+enum AudioSensorStatus {
+  ONLINE
+  OFFLINE
+  CALIBRATING
+  FAULT
+  MAINTENANCE
+}
+
+model AudioDetectionEvent {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  sensorId        String    @map("sensor_id")
+  detectionType   AudioDetectionType @map("detection_type")
+  confidence      Float     // 0.0-1.0 confidence score from ML model
+  decibelLevel    Float?    @map("decibel_level")
+  durationMs      Int?      @map("duration_ms")
+  audioClipUrl    String?   @map("audio_clip_url") // Stored audio snippet for review
+  waveformData    Json?     @map("waveform_data")  // Audio signature data
+  status          AudioEventStatus @default(UNREVIEWED)
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNotes     String?   @map("review_notes")
+  isConfirmed     Boolean?  @map("is_confirmed") // null = unreviewed, true/false = human verified
+  incidentCreated Boolean   @default(false) @map("incident_created")
+  incidentId      String?   @map("incident_id")
+  alertSentAt     DateTime? @map("alert_sent_at")
+  detectedAt      DateTime  @default(now()) @map("detected_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site    Site        @relation(fields: [siteId], references: [id])
+  sensor  AudioSensor @relation(fields: [sensorId], references: [id])
+
+  @@index([siteId, detectedAt])
+  @@index([siteId, detectionType])
+  @@index([siteId, status])
+  @@index([sensorId, detectedAt])
+  @@map("audio_detection_events")
+}
+
+enum AudioDetectionType {
+  GUNSHOT
+  FIRE_ALARM
+  GLASS_BREAKING
+  SCREAMING
+  EXPLOSION
+  AGGRESSIVE_VOICE
+  SMOKE_DETECTOR
+  CARBON_MONOXIDE_ALARM
+  PA_SYSTEM_ANOMALY
+  UNKNOWN_THREAT
+}
+
+enum AudioEventStatus {
+  UNREVIEWED
+  REVIEWING
+  CONFIRMED_THREAT
+  FALSE_POSITIVE
+  ESCALATED
+  RESOLVED
+}
+
+model AudioMonitorConfig {
+  id                    String    @id @default(uuid())
+  siteId                String    @unique @map("site_id")
+  isEnabled             Boolean   @default(true) @map("is_enabled")
+  autoAlertThreshold    Float     @default(0.85) @map("auto_alert_threshold") // Confidence level to auto-alert
+  autoIncidentThreshold Float     @default(0.95) @map("auto_incident_threshold") // Confidence level to auto-create incident
+  retentionDays         Int       @default(30) @map("retention_days") // Days to keep audio clips
+  monitoringHours       Json?     @map("monitoring_hours") // { start: "07:00", end: "18:00" } or null for 24/7
+  notifyChannels        String[]  @default(["DASHBOARD", "SMS"]) @map("notify_channels")
+  escalationDelayS      Int       @default(30) @map("escalation_delay_s") // Seconds before auto-escalation
+  enabledDetectionTypes String[]  @default(["GUNSHOT", "FIRE_ALARM", "GLASS_BREAKING", "SCREAMING", "EXPLOSION"]) @map("enabled_detection_types")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("audio_monitor_configs")
+}
+
+// ============================================================================
+// Scheduled Door Locks — Class Calendar & Automatic Door Locking
+// ============================================================================
+
+model ClassSchedule {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  name            String    // "Period 1", "Block A", "Homeroom"
+  teacherId       String?   @map("teacher_id")
+  roomId          String?   @map("room_id")
+  dayOfWeek       Int[]     @map("day_of_week") // 0=Sun, 1=Mon, ..., 6=Sat — supports multiple days
+  startTime       String    @map("start_time") // HH:MM
+  endTime         String    @map("end_time")   // HH:MM
+  semester        String?   // FALL, SPRING, SUMMER, YEAR_ROUND
+  effectiveFrom   DateTime  @map("effective_from")
+  effectiveUntil  DateTime? @map("effective_until")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site            Site               @relation(fields: [siteId], references: [id])
+  doorLockSchedules DoorLockSchedule[]
+
+  @@index([siteId, isActive])
+  @@index([siteId, roomId])
+  @@map("class_schedules")
+}
+
+model DoorLockSchedule {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  doorId          String    @map("door_id")
+  classScheduleId String?   @map("class_schedule_id")
+  lockAction      DoorLockAction @default(LOCK)
+  offsetMinutes   Int       @default(10) @map("offset_minutes") // Minutes after class start to lock
+  unlockBeforeEndMin Int    @default(2) @map("unlock_before_end_min") // Minutes before class end to unlock
+  dayOfWeek       Int[]     @map("day_of_week") // Overrideable from class schedule
+  lockTime        String?   @map("lock_time")   // HH:MM — if no class schedule linked, use manual time
+  unlockTime      String?   @map("unlock_time") // HH:MM
+  isActive        Boolean   @default(true) @map("is_active")
+  lastExecutedAt  DateTime? @map("last_executed_at")
+  lastAction      String?   @map("last_action") // LOCKED or UNLOCKED
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site          Site           @relation(fields: [siteId], references: [id])
+  door          Door           @relation(fields: [doorId], references: [id])
+  classSchedule ClassSchedule? @relation(fields: [classScheduleId], references: [id])
+
+  @@unique([doorId, classScheduleId])
+  @@index([siteId, isActive])
+  @@index([doorId])
+  @@map("door_lock_schedules")
+}
+
+enum DoorLockAction {
+  LOCK
+  UNLOCK
+  LOCK_UNLOCK // Lock at start offset, unlock before end
+}
+
+model DoorScheduleOverride {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  doorId          String?   @map("door_id") // null = all doors at site
+  overrideDate    DateTime  @db.Date @map("override_date")
+  reason          String    // HOLIDAY, EARLY_DISMISSAL, SPECIAL_EVENT, EMERGENCY
+  skipAllSchedules Boolean  @default(false) @map("skip_all_schedules")
+  overrideLockTime String?  @map("override_lock_time")
+  overrideUnlockTime String? @map("override_unlock_time")
+  createdById     String    @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, overrideDate])
+  @@map("door_schedule_overrides")
 }
