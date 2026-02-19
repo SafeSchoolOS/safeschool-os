@@ -147,6 +147,30 @@ model Site {
   classSchedules              ClassSchedule[]
   doorLockSchedules           DoorLockSchedule[]
   doorScheduleOverrides       DoorScheduleOverride[]
+  // Emergency Supply Tracking
+  emergencySupplies           EmergencySupply[]
+  supplyInspections           SupplyInspection[]
+  supplyUsageLogs             SupplyUsageLog[]
+  // Staff Certifications
+  staffCertifications         StaffCertification[]
+  certRequirements            CertRequirement[]
+  // Compliance Auto-Alerts
+  complianceAlerts            ComplianceAlert[]
+  complianceCheckSchedules    ComplianceCheckSchedule[]
+  // Video Intercom
+  intercomDevices             IntercomDevice[]
+  intercomSessions            IntercomSession[]
+  // Perimeter Security
+  perimeterSensors            PerimeterSensor[]
+  perimeterEvents             PerimeterEvent[]
+  vehicleWhitelist            VehicleWhitelist[]
+  // BLE Beacon Location Tracking
+  bleBeacons                  BLEBeacon[]
+  locationPings               LocationPing[]
+  locationSnapshots           LocationSnapshot[]
+  // AI Video Analytics
+  videoAnalyticsConfig        VideoAnalyticsConfig?
+  videoAnalyticsEvents        VideoAnalyticsEvent[]
 
   @@index([organizationId])
   @@map("sites")
@@ -161,12 +185,14 @@ model Building {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  rooms        Room[]
-  doors        Door[]
-  students     Student[]
-  floorPlans   FloorPlan[]
-  audioSensors AudioSensor[]
+  site             Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  rooms            Room[]
+  doors            Door[]
+  students         Student[]
+  floorPlans       FloorPlan[]
+  audioSensors     AudioSensor[]
+  intercomDevices  IntercomDevice[]
+  bleBeacons       BLEBeacon[]
 
   @@map("buildings")
 }
@@ -252,6 +278,8 @@ model User {
   wellnessInterventionsAsCounselor WellnessIntervention[] @relation("WellnessInterventionCounselor")
   // Post-Incident AAR
   afterActionReportsAuthored      AfterActionReport[]  @relation("AARAuthor")
+  // Staff Certifications
+  staffCertifications             StaffCertification[]
 
   @@map("users")
 }
@@ -3776,4 +3804,694 @@ model DoorScheduleOverride {
 
   @@index([siteId, overrideDate])
   @@map("door_schedule_overrides")
+}
+
+// ============================================================================
+// Emergency Supply Tracking — AEDs, First Aid Kits, Emergency Equipment
+// ============================================================================
+
+model EmergencySupply {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  buildingId      String?   @map("building_id")
+  roomId          String?   @map("room_id")
+  type            SupplyType
+  name            String
+  serialNumber    String?   @map("serial_number")
+  manufacturer    String?
+  model           String?
+  location        String    // "Main Office hallway", "Gym entrance"
+  floor           Int?
+  mapX            Float?    @map("map_x")
+  mapY            Float?    @map("map_y")
+  status          SupplyStatus @default(OPERATIONAL)
+  installedAt     DateTime? @map("installed_at")
+  lastInspectedAt DateTime? @map("last_inspected_at")
+  lastInspectedBy String?   @map("last_inspected_by")
+  nextInspectionDue DateTime? @map("next_inspection_due")
+  expiresAt       DateTime? @map("expires_at")
+  warrantyExpires DateTime? @map("warranty_expires")
+  notes           String?
+  photoUrl        String?   @map("photo_url")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site        Site                   @relation(fields: [siteId], references: [id])
+  items       SupplyItem[]
+  inspections SupplyInspection[]
+  usageLogs   SupplyUsageLog[]
+
+  @@index([siteId, type])
+  @@index([siteId, status])
+  @@index([siteId, expiresAt])
+  @@index([siteId, nextInspectionDue])
+  @@map("emergency_supplies")
+}
+
+enum SupplyType {
+  AED
+  FIRST_AID_KIT
+  FIRE_EXTINGUISHER
+  TRAUMA_KIT
+  STOP_THE_BLEED_KIT
+  EMERGENCY_RADIO
+  FLASHLIGHT
+  BLANKET_KIT
+  WATER_SUPPLY
+  EVACUATION_CHAIR
+  LOCKDOWN_KIT
+  OTHER_SUPPLY
+}
+
+enum SupplyStatus {
+  OPERATIONAL
+  NEEDS_INSPECTION
+  NEEDS_REPLACEMENT
+  EXPIRED
+  OUT_OF_SERVICE
+  MISSING
+  DEPLOYED
+}
+
+model SupplyItem {
+  id              String    @id @default(uuid())
+  supplyId        String    @map("supply_id")
+  name            String    // "Adult pads", "Gauze 4x4", "Tourniquet"
+  quantity        Int       @default(1)
+  minQuantity     Int       @default(1) @map("min_quantity")
+  expiresAt       DateTime? @map("expires_at")
+  lotNumber       String?   @map("lot_number")
+  isLow           Boolean   @default(false) @map("is_low")
+  isExpired       Boolean   @default(false) @map("is_expired")
+  lastCheckedAt   DateTime? @map("last_checked_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  supply EmergencySupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+
+  @@index([supplyId])
+  @@index([expiresAt])
+  @@map("supply_items")
+}
+
+model SupplyInspection {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  supplyId        String    @map("supply_id")
+  inspectorId     String    @map("inspector_id")
+  status          String    // PASS, FAIL, NEEDS_ATTENTION
+  findings        String?
+  photoUrls       String[]  @default([]) @map("photo_urls")
+  itemsChecked    Json?     @map("items_checked") // { itemId: { ok: true, notes: "" } }
+  nextDueAt       DateTime? @map("next_due_at")
+  inspectedAt     DateTime  @default(now()) @map("inspected_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site    Site            @relation(fields: [siteId], references: [id])
+  supply  EmergencySupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+
+  @@index([supplyId, inspectedAt])
+  @@index([siteId, inspectedAt])
+  @@map("supply_inspections")
+}
+
+model SupplyUsageLog {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  supplyId        String    @map("supply_id")
+  usedById        String?   @map("used_by_id")
+  reason          String    // EMERGENCY, DRILL, INSPECTION, TRAINING
+  description     String?
+  incidentId      String?   @map("incident_id")
+  itemsUsed       Json?     @map("items_used") // [{ itemName, quantityUsed }]
+  replacementNeeded Boolean @default(true) @map("replacement_needed")
+  replacedAt      DateTime? @map("replaced_at")
+  usedAt          DateTime  @default(now()) @map("used_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site   Site            @relation(fields: [siteId], references: [id])
+  supply EmergencySupply @relation(fields: [supplyId], references: [id])
+
+  @@index([supplyId, usedAt])
+  @@index([siteId, usedAt])
+  @@map("supply_usage_logs")
+}
+
+// ============================================================================
+// Staff Certification Tracking — Expiration Alerts & Compliance Dashboard
+// ============================================================================
+
+model StaffCertification {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  userId          String    @map("user_id")
+  type            CertificationType
+  certName        String    @map("cert_name")
+  issuedBy        String?   @map("issued_by")
+  certNumber      String?   @map("cert_number")
+  issuedAt        DateTime? @map("issued_at")
+  expiresAt       DateTime? @map("expires_at")
+  status          CertStatus @default(ACTIVE)
+  certificateUrl  String?   @map("certificate_url")
+  verified        Boolean   @default(false)
+  verifiedById    String?   @map("verified_by_id")
+  verifiedAt      DateTime? @map("verified_at")
+  reminderSentAt  DateTime? @map("reminder_sent_at")
+  renewalUrl      String?   @map("renewal_url")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([siteId, type])
+  @@index([siteId, expiresAt])
+  @@index([siteId, status])
+  @@index([userId])
+  @@map("staff_certifications")
+}
+
+enum CertificationType {
+  CPR
+  FIRST_AID
+  AED_CERTIFIED
+  ACTIVE_SHOOTER_TRAINING
+  STOP_THE_BLEED
+  MANDATED_REPORTER
+  CPI_CRISIS_INTERVENTION
+  FIRE_SAFETY
+  HAZMAT
+  SCHOOL_BUS_DRIVER
+  SRO_CERTIFICATION
+  MENTAL_HEALTH_FIRST_AID
+  CUSTOM_CERT
+}
+
+enum CertStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  REVOKED
+  PENDING_VERIFICATION
+}
+
+model CertRequirement {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  type            CertificationType
+  requiredForRoles String[] @default([]) @map("required_for_roles") // TEACHER, SITE_ADMIN, etc.
+  renewalMonths   Int       @default(24) @map("renewal_months")
+  reminderDaysBefore Int    @default(60) @map("reminder_days_before")
+  isRequired      Boolean   @default(true) @map("is_required")
+  description     String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, type])
+  @@map("cert_requirements")
+}
+
+// ============================================================================
+// Compliance Auto-Alerts — Proactive Monitoring & Notifications
+// ============================================================================
+
+model ComplianceAlert {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  type            ComplianceAlertType
+  severity        ComplianceAlertSeverity @default(WARNING)
+  title           String
+  description     String
+  category        String?   // DRILL, SYSTEM, CERTIFICATION, REPORTING
+  ruleReference   String?   @map("rule_reference") // "NJ P.L.2019 c.3", "FL HB 1421"
+  dueDate         DateTime? @map("due_date")
+  status          ComplianceAlertStatus @default(ACTIVE)
+  acknowledgedById String?  @map("acknowledged_by_id")
+  acknowledgedAt  DateTime? @map("acknowledged_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  resolvedById    String?   @map("resolved_by_id")
+  autoGenerated   Boolean   @default(true) @map("auto_generated")
+  metadata        Json?     // Contextual data (drill counts, days remaining, etc.)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, status])
+  @@index([siteId, type])
+  @@index([siteId, severity, status])
+  @@map("compliance_alerts")
+}
+
+enum ComplianceAlertType {
+  DRILL_OVERDUE
+  DRILL_QUOTA_AT_RISK
+  SYSTEM_UPTIME_BELOW_THRESHOLD
+  PANIC_DEVICE_OFFLINE
+  CERT_EXPIRING
+  CERT_EXPIRED
+  DOOR_HEALTH_DEGRADED
+  CAMERA_OFFLINE_EXTENDED
+  NOTIFICATION_SYSTEM_FAILURE
+  ANNUAL_REPORT_DUE
+  STATE_AUDIT_APPROACHING
+  SUPPLY_EXPIRED
+  SUPPLY_LOW
+  AED_INSPECTION_OVERDUE
+}
+
+enum ComplianceAlertSeverity {
+  INFO
+  WARNING
+  URGENT
+  CRITICAL
+}
+
+enum ComplianceAlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  SNOOZED
+  ESCALATED
+}
+
+model ComplianceCheckSchedule {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  checkType       String    @map("check_type") // DRILL_QUOTA, SYSTEM_UPTIME, CERT_EXPIRY, SUPPLY_EXPIRY
+  frequency       String    // DAILY, WEEKLY, MONTHLY
+  lastRunAt       DateTime? @map("last_run_at")
+  nextRunAt       DateTime? @map("next_run_at")
+  isEnabled       Boolean   @default(true) @map("is_enabled")
+  config          Json?     // Check-specific params { minDrillsPerMonth: 1, minUptimePct: 99 }
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, checkType])
+  @@index([nextRunAt])
+  @@map("compliance_check_schedules")
+}
+
+// ============================================================================
+// Video Intercom — Classroom-to-Office Door Verification
+// ============================================================================
+
+model IntercomDevice {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  buildingId      String    @map("building_id")
+  doorId          String?   @map("door_id")
+  roomId          String?   @map("room_id")
+  name            String
+  deviceType      IntercomDeviceType
+  serialNumber    String?   @map("serial_number")
+  ipAddress       String?   @map("ip_address")
+  sipUri          String?   @map("sip_uri") // SIP address for VoIP intercom
+  streamUrl       String?   @map("stream_url") // Video stream endpoint
+  status          IntercomStatus @default(OFFLINE)
+  hasCamera       Boolean   @default(true) @map("has_camera")
+  hasSpeaker      Boolean   @default(true) @map("has_speaker")
+  hasMicrophone   Boolean   @default(true) @map("has_microphone")
+  hasDoorRelease  Boolean   @default(false) @map("has_door_release")
+  lastOnlineAt    DateTime? @map("last_online_at")
+  installedAt     DateTime? @map("installed_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site     Site     @relation(fields: [siteId], references: [id])
+  building Building @relation(fields: [buildingId], references: [id])
+  sessions IntercomSession[]
+
+  @@index([siteId, status])
+  @@index([siteId, buildingId])
+  @@map("intercom_devices")
+}
+
+enum IntercomDeviceType {
+  DOOR_STATION      // Exterior door with camera/speaker/mic
+  CLASSROOM_STATION // Inside classroom
+  OFFICE_STATION    // Front office / admin
+  HALLWAY_STATION   // Corridor intercom
+  GATE_STATION      // Parking lot / perimeter gate
+}
+
+enum IntercomStatus {
+  ONLINE
+  OFFLINE
+  IN_CALL
+  RINGING
+  FAULT
+}
+
+model IntercomSession {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  callerDeviceId  String    @map("caller_device_id")
+  receiverDeviceId String?  @map("receiver_device_id")
+  answeredById    String?   @map("answered_by_id")
+  sessionType     IntercomSessionType @default(CALL)
+  status          IntercomSessionStatus @default(RINGING)
+  startedAt       DateTime  @default(now()) @map("started_at")
+  answeredAt      DateTime? @map("answered_at")
+  endedAt         DateTime? @map("ended_at")
+  doorReleased    Boolean   @default(false) @map("door_released")
+  doorReleasedAt  DateTime? @map("door_released_at")
+  doorReleasedById String?  @map("door_released_by_id")
+  recordingUrl    String?   @map("recording_url")
+  snapshotUrl     String?   @map("snapshot_url") // Photo captured during call
+  visitorName     String?   @map("visitor_name")
+  visitorPurpose  String?   @map("visitor_purpose")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site         Site            @relation(fields: [siteId], references: [id])
+  callerDevice IntercomDevice  @relation(fields: [callerDeviceId], references: [id])
+
+  @@index([siteId, startedAt])
+  @@index([callerDeviceId])
+  @@index([siteId, status])
+  @@map("intercom_sessions")
+}
+
+enum IntercomSessionType {
+  CALL          // Standard two-way call
+  DOOR_REQUEST  // Visitor requesting entry
+  EMERGENCY     // Emergency intercom activation
+  BROADCAST     // One-way announcement
+}
+
+enum IntercomSessionStatus {
+  RINGING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  MISSED
+  REJECTED
+}
+
+// ============================================================================
+// Perimeter Security — Fence Sensors, Vehicle Tracking, Breach Detection
+// ============================================================================
+
+model PerimeterSensor {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  name            String
+  type            PerimeterSensorType
+  zone            String?   // "North Fence Line", "Parking Lot A", "Loading Dock"
+  lat             Float?
+  lng             Float?
+  serialNumber    String?   @map("serial_number")
+  manufacturer    String?
+  status          PerimeterSensorStatus @default(OFFLINE)
+  sensitivity     Int       @default(75) // 0-100
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site   Site                   @relation(fields: [siteId], references: [id])
+  events PerimeterEvent[]
+
+  @@index([siteId, type])
+  @@index([siteId, status])
+  @@map("perimeter_sensors")
+}
+
+enum PerimeterSensorType {
+  FENCE_VIBRATION
+  FENCE_CUT
+  MOTION_DETECTOR
+  BEAM_BREAK
+  GROUND_SENSOR
+  GATE_CONTACT
+  LICENSE_PLATE_READER
+  THERMAL_CAMERA
+  RADAR
+}
+
+enum PerimeterSensorStatus {
+  ONLINE
+  OFFLINE
+  TRIGGERED
+  FAULT
+  MAINTENANCE
+}
+
+model PerimeterEvent {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  sensorId        String    @map("sensor_id")
+  eventType       PerimeterEventType @map("event_type")
+  severity        String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  lat             Float?
+  lng             Float?
+  description     String?
+  imageUrl        String?   @map("image_url")
+  videoClipUrl    String?   @map("video_clip_url")
+  vehiclePlate    String?   @map("vehicle_plate")
+  vehicleDescription String? @map("vehicle_description")
+  status          PerimeterEventStatus @default(UNREVIEWED)
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNotes     String?   @map("review_notes")
+  incidentId      String?   @map("incident_id")
+  alertSentAt     DateTime? @map("alert_sent_at")
+  detectedAt      DateTime  @default(now()) @map("detected_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site   Site            @relation(fields: [siteId], references: [id])
+  sensor PerimeterSensor @relation(fields: [sensorId], references: [id])
+
+  @@index([siteId, detectedAt])
+  @@index([siteId, eventType])
+  @@index([siteId, status])
+  @@index([sensorId, detectedAt])
+  @@map("perimeter_events")
+}
+
+enum PerimeterEventType {
+  FENCE_BREACH
+  FENCE_TAMPER
+  UNAUTHORIZED_VEHICLE
+  UNKNOWN_VEHICLE
+  LOITERING
+  AFTER_HOURS_MOTION
+  GATE_FORCED
+  GATE_TAILGATING
+  PERIMETER_CROSSING
+  VEHICLE_SPEED
+}
+
+enum PerimeterEventStatus {
+  UNREVIEWED
+  REVIEWING
+  CONFIRMED_THREAT
+  FALSE_ALARM
+  ESCALATED
+  RESOLVED
+}
+
+model VehicleWhitelist {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  plateNumber     String    @map("plate_number")
+  plateState      String?   @map("plate_state")
+  ownerName       String?   @map("owner_name")
+  ownerType       String?   @map("owner_type") // STAFF, PARENT, CONTRACTOR, DELIVERY
+  vehicleMake     String?   @map("vehicle_make")
+  vehicleModel    String?   @map("vehicle_model")
+  vehicleColor    String?   @map("vehicle_color")
+  vehicleYear     Int?      @map("vehicle_year")
+  validFrom       DateTime? @map("valid_from")
+  validUntil      DateTime? @map("valid_until")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, plateNumber])
+  @@index([siteId, isActive])
+  @@index([plateNumber])
+  @@map("vehicle_whitelist")
+}
+
+// ============================================================================
+// BLE Beacon Location Tracking — Real-Time Student/Staff Positioning
+// ============================================================================
+
+model BLEBeacon {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  buildingId      String    @map("building_id")
+  roomId          String?   @map("room_id")
+  uuid            String    // iBeacon UUID
+  major           Int       // iBeacon major value
+  minor           Int       // iBeacon minor value
+  name            String
+  floor           Int       @default(1)
+  lat             Float?
+  lng             Float?
+  mapX            Float?    @map("map_x")
+  mapY            Float?    @map("map_y")
+  txPower         Int       @default(-59) @map("tx_power") // Calibrated transmit power in dBm
+  batteryLevel    Int?      @map("battery_level") // 0-100
+  status          BLEBeaconStatus @default(ACTIVE)
+  lastSeenAt      DateTime? @map("last_seen_at")
+  installedAt     DateTime? @map("installed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site     Site     @relation(fields: [siteId], references: [id])
+  building Building @relation(fields: [buildingId], references: [id])
+
+  @@unique([uuid, major, minor])
+  @@index([siteId, buildingId])
+  @@index([siteId, status])
+  @@map("ble_beacons")
+}
+
+enum BLEBeaconStatus {
+  ACTIVE
+  LOW_BATTERY
+  OFFLINE
+  MAINTENANCE
+}
+
+model LocationPing {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  personType      String    @map("person_type") // STUDENT, STAFF, VISITOR
+  personId        String    @map("person_id") // userId, studentId, or visitorId
+  beaconUuid      String?   @map("beacon_uuid")
+  beaconMajor     Int?      @map("beacon_major")
+  beaconMinor     Int?      @map("beacon_minor")
+  buildingId      String?   @map("building_id")
+  roomId          String?   @map("room_id")
+  floor           Int?
+  rssi            Int?      // Signal strength at ping time
+  accuracy        Float?    // Estimated distance in meters
+  confidence      Float?    // 0.0-1.0
+  lat             Float?
+  lng             Float?
+  pingedAt        DateTime  @default(now()) @map("pinged_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, personId, pingedAt])
+  @@index([siteId, buildingId, pingedAt])
+  @@index([siteId, pingedAt])
+  @@map("location_pings")
+}
+
+model LocationSnapshot {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  personType      String    @map("person_type")
+  personId        String    @map("person_id")
+  buildingId      String?   @map("building_id")
+  roomId          String?   @map("room_id")
+  floor           Int?
+  lat             Float?
+  lng             Float?
+  confidence      Float?
+  lastSeenAt      DateTime  @map("last_seen_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, personType, personId])
+  @@index([siteId, buildingId])
+  @@index([siteId, personType])
+  @@map("location_snapshots")
+}
+
+// ============================================================================
+// AI Video Analytics — Weapon Detection, Loitering, Unauthorized Access
+// ============================================================================
+
+model VideoAnalyticsConfig {
+  id                    String    @id @default(uuid())
+  siteId                String    @unique @map("site_id")
+  isEnabled             Boolean   @default(true) @map("is_enabled")
+  provider              String    @default("internal") // internal, zeroeyes, evolv, omnilert
+  alertThreshold        Float     @default(0.80) @map("alert_threshold")
+  autoIncidentThreshold Float     @default(0.95) @map("auto_incident_threshold")
+  enabledDetectionTypes String[]  @default(["WEAPON", "LOITERING", "UNAUTHORIZED_ACCESS"]) @map("enabled_detection_types")
+  processingFps         Int       @default(5) @map("processing_fps") // Frames per second to analyze
+  retentionDays         Int       @default(30) @map("retention_days")
+  notifyChannels        String[]  @default(["DASHBOARD", "SMS"]) @map("notify_channels")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("video_analytics_configs")
+}
+
+model VideoAnalyticsEvent {
+  id              String    @id @default(uuid())
+  siteId          String    @map("site_id")
+  cameraId        String?   @map("camera_id") // Reference to external camera system
+  cameraName      String?   @map("camera_name")
+  detectionType   VideoDetectionType @map("detection_type")
+  confidence      Float
+  boundingBox     Json?     @map("bounding_box") // { x, y, width, height } in frame
+  thumbnailUrl    String?   @map("thumbnail_url")
+  videoClipUrl    String?   @map("video_clip_url")
+  frameTimestamp  DateTime? @map("frame_timestamp")
+  objectClass     String?   @map("object_class") // "handgun", "rifle", "knife", "person"
+  objectAttributes Json?    @map("object_attributes") // { color, size, direction, speed }
+  zone            String?   // Camera zone/region name
+  status          VideoEventStatus @default(UNREVIEWED)
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNotes     String?   @map("review_notes")
+  isConfirmed     Boolean?  @map("is_confirmed")
+  incidentCreated Boolean   @default(false) @map("incident_created")
+  incidentId      String?   @map("incident_id")
+  alertSentAt     DateTime? @map("alert_sent_at")
+  detectedAt      DateTime  @default(now()) @map("detected_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, detectedAt])
+  @@index([siteId, detectionType])
+  @@index([siteId, status])
+  @@map("video_analytics_events")
+}
+
+enum VideoDetectionType {
+  WEAPON_FIREARM
+  WEAPON_KNIFE
+  WEAPON_OTHER
+  LOITERING
+  UNAUTHORIZED_ACCESS
+  TAILGATING
+  CROWD_FORMATION
+  RUNNING
+  FIGHT
+  FALLEN_PERSON
+  ABANDONED_OBJECT
+  VEHICLE_WRONG_WAY
+  FACE_MATCH_WATCHLIST
+  PPE_VIOLATION
+}
+
+enum VideoEventStatus {
+  UNREVIEWED
+  REVIEWING
+  CONFIRMED_THREAT
+  FALSE_POSITIVE
+  ESCALATED
+  RESOLVED
 }

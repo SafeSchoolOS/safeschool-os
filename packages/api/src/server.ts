@@ -88,6 +88,13 @@ import reunificationQRRoutes from './routes/reunification-qr.js';
 import audioMonitoringRoutes from './routes/audio-monitoring.js';
 import doorScheduleRoutes from './routes/door-schedules.js';
 import audioDetectionWebhookRoutes from './routes/webhooks/audio-detection.js';
+import emergencySupplyRoutes from './routes/emergency-supplies.js';
+import staffCertificationRoutes from './routes/staff-certifications.js';
+import complianceAlertRoutes from './routes/compliance-alerts.js';
+import intercomRoutes from './routes/intercom.js';
+import perimeterSecurityRoutes from './routes/perimeter-security.js';
+import bleTrackingRoutes from './routes/ble-tracking.js';
+import videoAnalyticsRoutes from './routes/video-analytics.js';
 import wsHandler from './ws/handler.js';
 
 // Side-effect: import types for augmentation
@@ -329,6 +336,15 @@ export async function buildServer() {
   await app.register(reunificationQRRoutes, { prefix: '/api/v1/reunification' });
   await app.register(audioMonitoringRoutes, { prefix: '/api/v1/audio-monitoring' });
   await app.register(doorScheduleRoutes, { prefix: '/api/v1/door-schedules' });
+
+  // Emergency Supplies, Staff Certifications, Compliance Alerts, Intercom, Perimeter, BLE, Video Analytics
+  await app.register(emergencySupplyRoutes, { prefix: '/api/v1/emergency-supplies' });
+  await app.register(staffCertificationRoutes, { prefix: '/api/v1/staff-certifications' });
+  await app.register(complianceAlertRoutes, { prefix: '/api/v1/compliance-alerts' });
+  await app.register(intercomRoutes, { prefix: '/api/v1/intercom' });
+  await app.register(perimeterSecurityRoutes, { prefix: '/api/v1/perimeter' });
+  await app.register(bleTrackingRoutes, { prefix: '/api/v1/ble-tracking' });
+  await app.register(videoAnalyticsRoutes, { prefix: '/api/v1/video-analytics' });
 
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });
