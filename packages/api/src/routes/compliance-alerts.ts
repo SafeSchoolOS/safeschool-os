@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
 
@@ -123,20 +124,7 @@ const complianceAlertRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // ── Check 2: Panic devices offline ──
-    const offlinePanicDevices = await fastify.prisma.panicDevice.count({
-      where: { siteId, status: 'OFFLINE', isActive: true },
-    });
-    if (offlinePanicDevices > 0) {
-      alerts.push({
-        siteId,
-        type: 'PANIC_DEVICE_OFFLINE',
-        severity: 'CRITICAL',
-        title: `${offlinePanicDevices} panic device(s) offline`,
-        description: "Alyssa's Law requires all silent panic alarm devices to be operational.",
-        category: 'SYSTEM',
-        metadata: { offlineCount: offlinePanicDevices },
-      });
-    }
+    // Note: PanicDevice model not yet in schema; skip this check until added
 
     // ── Check 3: Expired certifications ──
     const expiredCerts = await fastify.prisma.staffCertification.count({
@@ -205,7 +193,7 @@ const complianceAlertRoutes: FastifyPluginAsync = async (fastify) => {
 
     // ── Check 7: Door health degradation ──
     const faultyDoors = await fastify.prisma.door.count({
-      where: { siteId, status: { in: ['UNKNOWN', 'FORCED', 'HELD_OPEN'] } },
+      where: { siteId, status: { in: ['UNKNOWN', 'FORCED', 'HELD'] } },
     });
     if (faultyDoors > 0) {
       alerts.push({
@@ -259,10 +247,14 @@ const complianceAlertRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(403).send({ error: 'Access denied' });
     }
 
+    const scheduleData = {
+      ...rest,
+      config: rest.config as Prisma.InputJsonValue | undefined,
+    };
     return fastify.prisma.complianceCheckSchedule.upsert({
       where: { siteId_checkType: { siteId, checkType } },
-      create: { siteId, checkType, ...rest },
-      update: rest,
+      create: { siteId, checkType, ...scheduleData },
+      update: scheduleData,
     });
   });
 

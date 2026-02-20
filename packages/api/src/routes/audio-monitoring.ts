@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
 
@@ -204,6 +205,7 @@ const audioMonitoringRoutes: FastifyPluginAsync = async (fastify) => {
         detectionType: detectionType as any,
         confidence,
         ...data,
+        waveformData: data.waveformData as Prisma.InputJsonValue | undefined,
       },
       include: {
         sensor: { select: { id: true, name: true, installLocation: true } },
@@ -352,10 +354,14 @@ const audioMonitoringRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(403).send({ error: 'Access denied' });
     }
 
+    const configData = {
+      ...data,
+      monitoringHours: data.monitoringHours as Prisma.InputJsonValue | undefined,
+    };
     const config = await fastify.prisma.audioMonitorConfig.upsert({
       where: { siteId },
-      create: { siteId, ...data },
-      update: data,
+      create: { siteId, ...configData },
+      update: configData,
     });
 
     await fastify.prisma.auditLog.create({
@@ -365,7 +371,7 @@ const audioMonitoringRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'AUDIO_MONITOR_CONFIG_UPDATED',
         entity: 'AudioMonitorConfig',
         entityId: config.id,
-        details: data,
+        details: configData as unknown as Prisma.InputJsonValue,
         ipAddress: request.ip,
       },
     });

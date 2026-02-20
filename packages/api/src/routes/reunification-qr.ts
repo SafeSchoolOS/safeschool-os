@@ -77,10 +77,10 @@ const reunificationQRRoutes: FastifyPluginAsync = async (fastify) => {
 
     for (const student of students) {
       for (const contact of student.parentContacts) {
-        const key = `${contact.name}|${contact.phone || ''}|${contact.email || ''}`;
+        const key = `${contact.parentName}|${contact.phone || ''}|${contact.email || ''}`;
         if (!guardianMap.has(key)) {
           guardianMap.set(key, {
-            name: contact.name,
+            name: contact.parentName,
             phone: contact.phone,
             email: contact.email,
             studentIds: [],
@@ -150,10 +150,9 @@ const reunificationQRRoutes: FastifyPluginAsync = async (fastify) => {
       data: {
         reunificationEventId: qrCode.reunificationEvent.id,
         guardianName: qrCode.guardianName,
-        guardianPhone: qrCode.guardianPhone,
         requestedStudentIds: qrCode.requestedStudentIds,
         checkedInAt: new Date(),
-        checkedInById: request.jwtUser.id,
+        checkedInBy: request.jwtUser.id,
       },
     });
 

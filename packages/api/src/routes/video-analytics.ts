@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
 
@@ -68,6 +69,8 @@ const videoAnalyticsRoutes: FastifyPluginAsync = async (fastify) => {
         confidence,
         frameTimestamp: frameTimestamp ? new Date(frameTimestamp) : null,
         ...rest,
+        boundingBox: rest.boundingBox as Prisma.InputJsonValue | undefined,
+        objectAttributes: rest.objectAttributes as Prisma.InputJsonValue | undefined,
       },
     });
 

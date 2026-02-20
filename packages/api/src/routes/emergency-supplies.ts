@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
 
@@ -76,8 +77,8 @@ const emergencySupplyRoutes: FastifyPluginAsync = async (fastify) => {
         notes: notes ? sanitizeText(notes) : null,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         nextInspectionDue: nextInspectionDue ? new Date(nextInspectionDue) : null,
-        type: rest.type as any,
         ...rest,
+        type: rest.type as any,
       },
     });
 
@@ -187,7 +188,7 @@ const emergencySupplyRoutes: FastifyPluginAsync = async (fastify) => {
         status,
         findings: findings ? sanitizeText(findings) : null,
         photoUrls: photoUrls || [],
-        itemsChecked: itemsChecked || null,
+        itemsChecked: (itemsChecked as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         nextDueAt: nextDueAt ? new Date(nextDueAt) : null,
       },
     });
@@ -238,7 +239,7 @@ const emergencySupplyRoutes: FastifyPluginAsync = async (fastify) => {
         reason,
         description: description ? sanitizeText(description) : null,
         incidentId: incidentId || null,
-        itemsUsed: itemsUsed || null,
+        itemsUsed: (itemsUsed as Prisma.InputJsonValue) ?? Prisma.JsonNull,
       },
     });
 

@@ -247,6 +247,7 @@ const badgekioskRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Sync visitor as cardholder to BadgeKiosk
       const cardholder = await client.createCardholder({
+        externalId: visitor.id,
         firstName: visitor.firstName,
         lastName: visitor.lastName,
         destination: visitor.destination,
