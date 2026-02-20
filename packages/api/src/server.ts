@@ -78,6 +78,26 @@ import visitorBanRoutes from './routes/visitor-bans.js';
 import fireAlarmRoutes from './routes/fire-alarm.js';
 import badgekioskRoutes from './routes/badgekiosk.js';
 import badgeguardAnalyticsRoutes from './routes/badgeguard-analytics.js';
+import threatAssessmentWorkflowRoutes from './routes/threat-assessment-workflow.js';
+import drillManagementRoutes from './routes/drill-management.js';
+import substituteTrackingRoutes from './routes/substitute-tracking.js';
+import wellnessCheckInRoutes from './routes/wellness-checkins.js';
+import attendanceRoutes from './routes/attendance.js';
+import afterActionReportRoutes from './routes/after-action-reports.js';
+import reunificationQRRoutes from './routes/reunification-qr.js';
+import audioMonitoringRoutes from './routes/audio-monitoring.js';
+import speechDetectionRoutes from './routes/speech-detection.js';
+import doorScheduleRoutes from './routes/door-schedules.js';
+import audioDetectionWebhookRoutes from './routes/webhooks/audio-detection.js';
+import speechDetectionWebhookRoutes from './routes/webhooks/speech-detection.js';
+import audioAnalyticsVendorRoutes from './routes/webhooks/audio-analytics-vendors.js';
+import emergencySupplyRoutes from './routes/emergency-supplies.js';
+import staffCertificationRoutes from './routes/staff-certifications.js';
+import complianceAlertRoutes from './routes/compliance-alerts.js';
+import intercomRoutes from './routes/intercom.js';
+import perimeterSecurityRoutes from './routes/perimeter-security.js';
+import bleTrackingRoutes from './routes/ble-tracking.js';
+import videoAnalyticsRoutes from './routes/video-analytics.js';
 import wsHandler from './ws/handler.js';
 
 // Side-effect: import types for augmentation
@@ -307,11 +327,37 @@ export async function buildServer() {
   await app.register(badgekioskRoutes, { prefix: '/api/v1/badgekiosk' });
   await app.register(badgeguardAnalyticsRoutes, { prefix: '/api/v1/badgeguard' });
 
+  // Threat Assessment Workflow, Drill Management, Substitute Tracking
+  await app.register(threatAssessmentWorkflowRoutes, { prefix: '/api/v1/threat-assessment-workflow' });
+  await app.register(drillManagementRoutes, { prefix: '/api/v1/drill-management' });
+  await app.register(substituteTrackingRoutes, { prefix: '/api/v1/substitute-tracking' });
+
+  // Student Wellness, Attendance, AAR, Reunification QR, Audio Monitoring, Door Schedules
+  await app.register(wellnessCheckInRoutes, { prefix: '/api/v1/wellness' });
+  await app.register(attendanceRoutes, { prefix: '/api/v1/attendance' });
+  await app.register(afterActionReportRoutes, { prefix: '/api/v1/after-action-reports' });
+  await app.register(reunificationQRRoutes, { prefix: '/api/v1/reunification' });
+  await app.register(audioMonitoringRoutes, { prefix: '/api/v1/audio-monitoring' });
+  await app.register(speechDetectionRoutes, { prefix: '/api/v1/speech-detection' });
+  await app.register(doorScheduleRoutes, { prefix: '/api/v1/door-schedules' });
+
+  // Emergency Supplies, Staff Certifications, Compliance Alerts, Intercom, Perimeter, BLE, Video Analytics
+  await app.register(emergencySupplyRoutes, { prefix: '/api/v1/emergency-supplies' });
+  await app.register(staffCertificationRoutes, { prefix: '/api/v1/staff-certifications' });
+  await app.register(complianceAlertRoutes, { prefix: '/api/v1/compliance-alerts' });
+  await app.register(intercomRoutes, { prefix: '/api/v1/intercom' });
+  await app.register(perimeterSecurityRoutes, { prefix: '/api/v1/perimeter' });
+  await app.register(bleTrackingRoutes, { prefix: '/api/v1/ble-tracking' });
+  await app.register(videoAnalyticsRoutes, { prefix: '/api/v1/video-analytics' });
+
   // Webhooks (no JWT auth — signature-verified)
   await app.register(zeroeyesWebhookRoutes, { prefix: '/webhooks/zeroeyes' });
   await app.register(panicWebhookRoutes, { prefix: '/webhooks/panic' });
   await app.register(weaponsDetectionWebhookRoutes, { prefix: '/webhooks/weapons-detection' });
   await app.register(busFleetWebhookRoutes, { prefix: '/webhooks/bus-fleet' });
+  await app.register(audioDetectionWebhookRoutes, { prefix: '/webhooks/audio-detection' });
+  await app.register(speechDetectionWebhookRoutes, { prefix: '/webhooks/speech-detection' });
+  await app.register(audioAnalyticsVendorRoutes, { prefix: '/webhooks/audio-vendors' });
 
   // Sync routes (cloud mode only)
   if (process.env.OPERATING_MODE === 'cloud') {
