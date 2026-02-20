@@ -85,11 +85,12 @@ const p = new PrismaClient();
     });
     console.log('Site ready');
 
+    const userId = '00000000-0000-4000-a000-000000001000';
     const u = await p.user.upsert({
-      where: { email: 'admin@safeschool.example.com' },
-      update: { passwordHash: passwordHash },
+      where: { id: userId },
+      update: { passwordHash: passwordHash, email: 'admin@safeschool.example.com' },
       create: {
-        id: '00000000-0000-4000-a000-000000001000',
+        id: userId,
         email: 'admin@safeschool.example.com',
         name: 'Admin User',
         role: 'SITE_ADMIN',
