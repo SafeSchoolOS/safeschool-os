@@ -360,10 +360,18 @@ export async function buildServer() {
   await app.register(speechDetectionWebhookRoutes, { prefix: '/webhooks/speech-detection' });
   await app.register(audioAnalyticsVendorRoutes, { prefix: '/webhooks/audio-vendors' });
 
-  // Sync routes (cloud mode only)
+  // Sync routes (cloud mode only) — powered by @edgeruntime/cloud-sync
   if (process.env.OPERATING_MODE === 'cloud') {
-    const syncModule = await import('./routes/sync.js');
-    await app.register(syncModule.default as any, { prefix: '/api/v1/sync' });
+    const { syncRoutes } = await import('@edgeruntime/cloud-sync');
+    const { SafeSchoolSyncAdapter } = await import('./adapters/edgeruntime-sync-adapter.js');
+    const syncAdapter = new SafeSchoolSyncAdapter(app.prisma);
+    await app.register(syncRoutes, {
+      prefix: '/api/v1/sync',
+      syncKey: process.env.CLOUD_SYNC_KEY!,
+      adapter: syncAdapter,
+      allowedEntityTypes: ['alert', 'visitor', 'door', 'audit_log', 'lockdown_command'],
+      redactFields: ['passwordHash'],
+    });
   }
 
   // Admin routes (edge mode only)
