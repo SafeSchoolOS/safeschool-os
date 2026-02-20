@@ -60,6 +60,14 @@ const audioDetectionWebhookRoutes: FastifyPluginAsync = async (fastify) => {
       smoke_alarm: 'SMOKE_DETECTOR',
       co_alarm: 'CARBON_MONOXIDE_ALARM',
       pa_anomaly: 'PA_SYSTEM_ANOMALY',
+      // Verbal/speech detection types (forwarded from hybrid acoustic+STT systems)
+      verbal_fire: 'VERBAL_FIRE_REPORT',
+      verbal_weapon: 'VERBAL_WEAPON_REPORT',
+      verbal_medical: 'VERBAL_MEDICAL_EMERGENCY',
+      verbal_intruder: 'VERBAL_INTRUDER_REPORT',
+      verbal_bomb: 'VERBAL_BOMB_THREAT',
+      verbal_fight: 'VERBAL_FIGHT_REPORT',
+      verbal_distress: 'VERBAL_GENERAL_DISTRESS',
     };
 
     const detectionType = typeMap[eventType.toLowerCase()] || 'UNKNOWN_THREAT';

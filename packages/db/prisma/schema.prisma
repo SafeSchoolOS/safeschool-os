@@ -143,6 +143,10 @@ model Site {
   audioSensors                AudioSensor[]
   audioDetectionEvents        AudioDetectionEvent[]
   audioMonitorConfig          AudioMonitorConfig?
+  // Speech / Verbal Keyword Detection
+  speechKeywordProfiles       SpeechKeywordProfile[]
+  speechDetectionEvents       SpeechDetectionEvent[]
+  speechDetectionConfig       SpeechDetectionConfig?
   // Scheduled Door Locks
   classSchedules              ClassSchedule[]
   doorLockSchedules           DoorLockSchedule[]
@@ -3630,6 +3634,10 @@ model AudioSensor {
   status          AudioSensorStatus @default(OFFLINE)
   sensitivity     Int       @default(75) // 0-100 sensitivity threshold
   enabledDetections String[] @default(["GUNSHOT", "FIRE_ALARM", "GLASS_BREAKING", "SCREAMING", "EXPLOSION"]) @map("enabled_detections")
+  // Speech detection capabilities
+  speechDetectionCapable Boolean @default(false) @map("speech_detection_capable") // hardware supports STT
+  speechDetectionEnabled Boolean @default(false) @map("speech_detection_enabled") // admin toggled on
+  sttModelVersion  String?  @map("stt_model_version") // "whisper-v3", "vosk-0.3.45", etc.
   lastHeartbeatAt DateTime? @map("last_heartbeat_at")
   lastCalibrationAt DateTime? @map("last_calibration_at")
   installedAt     DateTime? @map("installed_at")
@@ -3640,6 +3648,7 @@ model AudioSensor {
   site      Site                  @relation(fields: [siteId], references: [id])
   building  Building              @relation(fields: [buildingId], references: [id])
   events    AudioDetectionEvent[]
+  speechEvents SpeechDetectionEvent[]
 
   @@index([siteId, status])
   @@index([siteId, buildingId])
@@ -3697,6 +3706,14 @@ enum AudioDetectionType {
   CARBON_MONOXIDE_ALARM
   PA_SYSTEM_ANOMALY
   UNKNOWN_THREAT
+  // Speech/verbal keyword detection types
+  VERBAL_FIRE_REPORT         // Someone yelling "fire", "something's burning", etc.
+  VERBAL_WEAPON_REPORT       // Someone yelling "gun", "knife", "weapon", "shooter"
+  VERBAL_MEDICAL_EMERGENCY   // "help", "call 911", "someone's hurt", "need a doctor"
+  VERBAL_INTRUDER_REPORT     // "intruder", "someone broke in", "stranger"
+  VERBAL_BOMB_THREAT         // "bomb", "explosive", "it's going to blow"
+  VERBAL_FIGHT_REPORT        // "fight", "stop hitting", "they're fighting"
+  VERBAL_GENERAL_DISTRESS    // Catch-all for other urgent verbal reports
 }
 
 enum AudioEventStatus {
@@ -3725,6 +3742,104 @@ model AudioMonitorConfig {
   site Site @relation(fields: [siteId], references: [id])
 
   @@map("audio_monitor_configs")
+}
+
+// ============================================================================
+// Speech / Verbal Keyword Detection — Microphone-based Emergency Word Detection
+// ============================================================================
+
+/// Configurable keyword profiles that define what spoken words/phrases the
+/// microphone system should listen for.  Each profile maps a category of
+/// emergency to a set of keywords (multi-language) and detection parameters.
+model SpeechKeywordProfile {
+  id                String    @id @default(uuid())
+  siteId            String    @map("site_id")
+  name              String    // "Fire Keywords", "Medical Emergency Keywords"
+  category          AudioDetectionType // links to VERBAL_* enum values
+  language          String    @default("en") // ISO 639-1 language code
+  keywords          String[]  // ["fire", "burning", "smoke", "something's on fire"]
+  phrasePatterns    String[]  @default([]) @map("phrase_patterns") // regex/wildcard: ["*on fire*", "*call 911*"]
+  minConfidence     Float     @default(0.70) @map("min_confidence") // confidence threshold for this profile
+  priority          Int       @default(5) // 1=highest, 10=lowest
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, name])
+  @@index([siteId, category])
+  @@index([siteId, isActive])
+  @@map("speech_keyword_profiles")
+}
+
+/// Individual speech detection events — captured when the on-device or
+/// edge-server speech-to-text pipeline identifies a keyword/phrase match
+/// from ambient audio.  Stores the transcript snippet, matched keyword,
+/// and links back to the acoustic sensor and keyword profile that triggered it.
+model SpeechDetectionEvent {
+  id                String    @id @default(uuid())
+  siteId            String    @map("site_id")
+  sensorId          String    @map("sensor_id")
+  keywordProfileId  String?   @map("keyword_profile_id")
+  detectionType     AudioDetectionType @map("detection_type") // VERBAL_FIRE_REPORT, etc.
+  transcript        String    // raw transcribed text snippet: "Oh my god there's a fire in the hallway"
+  matchedKeywords   String[]  @map("matched_keywords") // ["fire", "hallway"]
+  confidence        Float     // 0.0-1.0 overall speech recognition + keyword match confidence
+  speechConfidence  Float?    @map("speech_confidence")  // STT model confidence separately
+  keywordConfidence Float?    @map("keyword_confidence")  // keyword match confidence separately
+  speakerCount      Int?      @map("speaker_count") // estimated number of speakers (panic indicator)
+  emotionTag        String?   @map("emotion_tag") // "panic", "calm", "shouting", "crying"
+  decibelLevel      Float?    @map("decibel_level")
+  durationMs        Int?      @map("duration_ms") // length of speech segment
+  audioClipUrl      String?   @map("audio_clip_url") // stored audio for review
+  status            AudioEventStatus @default(UNREVIEWED)
+  reviewedById      String?   @map("reviewed_by_id")
+  reviewedAt        DateTime? @map("reviewed_at")
+  reviewNotes       String?   @map("review_notes")
+  isConfirmed       Boolean?  @map("is_confirmed")
+  incidentCreated   Boolean   @default(false) @map("incident_created")
+  incidentId        String?   @map("incident_id")
+  alertSentAt       DateTime? @map("alert_sent_at")
+  detectedAt        DateTime  @default(now()) @map("detected_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  site    Site        @relation(fields: [siteId], references: [id])
+  sensor  AudioSensor @relation(fields: [sensorId], references: [id])
+
+  @@index([siteId, detectedAt])
+  @@index([siteId, detectionType])
+  @@index([siteId, status])
+  @@index([sensorId, detectedAt])
+  @@map("speech_detection_events")
+}
+
+/// Per-site speech detection configuration — controls whether speech/verbal
+/// keyword detection is enabled, which STT engine to use, privacy settings, etc.
+model SpeechDetectionConfig {
+  id                    String    @id @default(uuid())
+  siteId                String    @unique @map("site_id")
+  isEnabled             Boolean   @default(false) @map("is_enabled") // opt-in — disabled by default for privacy
+  sttEngine             String    @default("ON_DEVICE") @map("stt_engine") // ON_DEVICE, EDGE_SERVER, CLOUD
+  defaultLanguage       String    @default("en") @map("default_language")
+  additionalLanguages   String[]  @default([]) @map("additional_languages") // multi-language support
+  autoAlertThreshold    Float     @default(0.80) @map("auto_alert_threshold")
+  autoIncidentThreshold Float     @default(0.92) @map("auto_incident_threshold")
+  retainTranscripts     Boolean   @default(false) @map("retain_transcripts") // privacy: auto-delete transcripts after review?
+  transcriptRetentionDays Int     @default(7) @map("transcript_retention_days")
+  retainAudioClips      Boolean   @default(false) @map("retain_audio_clips")
+  audioRetentionDays    Int       @default(3) @map("audio_retention_days")
+  enableEmotionDetection Boolean  @default(true) @map("enable_emotion_detection")
+  enableSpeakerCounting Boolean   @default(true) @map("enable_speaker_counting")
+  monitoringHours       Json?     @map("monitoring_hours") // { start: "07:00", end: "18:00" } or null for 24/7
+  enabledCategories     String[]  @default(["VERBAL_FIRE_REPORT", "VERBAL_WEAPON_REPORT", "VERBAL_MEDICAL_EMERGENCY", "VERBAL_INTRUDER_REPORT", "VERBAL_BOMB_THREAT"]) @map("enabled_categories")
+  notifyChannels        String[]  @default(["DASHBOARD", "SMS"]) @map("notify_channels")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@map("speech_detection_configs")
 }
 
 // ============================================================================

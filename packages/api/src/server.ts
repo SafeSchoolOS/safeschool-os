@@ -86,8 +86,10 @@ import attendanceRoutes from './routes/attendance.js';
 import afterActionReportRoutes from './routes/after-action-reports.js';
 import reunificationQRRoutes from './routes/reunification-qr.js';
 import audioMonitoringRoutes from './routes/audio-monitoring.js';
+import speechDetectionRoutes from './routes/speech-detection.js';
 import doorScheduleRoutes from './routes/door-schedules.js';
 import audioDetectionWebhookRoutes from './routes/webhooks/audio-detection.js';
+import speechDetectionWebhookRoutes from './routes/webhooks/speech-detection.js';
 import emergencySupplyRoutes from './routes/emergency-supplies.js';
 import staffCertificationRoutes from './routes/staff-certifications.js';
 import complianceAlertRoutes from './routes/compliance-alerts.js';
@@ -335,6 +337,7 @@ export async function buildServer() {
   await app.register(afterActionReportRoutes, { prefix: '/api/v1/after-action-reports' });
   await app.register(reunificationQRRoutes, { prefix: '/api/v1/reunification' });
   await app.register(audioMonitoringRoutes, { prefix: '/api/v1/audio-monitoring' });
+  await app.register(speechDetectionRoutes, { prefix: '/api/v1/speech-detection' });
   await app.register(doorScheduleRoutes, { prefix: '/api/v1/door-schedules' });
 
   // Emergency Supplies, Staff Certifications, Compliance Alerts, Intercom, Perimeter, BLE, Video Analytics
@@ -352,6 +355,7 @@ export async function buildServer() {
   await app.register(weaponsDetectionWebhookRoutes, { prefix: '/webhooks/weapons-detection' });
   await app.register(busFleetWebhookRoutes, { prefix: '/webhooks/bus-fleet' });
   await app.register(audioDetectionWebhookRoutes, { prefix: '/webhooks/audio-detection' });
+  await app.register(speechDetectionWebhookRoutes, { prefix: '/webhooks/speech-detection' });
 
   // Sync routes (cloud mode only)
   if (process.env.OPERATING_MODE === 'cloud') {
