@@ -90,6 +90,7 @@ import speechDetectionRoutes from './routes/speech-detection.js';
 import doorScheduleRoutes from './routes/door-schedules.js';
 import audioDetectionWebhookRoutes from './routes/webhooks/audio-detection.js';
 import speechDetectionWebhookRoutes from './routes/webhooks/speech-detection.js';
+import audioAnalyticsVendorRoutes from './routes/webhooks/audio-analytics-vendors.js';
 import emergencySupplyRoutes from './routes/emergency-supplies.js';
 import staffCertificationRoutes from './routes/staff-certifications.js';
 import complianceAlertRoutes from './routes/compliance-alerts.js';
@@ -356,6 +357,7 @@ export async function buildServer() {
   await app.register(busFleetWebhookRoutes, { prefix: '/webhooks/bus-fleet' });
   await app.register(audioDetectionWebhookRoutes, { prefix: '/webhooks/audio-detection' });
   await app.register(speechDetectionWebhookRoutes, { prefix: '/webhooks/speech-detection' });
+  await app.register(audioAnalyticsVendorRoutes, { prefix: '/webhooks/audio-vendors' });
 
   // Sync routes (cloud mode only)
   if (process.env.OPERATING_MODE === 'cloud') {
