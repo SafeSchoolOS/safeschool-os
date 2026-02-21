@@ -361,17 +361,24 @@ export async function buildServer() {
   await app.register(audioAnalyticsVendorRoutes, { prefix: '/webhooks/audio-vendors' });
 
   // Sync routes (cloud mode only) — powered by @edgeruntime/cloud-sync
+  // Uses dynamic import so SafeSchool can build without @edgeruntime/cloud-sync installed.
+  // The package is only needed at runtime when OPERATING_MODE=cloud.
   if (process.env.OPERATING_MODE === 'cloud') {
-    const { syncRoutes } = await import('@edgeruntime/cloud-sync');
-    const { SafeSchoolSyncAdapter } = await import('./adapters/edgeruntime-sync-adapter.js');
-    const syncAdapter = new SafeSchoolSyncAdapter(app.prisma);
-    await app.register(syncRoutes, {
-      prefix: '/api/v1/sync',
-      syncKey: process.env.CLOUD_SYNC_KEY!,
-      adapter: syncAdapter,
-      allowedEntityTypes: ['alert', 'visitor', 'door', 'audit_log', 'lockdown_command'],
-      redactFields: ['passwordHash'],
-    });
+    try {
+      const cloudSyncPkg = '@edgeruntime/cloud-sync';
+      const cloudSync = await import(cloudSyncPkg) as any;
+      const { SafeSchoolSyncAdapter } = await import('./adapters/edgeruntime-sync-adapter.js');
+      const syncAdapter = new SafeSchoolSyncAdapter(app.prisma);
+      await app.register(cloudSync.syncRoutes, {
+        prefix: '/api/v1/sync',
+        syncKey: process.env.CLOUD_SYNC_KEY!,
+        adapter: syncAdapter,
+        allowedEntityTypes: ['alert', 'visitor', 'door', 'audit_log', 'lockdown_command'],
+        redactFields: ['passwordHash'],
+      });
+    } catch (err) {
+      app.log.warn('EdgeRuntime cloud-sync not available, sync routes disabled. Install @edgeruntime/cloud-sync to enable.');
+    }
   }
 
   // Admin routes (edge mode only)

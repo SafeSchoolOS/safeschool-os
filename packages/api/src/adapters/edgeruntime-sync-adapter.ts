@@ -4,16 +4,72 @@
  * Implements @edgeruntime/cloud-sync's SyncDatabaseAdapter interface
  * using SafeSchool's Prisma client. Handles entity whitelisting,
  * field sanitization, and maps to existing Prisma models.
+ *
+ * Types are inlined here so the SafeSchool repo can build without
+ * @edgeruntime/cloud-sync installed — the package is only needed at
+ * runtime (loaded via dynamic import in server.ts).
  */
 
 import type { PrismaClient } from '@prisma/client';
-import type {
-  SyncDatabaseAdapter,
-  SyncEntity,
-  EdgeDevice,
-  FleetSummary,
-} from '@edgeruntime/cloud-sync';
 import { sanitizeText } from '../utils/sanitize.js';
+
+// ─── Inlined types from @edgeruntime/cloud-sync ─────────────────────────
+
+export interface SyncEntity {
+  type: string;
+  action: 'create' | 'update' | 'delete';
+  data: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface EdgeDevice {
+  id: string;
+  siteId: string;
+  hostname?: string;
+  ipAddress?: string;
+  version?: string;
+  nodeVersion?: string;
+  mode: string;
+  pendingChanges: number;
+  diskUsagePercent?: number;
+  memoryUsageMb?: number;
+  lastHeartbeatAt: Date;
+  targetVersion?: string;
+  upgradeStatus?: 'IDLE' | 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+  upgradeError?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FleetSummary {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  versionDistribution: Record<string, number>;
+  upgradeStatus: {
+    idle: number;
+    pending: number;
+    inProgress: number;
+    success: number;
+    failed: number;
+  };
+}
+
+export interface SyncDatabaseAdapter {
+  processPush(siteId: string, entities: SyncEntity[]): Promise<{ synced: number; errors: number }>;
+  processPull(siteId: string, since: Date, entityTypes: string[]): Promise<Record<string, unknown[]>>;
+  upsertDevice(device: {
+    siteId: string; hostname?: string; ipAddress?: string; version?: string;
+    nodeVersion?: string; mode: string; pendingChanges: number;
+    diskUsagePercent?: number; memoryUsageMb?: number;
+    upgradeStatus?: string; upgradeError?: string;
+  }): Promise<EdgeDevice>;
+  getDevice(siteId: string): Promise<EdgeDevice | null>;
+  listDevices(): Promise<EdgeDevice[]>;
+  setDeviceTargetVersion(siteId: string, targetVersion: string): Promise<void>;
+  setAllDevicesTargetVersion(targetVersion: string): Promise<number>;
+  getFleetSummary(offlineThresholdMs: number): Promise<FleetSummary>;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -53,7 +109,7 @@ export class SafeSchoolSyncAdapter implements SyncDatabaseAdapter {
                 floor: d.floor as string, roomId: d.roomId as string,
                 message: d.message ? sanitizeText(d.message as string) : null,
                 triggeredAt: d.triggeredAt ? new Date(d.triggeredAt as string) : new Date(),
-              };
+              } as any;
               await this.prisma.alert.upsert({
                 where: { id: safe.id },
                 update: safe,
@@ -75,7 +131,7 @@ export class SafeSchoolSyncAdapter implements SyncDatabaseAdapter {
                 status: d.status as string,
                 checkedInAt: d.checkedInAt as string,
                 checkedOutAt: d.checkedOutAt as string | undefined,
-              };
+              } as any;
               await this.prisma.visitor.upsert({
                 where: { id: safe.id },
                 update: {
@@ -93,7 +149,7 @@ export class SafeSchoolSyncAdapter implements SyncDatabaseAdapter {
             if (entity.action === 'update') {
               await this.prisma.door.update({
                 where: { id: d.id as string },
-                data: { status: d.status as string },
+                data: { status: d.status } as any,
               });
             }
             break;
@@ -130,7 +186,7 @@ export class SafeSchoolSyncAdapter implements SyncDatabaseAdapter {
                 doorsLocked: d.doorsLocked as number,
                 metadata: d.metadata as any,
                 initiatedAt: d.initiatedAt ? new Date(d.initiatedAt as string) : new Date(),
-              },
+              } as any,
             });
             break;
           }
