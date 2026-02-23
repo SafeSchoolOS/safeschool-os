@@ -41,11 +41,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker images for embedding
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "::group::Building API image"
           docker build \
             --file Dockerfile \
             --build-arg BUILD_TARGET=api \
+            --build-arg NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN} \
             --tag ghcr.io/bwattendorf/safeschool/api:latest \
             --load \
             .
@@ -54,6 +57,7 @@ jobs:
           echo "::group::Building Dashboard image"
           docker build \
             --file deploy/docker/Dockerfile.dashboard \
+            --build-arg NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN} \
             --tag ghcr.io/bwattendorf/safeschool/dashboard:latest \
             --load \
             .
@@ -63,6 +67,7 @@ jobs:
           docker build \
             --file deploy/docker/Dockerfile.kiosk \
             --build-arg VITE_AUTH_PROVIDER=dev \
+            --build-arg NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN} \
             --tag ghcr.io/bwattendorf/safeschool/kiosk:latest \
             --load \
             .
@@ -71,6 +76,7 @@ jobs:
           echo "::group::Building Admin image"
           docker build \
             --file deploy/docker/Dockerfile.admin \
+            --build-arg NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN} \
             --tag ghcr.io/bwattendorf/safeschool/admin:latest \
             --load \
             .

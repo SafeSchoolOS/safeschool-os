@@ -22,6 +22,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Prisma client
         run: npx prisma generate --schema=packages/db/prisma/schema.prisma
@@ -76,6 +78,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Prisma client
         run: npx prisma generate --schema=packages/db/prisma/schema.prisma
@@ -174,6 +178,8 @@ jobs:
           tags: |
             ghcr.io/bwattendorf/safeschool/${{ matrix.image }}:latest
             ghcr.io/bwattendorf/safeschool/${{ matrix.image }}:${{ github.sha }}
-          build-args: ${{ matrix.build-args }}
+          build-args: |
+            ${{ matrix.build-args }}
+            NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
