@@ -2,8 +2,8 @@ import { Queue, Worker, type Job } from 'bullmq';
 import Redis from 'ioredis';
 import type { PrismaClient } from '@safeschool/db';
 import { renderTemplate, STUDENT_SCAN_SMS, STUDENT_SCAN_PUSH, BUS_ARRIVAL_SMS, BUS_ARRIVAL_PUSH, WEATHER_ALERT_SMS, VISITOR_QR_EMAIL, VISITOR_HOST_SMS, VISITOR_HOST_EMAIL, VISITOR_HOST_PUSH } from '@safeschool/core';
-import type { SocialMediaAdapter } from '@safeschool/social-media';
-import type { WeatherAdapter } from '@safeschool/weather';
+import type { SocialMediaAdapter } from '@bwattendorf/adapters/social-media';
+import type { WeatherAdapter } from '@bwattendorf/adapters/weather';
 
 interface WorkerDeps {
   prisma: PrismaClient;

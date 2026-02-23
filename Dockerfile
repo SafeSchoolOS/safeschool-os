@@ -52,40 +52,6 @@ COPY --from=build-api /app/packages/core/package.json ./packages/core/package.js
 COPY --from=build-api /app/packages/db/dist ./packages/db/dist
 COPY --from=build-api /app/packages/db/package.json ./packages/db/package.json
 COPY --from=build-api /app/packages/db/prisma ./packages/db/prisma
-COPY --from=build-api /app/packages/edge/dist ./packages/edge/dist
-COPY --from=build-api /app/packages/edge/package.json ./packages/edge/package.json
-COPY --from=build-api /app/packages/integrations/access-control/dist ./packages/integrations/access-control/dist
-COPY --from=build-api /app/packages/integrations/access-control/package.json ./packages/integrations/access-control/package.json
-COPY --from=build-api /app/packages/integrations/dispatch/dist ./packages/integrations/dispatch/dist
-COPY --from=build-api /app/packages/integrations/dispatch/package.json ./packages/integrations/dispatch/package.json
-COPY --from=build-api /app/packages/integrations/notifications/dist ./packages/integrations/notifications/dist
-COPY --from=build-api /app/packages/integrations/notifications/package.json ./packages/integrations/notifications/package.json
-COPY --from=build-api /app/packages/integrations/visitor-mgmt/dist ./packages/integrations/visitor-mgmt/dist
-COPY --from=build-api /app/packages/integrations/visitor-mgmt/package.json ./packages/integrations/visitor-mgmt/package.json
-COPY --from=build-api /app/packages/integrations/transportation/dist ./packages/integrations/transportation/dist
-COPY --from=build-api /app/packages/integrations/transportation/package.json ./packages/integrations/transportation/package.json
-COPY --from=build-api /app/packages/integrations/grants/dist ./packages/integrations/grants/dist
-COPY --from=build-api /app/packages/integrations/grants/package.json ./packages/integrations/grants/package.json
-COPY --from=build-api /app/packages/integrations/cameras/dist ./packages/integrations/cameras/dist
-COPY --from=build-api /app/packages/integrations/cameras/package.json ./packages/integrations/cameras/package.json
-COPY --from=build-api /app/packages/integrations/threat-intel/dist ./packages/integrations/threat-intel/dist
-COPY --from=build-api /app/packages/integrations/threat-intel/package.json ./packages/integrations/threat-intel/package.json
-COPY --from=build-api /app/packages/integrations/environmental/dist ./packages/integrations/environmental/dist
-COPY --from=build-api /app/packages/integrations/environmental/package.json ./packages/integrations/environmental/package.json
-COPY --from=build-api /app/packages/integrations/threat-assessment/dist ./packages/integrations/threat-assessment/dist
-COPY --from=build-api /app/packages/integrations/threat-assessment/package.json ./packages/integrations/threat-assessment/package.json
-COPY --from=build-api /app/packages/integrations/social-media/dist ./packages/integrations/social-media/dist
-COPY --from=build-api /app/packages/integrations/social-media/package.json ./packages/integrations/social-media/package.json
-COPY --from=build-api /app/packages/integrations/panic-devices/dist ./packages/integrations/panic-devices/dist
-COPY --from=build-api /app/packages/integrations/panic-devices/package.json ./packages/integrations/panic-devices/package.json
-COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packages/integrations/gunshot-detection/dist
-COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
-COPY --from=build-api /app/packages/integrations/weapons-detection/dist ./packages/integrations/weapons-detection/dist
-COPY --from=build-api /app/packages/integrations/weapons-detection/package.json ./packages/integrations/weapons-detection/package.json
-COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
-COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
-COPY --from=build-api /app/packages/integrations/badge-printing/dist ./packages/integrations/badge-printing/dist
-COPY --from=build-api /app/packages/integrations/badge-printing/package.json ./packages/integrations/badge-printing/package.json
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 
@@ -94,8 +60,8 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
   && mkdir -p /app/data/students \
   && chown -R appuser:appgroup /app
 
-# Build-time module test
-RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('@safeschool/weather'); require('fastify'); console.log('Modules OK')"
+# Build-time module test (adapters now come from @bwattendorf/adapters in node_modules)
+RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('fastify'); console.log('Modules OK')"
 
 # Copy startup script
 COPY deploy/railway/start-api.sh /app/start.sh
@@ -120,40 +86,6 @@ COPY --from=build-api /app/packages/core/package.json ./packages/core/package.js
 COPY --from=build-api /app/packages/db/dist ./packages/db/dist
 COPY --from=build-api /app/packages/db/package.json ./packages/db/package.json
 COPY --from=build-api /app/packages/db/prisma ./packages/db/prisma
-COPY --from=build-api /app/packages/edge/dist ./packages/edge/dist
-COPY --from=build-api /app/packages/edge/package.json ./packages/edge/package.json
-COPY --from=build-api /app/packages/integrations/access-control/dist ./packages/integrations/access-control/dist
-COPY --from=build-api /app/packages/integrations/access-control/package.json ./packages/integrations/access-control/package.json
-COPY --from=build-api /app/packages/integrations/dispatch/dist ./packages/integrations/dispatch/dist
-COPY --from=build-api /app/packages/integrations/dispatch/package.json ./packages/integrations/dispatch/package.json
-COPY --from=build-api /app/packages/integrations/notifications/dist ./packages/integrations/notifications/dist
-COPY --from=build-api /app/packages/integrations/notifications/package.json ./packages/integrations/notifications/package.json
-COPY --from=build-api /app/packages/integrations/visitor-mgmt/dist ./packages/integrations/visitor-mgmt/dist
-COPY --from=build-api /app/packages/integrations/visitor-mgmt/package.json ./packages/integrations/visitor-mgmt/package.json
-COPY --from=build-api /app/packages/integrations/transportation/dist ./packages/integrations/transportation/dist
-COPY --from=build-api /app/packages/integrations/transportation/package.json ./packages/integrations/transportation/package.json
-COPY --from=build-api /app/packages/integrations/grants/dist ./packages/integrations/grants/dist
-COPY --from=build-api /app/packages/integrations/grants/package.json ./packages/integrations/grants/package.json
-COPY --from=build-api /app/packages/integrations/cameras/dist ./packages/integrations/cameras/dist
-COPY --from=build-api /app/packages/integrations/cameras/package.json ./packages/integrations/cameras/package.json
-COPY --from=build-api /app/packages/integrations/threat-intel/dist ./packages/integrations/threat-intel/dist
-COPY --from=build-api /app/packages/integrations/threat-intel/package.json ./packages/integrations/threat-intel/package.json
-COPY --from=build-api /app/packages/integrations/environmental/dist ./packages/integrations/environmental/dist
-COPY --from=build-api /app/packages/integrations/environmental/package.json ./packages/integrations/environmental/package.json
-COPY --from=build-api /app/packages/integrations/threat-assessment/dist ./packages/integrations/threat-assessment/dist
-COPY --from=build-api /app/packages/integrations/threat-assessment/package.json ./packages/integrations/threat-assessment/package.json
-COPY --from=build-api /app/packages/integrations/social-media/dist ./packages/integrations/social-media/dist
-COPY --from=build-api /app/packages/integrations/social-media/package.json ./packages/integrations/social-media/package.json
-COPY --from=build-api /app/packages/integrations/panic-devices/dist ./packages/integrations/panic-devices/dist
-COPY --from=build-api /app/packages/integrations/panic-devices/package.json ./packages/integrations/panic-devices/package.json
-COPY --from=build-api /app/packages/integrations/gunshot-detection/dist ./packages/integrations/gunshot-detection/dist
-COPY --from=build-api /app/packages/integrations/gunshot-detection/package.json ./packages/integrations/gunshot-detection/package.json
-COPY --from=build-api /app/packages/integrations/weapons-detection/dist ./packages/integrations/weapons-detection/dist
-COPY --from=build-api /app/packages/integrations/weapons-detection/package.json ./packages/integrations/weapons-detection/package.json
-COPY --from=build-api /app/packages/integrations/weather/dist ./packages/integrations/weather/dist
-COPY --from=build-api /app/packages/integrations/weather/package.json ./packages/integrations/weather/package.json
-COPY --from=build-api /app/packages/integrations/badge-printing/dist ./packages/integrations/badge-printing/dist
-COPY --from=build-api /app/packages/integrations/badge-printing/package.json ./packages/integrations/badge-printing/package.json
 COPY --from=build-api /app/node_modules ./node_modules
 COPY --from=build-api /app/package.json ./
 

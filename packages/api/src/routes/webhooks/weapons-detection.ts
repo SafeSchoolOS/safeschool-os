@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { EvolvAdapter, CeiaAdapter, XtractOneAdapter } from '@safeschool/weapons-detection';
-import type { WeaponDetectionEvent } from '@safeschool/weapons-detection';
+import { EvolvAdapter, CeiaAdapter, XtractOneAdapter } from '@bwattendorf/adapters/weapons-detection';
+import type { WeaponDetectionEvent } from '@bwattendorf/adapters/weapons-detection';
 import { AlertEngine } from '../../services/alert-engine.js';
 import { getConfig } from '../../config.js';
 

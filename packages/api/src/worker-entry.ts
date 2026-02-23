@@ -12,7 +12,7 @@ const config = getConfig();
 
 // Create adapter instances based on config
 async function createDispatchFn() {
-  const { ConsoleDispatchAdapter } = await import('@safeschool/dispatch');
+  const { ConsoleDispatchAdapter } = await import('@bwattendorf/adapters/dispatch');
   const adapter = new ConsoleDispatchAdapter();
   return async (data: any) => {
     await adapter.dispatch(data);
@@ -20,7 +20,7 @@ async function createDispatchFn() {
 }
 
 async function createLockdownFn() {
-  const { createAdapter } = await import('@safeschool/access-control');
+  const { createAdapter } = await import('@bwattendorf/adapters/access-control');
   const adapter = createAdapter(config.accessControl.adapter);
   await adapter.connect({
     apiUrl: config.accessControl.apiUrl || 'mock://localhost',
@@ -41,7 +41,7 @@ async function createNotifyFn() {
     SendGridEmailAdapter,
     FcmPushAdapter,
     PaIntercomAdapter,
-  } = await import('@safeschool/notifications');
+  } = await import('@bwattendorf/adapters/notifications');
 
   const router = new NotificationRouter();
 
@@ -71,7 +71,7 @@ async function createNotifyFn() {
 async function createSocialMediaAdapterInstance() {
   if (config.socialMedia.adapter === 'console') return undefined;
 
-  const { createSocialMediaAdapter } = await import('@safeschool/social-media');
+  const { createSocialMediaAdapter } = await import('@bwattendorf/adapters/social-media');
   return createSocialMediaAdapter(config.socialMedia);
 }
 
@@ -79,7 +79,7 @@ async function createWeatherAdapterInstance() {
   const adapterType = process.env.WEATHER_ADAPTER || 'nws';
   if (adapterType === 'console' || adapterType === 'none') return undefined;
 
-  const { NWSAdapter } = await import('@safeschool/weather');
+  const { NWSAdapter } = await import('@bwattendorf/adapters/weather');
   return new NWSAdapter();
 }
 

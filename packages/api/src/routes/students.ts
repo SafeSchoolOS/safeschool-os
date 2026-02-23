@@ -4,7 +4,7 @@ import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
-import { createBadgePrinter } from '@safeschool/badge-printing';
+import { createBadgePrinter } from '@bwattendorf/adapters/badge-printing';
 
 const STUDENT_PHOTO_DIR = process.env.STUDENT_PHOTO_DIR || '/app/data/students';
 try { mkdirSync(STUDENT_PHOTO_DIR, { recursive: true }); } catch { /* created lazily at upload time */ }

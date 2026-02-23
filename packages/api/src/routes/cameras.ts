@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { createCameraAdapter, discoverOnvifDevices, type CameraAdapter } from '@safeschool/cameras';
+import { createCameraAdapter, discoverOnvifDevices, type CameraAdapter } from '@bwattendorf/adapters/cameras';
 import { getConfig } from '../config.js';
 import { requireMinRole } from '../middleware/rbac.js';
 

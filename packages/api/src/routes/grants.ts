@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { GrantService } from '@safeschool/grants';
+import { GrantService } from '@bwattendorf/adapters/grants';
 import { requireMinRole } from '../middleware/rbac.js';
 
 const grantRoutes: FastifyPluginAsync = async (fastify) => {

@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   createBusFleetAdapter,
   type BusFleetVendor,
-} from '@safeschool/transportation';
+} from '@bwattendorf/adapters/transportation';
 import { getConfig } from '../../config.js';
 
 /**

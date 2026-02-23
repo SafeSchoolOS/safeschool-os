@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { CentegixAdapter, RavePanicAdapter } from '@safeschool/panic-devices';
-import type { PanicAlert } from '@safeschool/panic-devices';
+import { CentegixAdapter, RavePanicAdapter } from '@bwattendorf/adapters/panic-devices';
+import type { PanicAlert } from '@bwattendorf/adapters/panic-devices';
 import { AlertEngine } from '../../services/alert-engine.js';
 import { getConfig } from '../../config.js';
 

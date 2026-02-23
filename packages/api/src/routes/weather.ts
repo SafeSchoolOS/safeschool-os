@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
 import { renderTemplate, WEATHER_ALERT_SMS } from '@safeschool/core';
-import { NWSAdapter, type WeatherAlert } from '@safeschool/weather';
+import { NWSAdapter, type WeatherAlert } from '@bwattendorf/adapters/weather';
 
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 const adapter = new NWSAdapter();

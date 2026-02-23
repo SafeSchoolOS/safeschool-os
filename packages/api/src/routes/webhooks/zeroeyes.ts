@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { ZeroEyesAdapter } from '@safeschool/threat-intel';
-import type { ZeroEyesDetection } from '@safeschool/threat-intel/src/adapters/zeroeyes.js';
+import { ZeroEyesAdapter } from '@bwattendorf/adapters/threat-intel';
+import type { ZeroEyesDetection } from '@bwattendorf/adapters/threat-intel';
 import { AlertEngine } from '../../services/alert-engine.js';
 import { getConfig } from '../../config.js';
 

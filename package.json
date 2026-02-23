@@ -7,8 +7,7 @@
   "license": "AGPL-3.0-only",
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "packages/integrations/*"
+    "packages/*"
   ],
   "scripts": {
     "dev": "turbo run dev",

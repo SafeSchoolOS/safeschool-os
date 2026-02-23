@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
 import { getConfig } from '../config.js';
-import { createSocialMediaAdapter, getWebhookSecretForSource } from '@safeschool/social-media';
+import { createSocialMediaAdapter, getWebhookSecretForSource } from '@bwattendorf/adapters/social-media';
 
 const VALID_SOURCES = ['bark', 'gaggle', 'securly', 'navigate360'] as const;
 

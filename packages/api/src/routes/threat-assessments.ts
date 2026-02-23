@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { scoreRisk, getAssessmentActions } from '@safeschool/threat-assessment';
+import { scoreRisk, getAssessmentActions } from '@bwattendorf/adapters/threat-assessment';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText } from '../utils/sanitize.js';
 

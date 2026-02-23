@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { VisitorService, ConsoleScreeningAdapter } from '@safeschool/visitor-mgmt';
+import { VisitorService, ConsoleScreeningAdapter } from '@bwattendorf/adapters/visitor-mgmt';
 import { requireMinRole } from '../middleware/rbac.js';
 import { sanitizeText, isValidDateString } from '../utils/sanitize.js';
 import { randomUUID } from 'crypto';

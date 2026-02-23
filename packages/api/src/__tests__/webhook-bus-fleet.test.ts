@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createBusFleetAdapter,
   type BusFleetVendor,
-} from '@safeschool/transportation';
+} from '@bwattendorf/adapters/transportation';
 
 // We test the adapter parsing + job enqueueing logic that the webhook route uses.
 // Since the route is a Fastify plugin that needs a real server, we test the core logic.
