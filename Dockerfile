@@ -14,9 +14,14 @@ ARG BUILD_TARGET=api
 # ==========================================
 FROM node:20-alpine AS base
 WORKDIR /app
-COPY package.json turbo.json tsconfig.json ./
+COPY package.json turbo.json tsconfig.json .npmrc ./
 COPY packages/ ./packages/
 COPY apps/ ./apps/
+
+# Authenticate with GitHub Packages for @bwattendorf/adapters
+ARG NODE_AUTH_TOKEN
+RUN echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
+
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm install --legacy-peer-deps
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate --schema=packages/db/prisma/schema.prisma
 
