@@ -191,8 +191,7 @@ sudo nano /opt/safeschool/deploy/edge/.env
 At minimum, configure:
 - `SITE_ID` -- UUID for this school site (from cloud admin panel or auto-generated)
 - `SITE_NAME` -- Human-readable school name
-- `CLOUD_SYNC_URL` -- Cloud API URL (leave empty for standalone mode)
-- `CLOUD_SYNC_KEY` -- Sync authentication key
+- `EDGERUNTIME_ACTIVATION_KEY` -- EdgeRuntime activation key (leave empty for standalone mode)
 
 ### Step 3 -- Restart Services
 
@@ -276,12 +275,11 @@ The edge Docker Compose stack includes:
 | `SITE_ID`           | Edge     | --      | UUID of this school site                         |
 | `SITE_NAME`         | Edge     | --      | Human-readable site name                         |
 
-### Cloud Sync (Edge Only)
+### EdgeRuntime (Edge Only)
 
-| Variable            | Required | Default | Description                                      |
-|---------------------|----------|---------|--------------------------------------------------|
-| `CLOUD_SYNC_URL`    | No       | --      | Cloud API base URL for sync                      |
-| `CLOUD_SYNC_KEY`    | No       | --      | Shared secret for edge-cloud sync auth           |
+| Variable                      | Required | Default | Description                                      |
+|-------------------------------|----------|---------|--------------------------------------------------|
+| `EDGERUNTIME_ACTIVATION_KEY`  | No       | --      | Activation key to enable cloud sync features     |
 
 ### 911 Dispatch
 

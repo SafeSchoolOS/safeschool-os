@@ -158,23 +158,22 @@ echo ""
 echo -e "  ${BLUE}${BOLD}Sync Status${RST}"
 echo -e "  ${DIM}------------------------------------------------------${RST}"
 
-SYNC_URL=""
+ACTIVATION_KEY=""
 if [ -f "$ENV_FILE" ]; then
-    SYNC_URL=$(grep -E '^CLOUD_SYNC_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+    ACTIVATION_KEY=$(grep -E '^EDGERUNTIME_ACTIVATION_KEY=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
 fi
 
-if [ -n "$SYNC_URL" ] && [ "$SYNC_URL" != "" ]; then
-    printf "  ${BOLD}%-14s${RST} %s\n" "Cloud URL:" "$SYNC_URL"
-
-    # Try to get sync status from the API
-    SYNC_INFO=$(curl -sf http://localhost:3000/health 2>/dev/null || echo "")
-    if [ -n "$SYNC_INFO" ]; then
-        printf "  ${BOLD}%-14s${RST} ${GREEN}%s${RST}\n" "Connection:" "Online"
+# Check EdgeRuntime health
+EDGE_HEALTH=$(curl -sf http://localhost:8470/health 2>/dev/null || echo "")
+if [ -n "$EDGE_HEALTH" ]; then
+    printf "  ${BOLD}%-14s${RST} ${GREEN}%s${RST}\n" "EdgeRuntime:" "Online"
+    if [ -n "$ACTIVATION_KEY" ] && [ "$ACTIVATION_KEY" != "" ]; then
+        printf "  ${BOLD}%-14s${RST} ${GREEN}%s${RST}\n" "Cloud Sync:" "Activated"
     else
-        printf "  ${BOLD}%-14s${RST} ${YELLOW}%s${RST}\n" "Connection:" "API not responding"
+        printf "  ${BOLD}%-14s${RST} ${YELLOW}%s${RST}\n" "Cloud Sync:" "Not activated (standalone)"
     fi
 else
-    printf "  ${BOLD}%-14s${RST} ${YELLOW}%s${RST}\n" "Mode:" "Standalone (no cloud sync)"
+    printf "  ${BOLD}%-14s${RST} ${YELLOW}%s${RST}\n" "EdgeRuntime:" "Not responding"
 fi
 
 # Check for offline queue

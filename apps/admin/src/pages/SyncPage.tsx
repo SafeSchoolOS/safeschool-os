@@ -77,10 +77,10 @@ export function SyncPage() {
           </div>
         </div>
 
-        {!data.cloudUrl && (
+        {!data.edgeruntimeUrl && (
           <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-3 text-sm text-yellow-300">
-            No cloud URL configured. This device is running in standalone mode. Configure CLOUD_SYNC_URL
-            in the Config page to enable cloud sync.
+            EdgeRuntime not connected. This device is running in standalone mode. Ensure the
+            edgeruntime service is running to enable sync features.
           </div>
         )}
       </div>

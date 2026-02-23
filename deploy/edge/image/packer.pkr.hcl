@@ -94,15 +94,9 @@ variable "site_name" {
   default     = ""
 }
 
-variable "cloud_sync_url" {
+variable "edgeruntime_activation_key" {
   type        = string
-  description = "Cloud API endpoint for bidirectional sync. Leave empty for standalone mode."
-  default     = ""
-}
-
-variable "cloud_sync_key" {
-  type        = string
-  description = "API key for cloud sync authentication."
+  description = "EdgeRuntime activation key. Enables cloud sync features. Leave empty for standalone mode."
   default     = ""
   sensitive   = true
 }
@@ -233,8 +227,7 @@ build {
       "DEBIAN_FRONTEND=noninteractive",
       "SITE_ID=${var.site_id}",
       "SITE_NAME=${var.site_name}",
-      "CLOUD_SYNC_URL=${var.cloud_sync_url}",
-      "CLOUD_SYNC_KEY=${var.cloud_sync_key}"
+      "EDGERUNTIME_ACTIVATION_KEY=${var.edgeruntime_activation_key}"
     ]
     inline = [
       "echo '${var.ssh_password}' | sudo -S bash /tmp/safeschool-setup.sh"

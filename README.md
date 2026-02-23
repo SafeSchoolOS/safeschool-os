@@ -154,7 +154,7 @@ Searchable database of federal, state, and private school safety grants (SVPP, C
 | **Auth** | Clerk SSO (production) / JWT (development) |
 | **Monorepo** | Turborepo with npm workspaces |
 | **Cloud Hosting** | Railway (or any Docker host) |
-| **Edge Runtime** | Docker on Ubuntu (Mini PC) |
+| **Edge Runtime** | Pre-built Docker image (`ghcr.io/bwattendorf/edgeruntime`) |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -183,7 +183,7 @@ safeschool/
 │   │   ├── panic-devices/  # Centegix, Rave Panic Button
 │   │   ├── gunshot-detection/ # SoundThinking
 │   │   └── environmental/  # Sensor monitoring
-│   └── edge/               # On-site sync engine, offline queue, conflict resolver
+│   └── (edge runtime)       # Pre-built Docker image (ghcr.io/bwattendorf/edgeruntime)
 ├── deploy/
 │   ├── railway/            # Cloud deployment (start-api.sh, railway.toml)
 │   ├── edge/               # On-site Docker Compose + setup scripts
@@ -191,6 +191,24 @@ safeschool/
 ├── docs/                   # Admin guide, deployment guide, architecture
 ├── test/load/              # k6 load testing scripts
 └── .github/workflows/      # CI/CD pipelines
+```
+
+---
+
+## EdgeRuntime
+
+The on-site sync engine, offline queue, and conflict resolver are provided as a **pre-built Docker image** (`ghcr.io/bwattendorf/edgeruntime`). This handles:
+
+- **Cloud sync** — bidirectional data sync between the on-site mini PC and the central cloud
+- **Offline queue** — SQLite-backed queue that persists operations during connectivity loss
+- **Conflict resolution** — per-entity strategy for bidirectional sync conflicts
+- **Activation** — optional license key enables cloud sync features
+
+The EdgeRuntime image is pulled automatically by `docker compose pull` during installation. No source code compilation required.
+
+```bash
+# Check EdgeRuntime health
+curl http://localhost:8470/health
 ```
 
 ---

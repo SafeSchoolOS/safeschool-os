@@ -224,8 +224,7 @@ You will be prompted to set the following values:
 |----------------------------|------------------------------------------------------|-----------------------------------|
 | `SITE_ID`                  | UUID identifying this school site                    | Cloud dashboard > Sites           |
 | `SITE_NAME`                | Human-readable school name                           | e.g. "Lincoln Elementary"         |
-| `CLOUD_SYNC_URL`           | Cloud API endpoint for bidirectional sync             | Cloud admin settings              |
-| `CLOUD_SYNC_KEY`           | API key for cloud sync authentication                | Cloud admin > Edge Devices        |
+| `EDGERUNTIME_ACTIVATION_KEY` | EdgeRuntime activation key (enables cloud sync)     | Cloud admin > Edge Devices        |
 | `ACCESS_CONTROL_ADAPTER`   | Access control integration (sicunet, genetec, etc.)  | Based on installed hardware       |
 | `AC_API_URL`               | Access control system API endpoint                   | AC vendor documentation           |
 | `AC_API_KEY`               | Access control system API key                        | AC vendor portal                  |
@@ -287,7 +286,7 @@ For networks without internet access:
    ```bash
    gunzip -c safeschool-images.tar.gz | docker load
    ```
-4. Set `CLOUD_SYNC_URL=` (empty) in `.env` to run in standalone mode.
+4. Leave `EDGERUNTIME_ACTIVATION_KEY=` empty in `.env` to run in standalone mode.
 
 ---
 
@@ -392,12 +391,13 @@ safeschool restart
 
 ### Cloud Sync Not Working
 
-- Verify `CLOUD_SYNC_URL` is set and reachable:
+- Verify EdgeRuntime is running: `docker compose ps edgeruntime`
+- Check EdgeRuntime health:
   ```bash
-  curl -sf "$CLOUD_SYNC_URL/health"
+  curl -sf http://localhost:8470/health
   ```
-- Verify `CLOUD_SYNC_KEY` matches the key configured in the cloud admin panel.
-- Check API logs for sync errors: `safeschool logs api | grep sync`.
+- Verify `EDGERUNTIME_ACTIVATION_KEY` is set in `.env`.
+- Check EdgeRuntime logs: `docker compose logs edgeruntime | grep sync`.
 - Ensure outbound HTTPS (port 443) is not blocked by a firewall or proxy.
 
 ### SSL Certificate Warnings

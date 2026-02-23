@@ -162,14 +162,12 @@ else
     # Generate secure random secrets
     DB_PASSWORD=$(openssl rand -base64 32 | tr -d '=/+' | head -c 32)
     JWT_SECRET=$(openssl rand -base64 48 | tr -d '=/+' | head -c 48)
-    CLOUD_SYNC_KEY=$(openssl rand -base64 32 | tr -d '=/+' | head -c 32)
 
     # Replace placeholder values
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" "$ENV_FILE"
     sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$ENV_FILE"
-    sed -i "s|^CLOUD_SYNC_KEY=.*|CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}|" "$ENV_FILE"
 
-    log "Generated secure secrets for DB_PASSWORD, JWT_SECRET, CLOUD_SYNC_KEY."
+    log "Generated secure secrets for DB_PASSWORD, JWT_SECRET."
 fi
 
 # ==============================================================================

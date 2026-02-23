@@ -152,8 +152,8 @@ uptime and disaster recovery.
 | Backup scheduling | Implemented | Daily at 02:00 UTC | Docker backup container with built-in scheduler; also standalone bash script for cron |
 | Backup verification | Partial | Empty-file check | `backup.sh` line 70 -- verifies backup is not empty; recommend periodic restore testing |
 | Edge standalone mode | Implemented | OPERATING_MODE=edge | `server.ts` lines 209-218 -- edge mode loads admin routes, cloud mode loads sync routes; offline queue with SQLite |
-| Offline data queue | Implemented | SQLite offline queue | `packages/edge/` -- offline-queue persists operations during connectivity loss |
-| Conflict resolution | Implemented | Per-entity strategy | `packages/edge/` -- conflict-resolver handles bidirectional sync conflicts |
+| Offline data queue | Implemented | SQLite offline queue | EdgeRuntime container -- offline-queue persists operations during connectivity loss |
+| Conflict resolution | Implemented | Per-entity strategy | EdgeRuntime container -- conflict-resolver handles bidirectional sync conflicts |
 | Container restart policy | Implemented | `unless-stopped` | All Docker services configured with `restart: unless-stopped` |
 | Dual-path 911 dispatch | Implemented | DispatchChain failover | RapidSOS -> Rave 911 -> SIP Direct -> Cellular Failover chain |
 | Disaster recovery plan | Gap | -- | Need formal DR plan with RTO/RPO targets |

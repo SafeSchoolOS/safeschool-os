@@ -172,19 +172,20 @@ configure_site() {
   fi
 }
 
-configure_cloud_sync() {
+configure_edgeruntime() {
   echo ""
-  echo -e "${BOLD}${CYAN}=== Cloud Sync Configuration ===${NC}"
+  echo -e "${BOLD}${CYAN}=== EdgeRuntime Configuration ===${NC}"
   echo ""
-  log_info "Cloud sync connects this edge device to the central SafeSchool OS cloud."
-  log_info "Leave blank to run in standalone mode (no cloud sync)."
+  log_info "EdgeRuntime provides cloud sync, offline queuing, and conflict resolution."
+  log_info "An activation key enables cloud sync features (optional — standalone mode works without one)."
   echo ""
 
-  CLOUD_SYNC_URL=$(prompt_input "Cloud sync URL" "")
-  CLOUD_SYNC_KEY=$(prompt_input "Cloud sync key" "")
+  EDGERUNTIME_ACTIVATION_KEY=$(prompt_input "EdgeRuntime activation key (leave blank for standalone)" "")
 
-  if [ -z "$CLOUD_SYNC_URL" ]; then
+  if [ -z "$EDGERUNTIME_ACTIVATION_KEY" ]; then
     log_info "Running in standalone mode (no cloud sync)."
+  else
+    log_success "EdgeRuntime activation key set."
   fi
 }
 
@@ -282,9 +283,8 @@ write_env() {
 SITE_NAME=${SITE_NAME}
 SITE_ID=${SITE_ID}
 
-# Cloud Sync
-CLOUD_SYNC_URL=${CLOUD_SYNC_URL}
-CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY}
+# EdgeRuntime
+EDGERUNTIME_ACTIVATION_KEY=${EDGERUNTIME_ACTIVATION_KEY}
 
 # Database
 DB_PASSWORD=${DB_PASSWORD}
@@ -330,8 +330,8 @@ deploy_stack() {
 
   cd "$INSTALL_DIR"
 
-  log_info "Building Docker images (this may take several minutes)..."
-  docker compose build
+  log_info "Pulling Docker images (this may take several minutes)..."
+  docker compose pull
 
   log_info "Starting services..."
   docker compose up -d
@@ -388,10 +388,10 @@ print_summary() {
   echo -e "  Access Control: ${ACCESS_CONTROL_ADAPTER}"
   echo -e "  Notifications:  ${NOTIFICATION_ADAPTER}"
   echo ""
-  if [ -n "$CLOUD_SYNC_URL" ]; then
-    echo -e "${BOLD}Cloud Sync:${NC} ${CLOUD_SYNC_URL}"
+  if [ -n "$EDGERUNTIME_ACTIVATION_KEY" ]; then
+    echo -e "${BOLD}EdgeRuntime:${NC} Activated (cloud sync enabled)"
   else
-    echo -e "${BOLD}Cloud Sync:${NC} Standalone (not connected)"
+    echo -e "${BOLD}EdgeRuntime:${NC} Standalone (no cloud sync)"
   fi
   echo ""
   echo -e "${BOLD}${CYAN}Management Commands:${NC}"
@@ -412,7 +412,7 @@ main() {
   print_banner
   check_prerequisites
   configure_site
-  configure_cloud_sync
+  configure_edgeruntime
   configure_dispatch
   configure_access_control
   configure_notifications

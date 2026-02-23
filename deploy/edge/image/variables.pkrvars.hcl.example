@@ -29,12 +29,11 @@ cpus      = 4
 
 # --- SafeSchool Site Configuration ---
 # Leave site_id empty to auto-generate a UUID during first-boot setup.
-# Leave cloud_sync_url empty to run in standalone mode (no cloud sync).
+# Leave edgeruntime_activation_key empty to run in standalone mode (no cloud sync).
 
-site_id        = ""
-site_name      = "My School"
-cloud_sync_url = ""
-cloud_sync_key = ""
+site_id                     = ""
+site_name                   = "My School"
+edgeruntime_activation_key  = ""
 
 # --- Build Settings ---
 

@@ -45,6 +45,13 @@
 # ====================================================================
 :3443 {
 	import security_headers
+
+	# EdgeRuntime health proxy
+	handle /edgeruntime/* {
+		uri strip_prefix /edgeruntime
+		reverse_proxy edgeruntime:8470
+	}
+
 	reverse_proxy api:3000
 }
 

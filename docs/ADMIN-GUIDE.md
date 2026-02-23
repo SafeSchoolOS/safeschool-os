@@ -542,9 +542,11 @@ Lockdown release (`DELETE /api/v1/lockdown/:id`) is restricted to edge devices o
 
 ### Edge Not Syncing to Cloud
 
-1. Check `CLOUD_SYNC_URL` and `CLOUD_SYNC_KEY` are set in the edge `.env`.
-2. Verify internet connectivity from the mini PC.
-3. Check API logs for sync errors: `docker compose logs -f api | grep sync`
+1. Check EdgeRuntime is running: `docker compose ps edgeruntime`
+2. Check EdgeRuntime health: `curl -sf http://localhost:8470/health`
+3. Verify `EDGERUNTIME_ACTIVATION_KEY` is set in the edge `.env`.
+4. Verify internet connectivity from the mini PC.
+5. Check EdgeRuntime logs: `docker compose logs -f edgeruntime | grep sync`
 4. The edge operates in STANDALONE mode when sync is unavailable -- data queues locally.
 
 ### Cameras Show "Service Unavailable"

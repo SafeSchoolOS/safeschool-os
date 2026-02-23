@@ -198,11 +198,11 @@ export default async function adminRoutes(app: FastifyInstance) {
   app.get('/sync', async () => {
     return {
       mode: process.env.OPERATING_MODE || 'edge',
-      connected: !!process.env.CLOUD_SYNC_URL,
-      lastSyncAt: null, // TODO: wire to edge sync engine getSyncState()
+      connected: !!process.env.EDGERUNTIME_URL,
+      lastSyncAt: null, // TODO: wire to EdgeRuntime API
       pendingChanges: 0,
       queueSize: 0,
-      cloudUrl: process.env.CLOUD_SYNC_URL || null,
+      edgeruntimeUrl: process.env.EDGERUNTIME_URL || null,
     };
   });
 

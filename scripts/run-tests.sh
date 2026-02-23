@@ -18,11 +18,6 @@ echo ""
 echo "--- Running all tests ---"
 echo ""
 
-# Run edge package tests (conflict-resolver, sync-engine, offline-queue)
-echo "=== Edge Package Tests ==="
-npx vitest run packages/edge/src/__tests__/ --reporter=verbose 2>&1
-EDGE_EXIT=$?
-
 # Run integrations tests (dispatch, cameras, threat-intel, etc.)
 echo ""
 echo "=== Integration Tests ==="
@@ -40,12 +35,11 @@ API_EXIT=$?
 
 echo ""
 echo "=== Test Summary ==="
-echo "Edge:         $([ $EDGE_EXIT -eq 0 ] && echo 'PASSED' || echo 'FAILED')"
 echo "Integrations: $([ $INTEGRATIONS_EXIT -eq 0 ] && echo 'PASSED' || echo 'FAILED')"
 echo "API:          $([ $API_EXIT -eq 0 ] && echo 'PASSED' || echo 'FAILED')"
 
 # Exit with failure if any suite failed
-if [ $EDGE_EXIT -ne 0 ] || [ $INTEGRATIONS_EXIT -ne 0 ] || [ $API_EXIT -ne 0 ]; then
+if [ $INTEGRATIONS_EXIT -ne 0 ] || [ $API_EXIT -ne 0 ]; then
   echo ""
   echo "SOME TESTS FAILED"
   exit 1
