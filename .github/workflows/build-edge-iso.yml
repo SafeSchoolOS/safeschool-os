@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Docker images for embedding
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.PKG_READ_TOKEN }}
         run: |
           echo "::group::Building API image"
           docker build \

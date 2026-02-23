@@ -23,7 +23,7 @@ jobs:
 
       - run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.PKG_READ_TOKEN }}
 
       - name: Generate Prisma client
         run: npx prisma generate --schema=packages/db/prisma/schema.prisma
@@ -79,7 +79,7 @@ jobs:
 
       - run: npm ci
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.PKG_READ_TOKEN }}
 
       - name: Generate Prisma client
         run: npx prisma generate --schema=packages/db/prisma/schema.prisma
@@ -180,6 +180,6 @@ jobs:
             ghcr.io/bwattendorf/safeschool/${{ matrix.image }}:${{ github.sha }}
           build-args: |
             ${{ matrix.build-args }}
-            NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            NODE_AUTH_TOKEN=${{ secrets.PKG_READ_TOKEN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
