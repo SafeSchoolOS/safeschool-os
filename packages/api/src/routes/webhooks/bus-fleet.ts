@@ -93,7 +93,7 @@ const busFleetWebhookRoutes: FastifyPluginAsync = async (fastify) => {
 
     try {
       const adapter = getAdapter(vendor);
-      const parsed = adapter.parseWebhook(request.body, request.headers as Record<string, string>);
+      const parsed = adapter.parseWebhook(request.body);
 
       let gpsCount = 0;
       let rfidCount = 0;
@@ -135,8 +135,8 @@ const busFleetWebhookRoutes: FastifyPluginAsync = async (fastify) => {
           eventType: event.eventType,
           severity: event.severity,
           timestamp: event.timestamp,
-          latitude: event.latitude,
-          longitude: event.longitude,
+          latitude: (event as any).latitude,
+          longitude: (event as any).longitude,
           description: event.description,
           mediaUrl: event.mediaUrl,
           source: vendor,

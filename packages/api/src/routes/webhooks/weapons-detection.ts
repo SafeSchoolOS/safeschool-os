@@ -31,9 +31,7 @@ function getEvolvAdapter(): EvolvAdapter {
   if (!evolvAdapter) {
     const config = getConfig();
     evolvAdapter = new EvolvAdapter({
-      apiKey: config.weaponsDetection.evolvApiKey,
       webhookSecret: config.weaponsDetection.evolvWebhookSecret,
-      apiUrl: config.weaponsDetection.evolvApiUrl,
     });
   }
   return evolvAdapter;
@@ -43,7 +41,7 @@ function getCeiaAdapter(): CeiaAdapter {
   if (!ceiaAdapter) {
     const config = getConfig();
     ceiaAdapter = new CeiaAdapter({
-      webhookSecret: config.weaponsDetection.ceiaWebhookSecret,
+      apiKey: config.weaponsDetection.ceiaWebhookSecret,
     });
   }
   return ceiaAdapter;
@@ -53,7 +51,6 @@ function getXtractOneAdapter(): XtractOneAdapter {
   if (!xtractOneAdapter) {
     const config = getConfig();
     xtractOneAdapter = new XtractOneAdapter({
-      apiKey: config.weaponsDetection.xtractOneApiKey,
       webhookSecret: config.weaponsDetection.xtractOneWebhookSecret,
     });
   }

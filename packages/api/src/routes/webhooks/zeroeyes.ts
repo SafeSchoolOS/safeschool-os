@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { ZeroEyesAdapter } from '@bwattendorf/adapters/threat-intel';
-import type { ZeroEyesDetection } from '@bwattendorf/adapters/threat-intel';
+import type { ThreatEvent, ThreatIntelConfig } from '@bwattendorf/adapters/threat-intel';
 import { AlertEngine } from '../../services/alert-engine.js';
 import { getConfig } from '../../config.js';
 
@@ -10,13 +10,15 @@ import { getConfig } from '../../config.js';
  * POST /webhooks/zeroeyes
  *
  * Receives weapon detection events from ZeroEyes. The request body is
- * verified using HMAC SHA-256 signature in the X-Signature header.
+ * verified using HMAC SHA-256 signature via the adapter.
  * No JWT authentication is required — webhook signature is used instead.
  *
  * On high-confidence detections (>= threshold), the route automatically:
  * 1. Creates an ACTIVE_THREAT alert via AlertEngine
  * 2. Triggers lockdown + 911 dispatch via the AlertEngine job queue
  */
+
+const ALERT_THRESHOLD = 0.85;
 
 let zeroEyesAdapter: ZeroEyesAdapter | null = null;
 
@@ -28,6 +30,7 @@ function getZeroEyesAdapter(): ZeroEyesAdapter {
       apiUrl: config.threatIntel.zeroEyesApiUrl,
       apiKey: config.threatIntel.zeroEyesApiKey,
       webhookSecret: config.threatIntel.zeroEyesWebhookSecret,
+      alertThreshold: ALERT_THRESHOLD,
     });
   }
   return zeroEyesAdapter;
@@ -57,14 +60,14 @@ const zeroeyesWebhookRoutes: FastifyPluginAsync = async (fastify) => {
     // -----------------------------------------------------------------------
     // 1. Verify HMAC signature
     // -----------------------------------------------------------------------
-    const signature = request.headers['x-signature'] as string | undefined;
+    const headers = request.headers as Record<string, string>;
     const rawBody = (request as any).rawBody as string | undefined;
 
-    if (!signature || !rawBody) {
-      return reply.code(401).send({ error: 'Missing X-Signature header' });
+    if (!rawBody) {
+      return reply.code(401).send({ error: 'Missing request body' });
     }
 
-    if (!adapter.verifyWebhookSignature(rawBody, signature)) {
+    if (!adapter.verifyWebhookSignature(headers, rawBody)) {
       fastify.log.warn('ZeroEyes webhook signature verification failed');
       return reply.code(401).send({ error: 'Invalid signature' });
     }
@@ -72,8 +75,7 @@ const zeroeyesWebhookRoutes: FastifyPluginAsync = async (fastify) => {
     // -----------------------------------------------------------------------
     // 2. Parse detection payload
     // -----------------------------------------------------------------------
-    const detection = request.body as ZeroEyesDetection;
-    const threatEvent = adapter.parseWebhookPayload(detection);
+    const threatEvent = adapter.parseWebhook(headers, request.body);
 
     if (!threatEvent) {
       return reply.code(400).send({ error: 'Invalid detection payload' });
@@ -87,7 +89,7 @@ const zeroeyesWebhookRoutes: FastifyPluginAsync = async (fastify) => {
     // -----------------------------------------------------------------------
     // 3. Auto-create ACTIVE_THREAT alert on high confidence
     // -----------------------------------------------------------------------
-    if (adapter.shouldAutoAlert(threatEvent)) {
+    if (threatEvent.confidence >= ALERT_THRESHOLD) {
       fastify.log.warn(
         { eventId: threatEvent.id, confidence: threatEvent.confidence },
         'HIGH CONFIDENCE THREAT — auto-creating ACTIVE_THREAT alert',
@@ -97,13 +99,9 @@ const zeroeyesWebhookRoutes: FastifyPluginAsync = async (fastify) => {
         const alertEngine = new AlertEngine(fastify);
 
         // Look up a site to associate the alert with.
-        // In production the camera-to-site mapping would come from the DB.
-        // For now, use the first site or fall back to env.
         const site = await fastify.prisma.site.findFirst();
         const siteId = site?.id || process.env.SITE_ID || '';
 
-        // Try to find a building associated with the camera
-        // (camera IDs may be stored as metadata in the building/room records)
         const building = await fastify.prisma.building.findFirst({
           where: { siteId },
         });

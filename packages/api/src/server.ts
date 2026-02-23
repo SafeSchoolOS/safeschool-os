@@ -281,6 +281,7 @@ export async function buildServer() {
   await app.register(frTipsIntegrationsRoutes, { prefix: '/api/v1/tips/integrations' });
   // Optional proprietary plugins (installed as npm package at deploy time)
   try {
+    // @ts-ignore — @safeschool/proprietary is optional and may not be installed
     const { register } = await import('@safeschool/proprietary');
     await register(app);
   } catch { /* @safeschool/proprietary not installed — skip */ }

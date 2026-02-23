@@ -40,7 +40,7 @@ function getRaveAdapter(): RavePanicAdapter {
   if (!raveAdapter) {
     const config = getConfig();
     raveAdapter = new RavePanicAdapter({
-      apiKey: config.panicDevices.raveApiKey,
+      webhookSecret: config.panicDevices.raveApiKey,
     });
   }
   return raveAdapter;

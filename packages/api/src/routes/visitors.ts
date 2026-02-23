@@ -308,7 +308,9 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        const visitor = await visitorService.checkIn(request.params.id, request.ip);
+        const visitor = await visitorService.checkIn(request.params.id, {
+          photo: request.body?.photo,
+        });
         fastify.wsManager.broadcastToSite(visitor.siteId, 'visitor:checked-in', visitor);
 
         // Host notification
@@ -331,7 +333,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
                 visitorName: `${visitor.firstName} ${visitor.lastName}`,
                 purpose: visitor.purpose,
                 destination: visitor.destination,
-                visitorType: visitor.visitorType,
+                visitorType: (visitor as any).visitorType,
               });
               await queue.close();
               conn.disconnect();
@@ -355,7 +357,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] },
     async (request, reply) => {
       try {
-        const visitor = await visitorService.checkOut(request.params.id, request.ip);
+        const visitor = await visitorService.checkOut(request.params.id);
         fastify.wsManager.broadcastToSite(visitor.siteId, 'visitor:checked-out', visitor);
         return visitor;
       } catch (err) {
@@ -486,7 +488,7 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
 
       for (const visitorId of targetIds) {
         try {
-          const visitor = await visitorService.checkIn(visitorId, request.ip);
+          const visitor = await visitorService.checkIn(visitorId, {});
           fastify.wsManager.broadcastToSite(visitor.siteId, 'visitor:checked-in', visitor);
           results.push({ id: visitor.id, status: visitor.status });
         } catch (err) {
@@ -503,7 +505,10 @@ const visitorRoutes: FastifyPluginAsync = async (fastify) => {
     '/:id',
     { preHandler: [fastify.authenticate, requireMinRole('OPERATOR')] },
     async (request, reply) => {
-      const visitor = await visitorService.getVisitor(request.params.id);
+      const visitor = await fastify.prisma.visitor.findUnique({
+        where: { id: request.params.id },
+        include: { screening: true, host: true },
+      });
       if (!visitor) return reply.code(404).send({ error: 'Visitor not found' });
       return visitor;
     },
