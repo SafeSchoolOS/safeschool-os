@@ -104,6 +104,7 @@ const p = new PrismaClient();
     const ownerEmail = process.env.OWNER_EMAIL;
     const ownerPassword = process.env.OWNER_PASSWORD;
     if (ownerEmail && ownerPassword) {
+      console.log('Owner password length:', ownerPassword.length, 'chars:', [...ownerPassword].map(c => c.charCodeAt(0)).join(','));
       const ownerHash = bcrypt.hashSync(ownerPassword, 12);
       const ownerId = '00000000-0000-4000-a000-000000001001';
       const owner = await p.user.upsert({
@@ -119,6 +120,15 @@ const p = new PrismaClient();
         }
       });
       console.log('Owner account ready:', owner.email);
+
+      // Clear any login lockout for the owner
+      try {
+        const Redis = require('ioredis');
+        const redis = new Redis(process.env.REDIS_URL);
+        await redis.del('login:attempts:' + ownerEmail.toLowerCase());
+        console.log('Lockout cleared for:', ownerEmail);
+        await redis.quit();
+      } catch(e) { console.log('Redis lockout clear skipped:', e.message); }
     }
   } catch(e) { console.error('Seed error:', e.message); }
   finally { await p.\$disconnect(); }
