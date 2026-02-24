@@ -99,6 +99,27 @@ const p = new PrismaClient();
       }
     });
     console.log('Owner account ready:', u.email);
+
+    // Seed owner account (set OWNER_EMAIL + OWNER_PASSWORD env vars)
+    const ownerEmail = process.env.OWNER_EMAIL;
+    const ownerPassword = process.env.OWNER_PASSWORD;
+    if (ownerEmail && ownerPassword) {
+      const ownerHash = bcrypt.hashSync(ownerPassword, 12);
+      const ownerId = '00000000-0000-4000-a000-000000001001';
+      const owner = await p.user.upsert({
+        where: { id: ownerId },
+        update: { passwordHash: ownerHash, email: ownerEmail, role: 'SUPER_ADMIN' },
+        create: {
+          id: ownerId,
+          email: ownerEmail,
+          name: 'Bruce Wattendorf',
+          role: 'SUPER_ADMIN',
+          passwordHash: ownerHash,
+          sites: { create: { siteId: siteId } }
+        }
+      });
+      console.log('Owner account ready:', owner.email);
+    }
   } catch(e) { console.error('Seed error:', e.message); }
   finally { await p.\$disconnect(); }
 })();

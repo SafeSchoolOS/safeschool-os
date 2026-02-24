@@ -155,6 +155,7 @@ function DevLoginForm() {
           </button>
         </form>
 
+        {!import.meta.env.VITE_API_URL && (
         <div className="mt-6 border-t border-gray-700 pt-6">
           <p className="text-gray-500 text-xs mb-3 text-center">Quick login (dev only)</p>
           <div className="grid grid-cols-2 gap-2">
@@ -172,6 +173,7 @@ function DevLoginForm() {
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
