@@ -63,8 +63,29 @@ if [ ! -f "$ENV_FILE" ]; then
   sed -i "s/DB_PASSWORD=changeme_generate_random/DB_PASSWORD=$DB_PASS/" "$ENV_FILE"
   sed -i "s/JWT_SECRET=changeme_generate_random/JWT_SECRET=$JWT_SEC/" "$ENV_FILE"
 
+  # Prompt for admin account
+  echo ""
+  echo "--- Admin Account Setup ---"
+  read -p "Admin email address: " ADMIN_EMAIL
+  while true; do
+    read -s -p "Admin password (min 8 chars): " ADMIN_PASS
+    echo ""
+    if [ ${#ADMIN_PASS} -ge 8 ]; then break; fi
+    echo "Password must be at least 8 characters."
+  done
+  read -s -p "Confirm password: " ADMIN_PASS_CONFIRM
+  echo ""
+  if [ "$ADMIN_PASS" != "$ADMIN_PASS_CONFIRM" ]; then
+    echo "Passwords do not match. You can set ADMIN_EMAIL and ADMIN_PASSWORD in $ENV_FILE manually."
+  else
+    sed -i "s/ADMIN_EMAIL=.*/ADMIN_EMAIL=$ADMIN_EMAIL/" "$ENV_FILE"
+    sed -i "s/ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$ADMIN_PASS/" "$ENV_FILE"
+    echo "Admin account configured: $ADMIN_EMAIL"
+  fi
+
+  echo ""
   echo "Generated .env with secure secrets."
-  echo "IMPORTANT: Edit $ENV_FILE to set SITE_ID, SITE_NAME, and integration keys."
+  echo "IMPORTANT: Edit $ENV_FILE to set SITE_NAME and integration keys."
 else
   echo "[4/6] .env already exists, skipping."
 fi

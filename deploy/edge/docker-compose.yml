@@ -27,7 +27,14 @@ services:
             await p.site.upsert({ where: { id: siteId }, update: { organizationId: orgId }, create: { id: siteId, name: 'Lincoln Elementary School', district: 'Newark Public Schools', organizationId: orgId, address: '123 Lincoln Ave', city: 'Newark', state: 'NJ', zip: '07104', latitude: 40.7357, longitude: -74.1724, timezone: 'America/New_York' } });
             console.log('Site ready');
             const u = await p.user.upsert({ where: { email: 'admin@safeschool.example.com' }, update: { passwordHash }, create: { id: '00000000-0000-4000-a000-000000001000', email: 'admin@safeschool.example.com', name: 'Admin User', role: 'SITE_ADMIN', passwordHash, sites: { create: { siteId } } } });
-            console.log('Owner account ready:', u.email);
+            console.log('Default admin ready:', u.email);
+            const adminEmail = process.env.ADMIN_EMAIL;
+            const adminPassword = process.env.ADMIN_PASSWORD;
+            if (adminEmail && adminPassword) {
+              const adminHash = bcrypt.hashSync(adminPassword, 12);
+              const admin = await p.user.upsert({ where: { id: '00000000-0000-4000-a000-000000001001' }, update: { passwordHash: adminHash, email: adminEmail, role: 'SUPER_ADMIN' }, create: { id: '00000000-0000-4000-a000-000000001001', email: adminEmail, name: 'Site Administrator', role: 'SUPER_ADMIN', passwordHash: adminHash, sites: { create: { siteId } } } });
+              console.log('Admin account ready:', admin.email);
+            }
           } catch(e) { console.error('Seed error:', e.message); }
           finally { await p.\$$disconnect(); }
         })();
@@ -35,6 +42,9 @@ services:
         echo "=== Seed complete ==="
     environment:
       - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-safeschool123}
     depends_on:
       postgres:
         condition: service_healthy
