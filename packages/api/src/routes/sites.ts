@@ -3,6 +3,7 @@ import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { requireMinRole } from '../middleware/rbac.js';
+import { sanitizeText } from '../utils/sanitize.js';
 
 // Ensure upload directories exist at module load (best-effort; may fail in CI/test)
 const FLOOR_PLAN_DIR = process.env.FLOOR_PLAN_DIR || '/app/data/floor-plans';
@@ -11,6 +12,61 @@ try { mkdirSync(FLOOR_PLAN_DIR, { recursive: true }); } catch { /* created lazil
 try { mkdirSync(LOGO_DIR, { recursive: true }); } catch { /* created lazily at upload time */ }
 
 const siteRoutes: FastifyPluginAsync = async (fastify) => {
+  // GET /api/v1/sites/all — ALL sites (SUPER_ADMIN only)
+  fastify.get('/all', {
+    preHandler: [fastify.authenticate, requireMinRole('SUPER_ADMIN')],
+  }, async (request) => {
+    const { page, limit, search } = request.query as { page?: string; limit?: string; search?: string };
+    const take = Math.min(parseInt(limit || '50', 10), 100);
+    const skip = (Math.max(parseInt(page || '1', 10), 1) - 1) * take;
+    const where: any = search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } },
+        { state: { contains: search, mode: 'insensitive' } },
+      ],
+    } : {};
+
+    const [sites, total] = await Promise.all([
+      fastify.prisma.site.findMany({
+        where,
+        include: {
+          organization: { select: { id: true, name: true } },
+          _count: { select: { buildings: true, users: true } },
+        },
+        orderBy: { name: 'asc' },
+        take, skip,
+      }),
+      fastify.prisma.site.count({ where }),
+    ]);
+    return { sites, total, page: Math.floor(skip / take) + 1, pages: Math.ceil(total / take) };
+  });
+
+  // POST /api/v1/sites — Create site (SUPER_ADMIN only)
+  fastify.post('/', {
+    preHandler: [fastify.authenticate, requireMinRole('SUPER_ADMIN')],
+  }, async (request, reply) => {
+    const body = request.body as any;
+    if (!body.name || !body.address || !body.city || !body.state || !body.zip) {
+      return reply.code(400).send({ error: 'name, address, city, state, zip are required' });
+    }
+    const site = await fastify.prisma.site.create({
+      data: {
+        name: sanitizeText(body.name),
+        address: sanitizeText(body.address),
+        city: sanitizeText(body.city),
+        state: sanitizeText(body.state),
+        zip: sanitizeText(body.zip),
+        district: sanitizeText(body.district || body.name),
+        organizationId: body.organizationId || null,
+        latitude: body.latitude ?? 0,
+        longitude: body.longitude ?? 0,
+        timezone: body.timezone || 'America/New_York',
+      },
+    });
+    return reply.code(201).send(site);
+  });
+
   // GET /api/v1/sites — User's sites
   fastify.get('/', { preHandler: [fastify.authenticate, requireMinRole('TEACHER')] }, async (request) => {
     const sites = await fastify.prisma.site.findMany({
@@ -410,6 +466,47 @@ const siteRoutes: FastifyPluginAsync = async (fastify) => {
       return { message: 'Door deleted' };
     }
   );
+
+  // PUT /api/v1/sites/:id — Update site (SUPER_ADMIN only)
+  fastify.put<{ Params: { id: string } }>('/:id', {
+    preHandler: [fastify.authenticate, requireMinRole('SUPER_ADMIN')],
+  }, async (request, reply) => {
+    const body = request.body as any;
+    const existing = await fastify.prisma.site.findUnique({ where: { id: request.params.id } });
+    if (!existing) return reply.code(404).send({ error: 'Site not found' });
+    const site = await fastify.prisma.site.update({
+      where: { id: request.params.id },
+      data: {
+        ...(body.name && { name: sanitizeText(body.name) }),
+        ...(body.address && { address: sanitizeText(body.address) }),
+        ...(body.city && { city: sanitizeText(body.city) }),
+        ...(body.state && { state: sanitizeText(body.state) }),
+        ...(body.zip && { zip: sanitizeText(body.zip) }),
+        ...(body.district && { district: sanitizeText(body.district) }),
+        ...(body.organizationId !== undefined && { organizationId: body.organizationId }),
+        ...(body.latitude !== undefined && { latitude: body.latitude }),
+        ...(body.longitude !== undefined && { longitude: body.longitude }),
+        ...(body.timezone && { timezone: body.timezone }),
+      },
+    });
+    return site;
+  });
+
+  // DELETE /api/v1/sites/:id — Delete empty site (SUPER_ADMIN only)
+  fastify.delete<{ Params: { id: string } }>('/:id', {
+    preHandler: [fastify.authenticate, requireMinRole('SUPER_ADMIN')],
+  }, async (request, reply) => {
+    const site = await fastify.prisma.site.findUnique({
+      where: { id: request.params.id },
+      include: { _count: { select: { alerts: true, users: true } } },
+    });
+    if (!site) return reply.code(404).send({ error: 'Site not found' });
+    if (site._count.alerts > 0 || site._count.users > 0) {
+      return reply.code(409).send({ error: 'Cannot delete site with active alerts or users' });
+    }
+    await fastify.prisma.site.delete({ where: { id: request.params.id } });
+    return { message: 'Site deleted' };
+  });
 
   // GET /:id/buildings/:buildingId/floor-plan-image — serve background image (TEACHER+)
   fastify.get<{ Params: { id: string; buildingId: string } }>(

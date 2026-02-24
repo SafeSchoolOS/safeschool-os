@@ -39,6 +39,39 @@ export default async function userRoutes(app: FastifyInstance) {
     }));
   });
 
+  // GET /api/v1/users/all — ALL users across all sites (SUPER_ADMIN only)
+  app.get('/all', { preHandler: [requireMinRole('SUPER_ADMIN')] }, async (request: FastifyRequest) => {
+    const { page, limit, search, role } = request.query as { page?: string; limit?: string; search?: string; role?: string };
+    const take = Math.min(parseInt(limit || '50', 10), 100);
+    const skip = (Math.max(parseInt(page || '1', 10), 1) - 1) * take;
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (role) where.role = role;
+
+    const [users, total] = await Promise.all([
+      app.prisma.user.findMany({
+        where,
+        select: {
+          id: true, email: true, name: true, role: true, phone: true, isActive: true,
+          createdAt: true, updatedAt: true,
+          sites: { select: { site: { select: { id: true, name: true } } } },
+        },
+        orderBy: { name: 'asc' },
+        take, skip,
+      }),
+      app.prisma.user.count({ where }),
+    ]);
+    return {
+      users: users.map((u) => ({ ...u, sites: u.sites.map((s: any) => s.site) })),
+      total, page: Math.floor(skip / take) + 1, pages: Math.ceil(total / take),
+    };
+  });
+
   // GET /api/v1/users/:id — single user detail (must share a site with requester)
   app.get('/:id', { preHandler: [requireMinRole('SITE_ADMIN')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };

@@ -1275,16 +1275,20 @@ model NotificationPreference {
 // ============================================================================
 
 model DemoRequest {
-  id        String   @id @default(uuid())
-  name      String
-  email     String
-  school    String
-  role      String
-  phone     String?
-  buildings Int?
-  state     String?
-  message   String?
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String    @id @default(uuid())
+  name       String
+  email      String
+  school     String
+  role       String
+  phone      String?
+  buildings  Int?
+  state      String?
+  message    String?
+  status     String    @default("PENDING")
+  reviewedBy String?   @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  notes      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   @@map("demo_requests")
 }

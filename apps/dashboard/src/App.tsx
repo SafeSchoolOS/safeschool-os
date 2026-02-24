@@ -42,6 +42,11 @@ const FireAlarmPASPage = lazy(() => import('./pages/FireAlarmPASPage').then(m =>
 const BadgeKioskSettingsPage = lazy(() => import('./pages/BadgeKioskSettingsPage').then(m => ({ default: m.BadgeKioskSettingsPage })));
 const BadgeGuardSettingsPage = lazy(() => import('./pages/BadgeGuardSettingsPage').then(m => ({ default: m.BadgeGuardSettingsPage })));
 const AccessAnalyticsPage = lazy(() => import('./pages/AccessAnalyticsPage').then(m => ({ default: m.AccessAnalyticsPage })));
+const AdminRequestsPage = lazy(() => import('./pages/AdminRequestsPage').then(m => ({ default: m.AdminRequestsPage })));
+const AdminOrganizationsPage = lazy(() => import('./pages/AdminOrganizationsPage').then(m => ({ default: m.AdminOrganizationsPage })));
+const AdminSitesPage = lazy(() => import('./pages/AdminSitesPage').then(m => ({ default: m.AdminSitesPage })));
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
+const AdminSettingsPage = lazy(() => import('./pages/AdminSettingsPage').then(m => ({ default: m.AdminSettingsPage })));
 
 function NavigateWithSearch({ to }: { to: string }) {
   const location = useLocation();
@@ -131,6 +136,11 @@ export function App() {
         <Route path="/badgekiosk-settings" element={<LazyRoute><BadgeKioskSettingsPage /></LazyRoute>} />
         <Route path="/access-analytics" element={<LazyRoute><AccessAnalyticsPage /></LazyRoute>} />
         <Route path="/access-analytics/settings" element={<LazyRoute><BadgeGuardSettingsPage /></LazyRoute>} />
+        <Route path="/admin/requests" element={<LazyRoute><AdminRequestsPage /></LazyRoute>} />
+        <Route path="/admin/organizations" element={<LazyRoute><AdminOrganizationsPage /></LazyRoute>} />
+        <Route path="/admin/sites" element={<LazyRoute><AdminSitesPage /></LazyRoute>} />
+        <Route path="/admin/users" element={<LazyRoute><AdminUsersPage /></LazyRoute>} />
+        <Route path="/admin/settings" element={<LazyRoute><AdminSettingsPage /></LazyRoute>} />
       </Route>
     </Routes>
   );
