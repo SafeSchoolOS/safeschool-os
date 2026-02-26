@@ -1323,6 +1323,8 @@ model EscalationRule {
 model EdgeDevice {
   id               String        @id @default(uuid())
   siteId           String        @unique @map("site_id")
+  name             String?
+  activationKey    String?       @map("activation_key")
   currentVersion   String?       @map("current_version")
   targetVersion    String?       @map("target_version")
   operatingMode    String?       @map("operating_mode") // EDGE, STANDALONE

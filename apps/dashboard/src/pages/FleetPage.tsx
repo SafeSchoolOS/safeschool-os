@@ -5,9 +5,13 @@ import {
   useFleetReleases,
   useUpgradeDevice,
   useUpgradeSelected,
+  useCreateEdgeDevice,
+  useDeleteEdgeDevice,
   type EdgeDevice,
   type FleetRelease,
+  type CreateDeviceResponse,
 } from '../api/fleet';
+import { useAllSites } from '../api/admin';
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -23,6 +27,10 @@ function isStale(dateStr: string): boolean {
   return Date.now() - new Date(dateStr).getTime() > 5 * 60 * 1000;
 }
 
+function isPendingSetup(device: EdgeDevice): boolean {
+  return !device.hostname && !device.currentVersion && !device.ipAddress;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   IDLE: 'bg-gray-500/20 text-gray-400',
   PENDING: 'bg-blue-500/20 text-blue-400',
@@ -31,20 +39,59 @@ const STATUS_COLORS: Record<string, string> = {
   FAILED: 'bg-red-500/20 text-red-400',
 };
 
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={copy}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-colors"
+    >
+      {copied ? 'Copied!' : label}
+    </button>
+  );
+}
+
 export function FleetPage() {
   const { data: devices, isLoading } = useFleetDevices();
   const { data: summary } = useFleetSummary();
   const { data: releasesData, isLoading: releasesLoading } = useFleetReleases();
   const upgradeDevice = useUpgradeDevice();
   const upgradeSelected = useUpgradeSelected();
+  const createDevice = useCreateEdgeDevice();
+  const deleteDevice = useDeleteEdgeDevice();
+  const { data: sitesData } = useAllSites();
+
   const [selectedTag, setSelectedTag] = useState('');
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
   const [upgradeResult, setUpgradeResult] = useState<string | null>(null);
+
+  // Registration form state
+  const [showRegForm, setShowRegForm] = useState(false);
+  const [regSiteId, setRegSiteId] = useState('');
+  const [regName, setRegName] = useState('');
+  const [regMode, setRegMode] = useState('EDGE');
+  const [regResult, setRegResult] = useState<CreateDeviceResponse | null>(null);
+
+  // Setup card state (for viewing existing device setup)
+  const [setupDevice, setSetupDevice] = useState<EdgeDevice | null>(null);
+
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const releases = releasesData?.releases || [];
   const allDeviceIds = devices?.map((d) => d.id) || [];
   const allSelected = allDeviceIds.length > 0 && allDeviceIds.every((id) => selectedDeviceIds.has(id));
   const someSelected = selectedDeviceIds.size > 0;
+
+  const sites = sitesData?.sites || [];
+  // Filter out sites that already have a device registered
+  const existingDeviceSiteIds = new Set(devices?.map((d) => d.siteId) || []);
+  const availableSites = sites.filter((s) => !existingDeviceSiteIds.has(s.id));
 
   const toggleDevice = (id: string) => {
     setSelectedDeviceIds((prev) => {
@@ -84,7 +131,28 @@ export function FleetPage() {
     upgradeDevice.mutate({ id: device.id, targetVersion: selectedTag });
   };
 
-  // Find selected release details
+  const handleRegister = () => {
+    if (!regSiteId) return;
+    createDevice.mutate(
+      { siteId: regSiteId, name: regName || undefined, operatingMode: regMode },
+      {
+        onSuccess: (data) => {
+          setRegResult(data);
+          setShowRegForm(false);
+          setRegSiteId('');
+          setRegName('');
+          setRegMode('EDGE');
+        },
+      }
+    );
+  };
+
+  const handleDelete = (id: string) => {
+    deleteDevice.mutate(id, {
+      onSuccess: () => setDeleteConfirmId(null),
+    });
+  };
+
   const selectedRelease = releases.find((r: FleetRelease) => r.tag === selectedTag);
 
   return (
@@ -92,12 +160,176 @@ export function FleetPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold dark:text-white text-gray-900">Fleet Management</h2>
+          <h2 className="text-2xl font-bold dark:text-white text-gray-900">Edge Devices</h2>
           <p className="text-sm dark:text-gray-400 text-gray-500 mt-1">
-            Monitor and upgrade edge devices across all sites
+            Register, monitor, and upgrade edge devices across all sites
           </p>
         </div>
+        <button
+          onClick={() => { setShowRegForm(!showRegForm); setRegResult(null); }}
+          className="px-4 py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+        >
+          + Register New Device
+        </button>
       </div>
+
+      {/* Registration Form */}
+      {showRegForm && (
+        <div className="dark:bg-gray-800 bg-white rounded-xl dark:border-gray-700 border-gray-200 border p-4 space-y-3">
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900">Register New Edge Device</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium dark:text-gray-300 text-gray-700 mb-1">
+                Site *
+              </label>
+              <select
+                value={regSiteId}
+                onChange={(e) => setRegSiteId(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-lg dark:bg-gray-700 bg-gray-100 dark:text-white text-gray-900 dark:border-gray-600 border-gray-300 border focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">-- Select a site --</option>
+                {availableSites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name} ({site.organization?.name || site.district || 'No org'})
+                  </option>
+                ))}
+              </select>
+              {availableSites.length === 0 && sites.length > 0 && (
+                <p className="text-xs text-yellow-500 mt-1">All sites already have a device registered</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium dark:text-gray-300 text-gray-700 mb-1">
+                Device Name (optional)
+              </label>
+              <input
+                type="text"
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                placeholder="e.g. Front Office Gateway"
+                className="w-full px-3 py-2.5 text-sm rounded-lg dark:bg-gray-700 bg-gray-100 dark:text-white text-gray-900 dark:border-gray-600 border-gray-300 border focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium dark:text-gray-300 text-gray-700 mb-1">
+                Operating Mode
+              </label>
+              <select
+                value={regMode}
+                onChange={(e) => setRegMode(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-lg dark:bg-gray-700 bg-gray-100 dark:text-white text-gray-900 dark:border-gray-600 border-gray-300 border focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="EDGE">Edge Gateway</option>
+                <option value="STANDALONE">Standalone (Full Stack)</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRegister}
+              disabled={!regSiteId || createDevice.isPending}
+              className="px-5 py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {createDevice.isPending ? 'Registering...' : 'Register Device'}
+            </button>
+            <button
+              onClick={() => setShowRegForm(false)}
+              className="px-5 py-2.5 text-sm font-medium dark:bg-gray-700 bg-gray-200 dark:text-gray-300 text-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {createDevice.isError && (
+            <div className="rounded-lg bg-red-900/20 border border-red-500 p-3 text-sm text-red-300">
+              {(createDevice.error as Error).message}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Post-Registration Setup Card */}
+      {regResult && (
+        <div className="dark:bg-gray-800 bg-white rounded-xl border-2 border-green-600 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-600 text-white text-sm font-bold">
+                ✓
+              </span>
+              <h3 className="text-lg font-semibold text-green-400">Device Registered Successfully</h3>
+            </div>
+            <button
+              onClick={() => setRegResult(null)}
+              className="text-gray-400 hover:text-gray-200 text-xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="dark:bg-gray-700/50 bg-gray-100 rounded-lg p-3">
+              <div className="text-xs dark:text-gray-400 text-gray-500 mb-1">Activation Key</div>
+              <div className="flex items-center gap-2">
+                <code className="text-lg font-mono font-bold text-green-400">{regResult.activationKey}</code>
+                <CopyButton text={regResult.activationKey} label="Copy Key" />
+              </div>
+            </div>
+            <div className="dark:bg-gray-700/50 bg-gray-100 rounded-lg p-3">
+              <div className="text-xs dark:text-gray-400 text-gray-500 mb-1">Site ID</div>
+              <div className="flex items-center gap-2">
+                <code className="text-sm font-mono dark:text-gray-200 text-gray-800">{regResult.siteId}</code>
+                <CopyButton text={regResult.siteId} label="Copy ID" />
+              </div>
+              <div className="text-xs dark:text-gray-400 text-gray-500 mt-1">{regResult.siteName}</div>
+            </div>
+          </div>
+
+          <div className="dark:bg-gray-700/50 bg-gray-100 rounded-lg p-3">
+            <div className="text-xs font-medium dark:text-gray-300 text-gray-700 mb-2">Setup Instructions</div>
+            <ol className="space-y-1">
+              {regResult.setupInstructions.map((step, i) => (
+                <li key={i} className="text-sm dark:text-gray-300 text-gray-700">{step}</li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      )}
+
+      {/* View Setup Card (for existing pending devices) */}
+      {setupDevice && (
+        <div className="dark:bg-gray-800 bg-white rounded-xl border border-blue-600 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold dark:text-blue-400 text-blue-600">
+              Setup Info: {setupDevice.name || setupDevice.site.name}
+            </h3>
+            <button
+              onClick={() => setSetupDevice(null)}
+              className="text-gray-400 hover:text-gray-200 text-xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="dark:bg-gray-700/50 bg-gray-100 rounded-lg p-3">
+              <div className="text-xs dark:text-gray-400 text-gray-500 mb-1">Activation Key</div>
+              {setupDevice.activationKey ? (
+                <div className="flex items-center gap-2">
+                  <code className="text-lg font-mono font-bold text-blue-400">{setupDevice.activationKey}</code>
+                  <CopyButton text={setupDevice.activationKey} label="Copy Key" />
+                </div>
+              ) : (
+                <span className="text-sm text-gray-500">No key generated</span>
+              )}
+            </div>
+            <div className="dark:bg-gray-700/50 bg-gray-100 rounded-lg p-3">
+              <div className="text-xs dark:text-gray-400 text-gray-500 mb-1">Site ID</div>
+              <div className="flex items-center gap-2">
+                <code className="text-sm font-mono dark:text-gray-200 text-gray-800">{setupDevice.siteId}</code>
+                <CopyButton text={setupDevice.siteId} label="Copy ID" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {summary && (
@@ -131,7 +363,6 @@ export function FleetPage() {
       {/* Upgrade Controls */}
       <div className="dark:bg-gray-800 bg-white rounded-xl dark:border-gray-700 border-gray-200 border p-4">
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-          {/* Release Dropdown */}
           <div className="flex-1">
             <label htmlFor="release-select" className="block text-sm font-medium dark:text-gray-300 text-gray-700 mb-1">
               Target Version
@@ -159,7 +390,6 @@ export function FleetPage() {
             )}
           </div>
 
-          {/* Upgrade Button */}
           <button
             onClick={handleUpgradeSelected}
             disabled={!selectedTag || !someSelected || upgradeSelected.isPending}
@@ -173,7 +403,6 @@ export function FleetPage() {
           </button>
         </div>
 
-        {/* Selected Release Details */}
         {selectedRelease && (
           <div className="mt-3 rounded-lg dark:bg-gray-700/50 bg-gray-100 p-3 text-sm">
             <div className="flex items-center gap-2 mb-1">
@@ -192,7 +421,6 @@ export function FleetPage() {
           </div>
         )}
 
-        {/* Result Messages */}
         {upgradeResult && (
           <div className="mt-3 rounded-lg bg-green-900/20 border border-green-700 p-3 text-sm text-green-300">
             {upgradeResult}
@@ -207,7 +435,7 @@ export function FleetPage() {
 
       {/* Device Table */}
       <div className="dark:bg-gray-800 bg-white rounded-xl dark:border-gray-700 border-gray-200 border overflow-x-auto">
-        <table className="w-full min-w-[700px]">
+        <table className="w-full min-w-[800px]">
           <thead>
             <tr className="dark:bg-gray-700/50 bg-gray-50 text-left text-sm dark:text-gray-400 text-gray-500">
               <th className="px-4 py-3 font-medium w-10">
@@ -218,11 +446,11 @@ export function FleetPage() {
                   className="w-4 h-4 rounded border-gray-500 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
                 />
               </th>
-              <th className="px-4 py-3 font-medium">Site</th>
+              <th className="px-4 py-3 font-medium">Device / Site</th>
               <th className="px-4 py-3 font-medium">Hostname</th>
               <th className="px-4 py-3 font-medium">Version</th>
               <th className="px-4 py-3 font-medium">Mode</th>
-              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Device Status</th>
               <th className="px-4 py-3 font-medium">Last Heartbeat</th>
               <th className="px-4 py-3 font-medium">System</th>
               <th className="px-4 py-3 font-medium">Actions</th>
@@ -239,12 +467,13 @@ export function FleetPage() {
             {devices && devices.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center dark:text-gray-400 text-gray-500">
-                  No edge devices have connected yet. Devices appear here after their first heartbeat.
+                  No edge devices registered yet. Click "Register New Device" to add one.
                 </td>
               </tr>
             )}
             {devices?.map((device) => {
               const stale = isStale(device.lastHeartbeatAt);
+              const pending = isPendingSetup(device);
               const hasTarget = device.targetVersion && device.currentVersion !== device.targetVersion;
               const canUpgrade = device.upgradeStatus === 'IDLE' || device.upgradeStatus === 'FAILED';
               const checked = selectedDeviceIds.has(device.id);
@@ -264,7 +493,12 @@ export function FleetPage() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium dark:text-white text-gray-900">{device.site.name}</div>
+                    {device.name && (
+                      <div className="font-medium dark:text-white text-gray-900">{device.name}</div>
+                    )}
+                    <div className={`${device.name ? 'text-xs dark:text-gray-500 text-gray-400' : 'font-medium dark:text-white text-gray-900'}`}>
+                      {device.site.name}
+                    </div>
                     <div className="text-xs dark:text-gray-500 text-gray-400">{device.site.district}</div>
                   </td>
                   <td className="px-4 py-3 text-sm">
@@ -287,9 +521,26 @@ export function FleetPage() {
                     {device.operatingMode || '-'}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[device.upgradeStatus] || STATUS_COLORS.IDLE}`}>
-                      {device.upgradeStatus}
-                    </span>
+                    {pending ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400">
+                        Pending Setup
+                      </span>
+                    ) : stale ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                        Offline
+                      </span>
+                    ) : (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                        Online
+                      </span>
+                    )}
+                    {!pending && (
+                      <div className="mt-0.5">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[device.upgradeStatus] || STATUS_COLORS.IDLE}`}>
+                          {device.upgradeStatus}
+                        </span>
+                      </div>
+                    )}
                     {device.upgradeError && (
                       <div className="text-xs text-red-400 mt-1 max-w-48 truncate" title={device.upgradeError}>
                         {device.upgradeError}
@@ -297,11 +548,14 @@ export function FleetPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-sm ${stale ? 'text-red-400' : 'dark:text-gray-300 text-gray-700'}`}>
-                      {timeAgo(device.lastHeartbeatAt)}
-                    </span>
-                    {stale && (
-                      <div className="text-xs text-red-500">offline?</div>
+                    {pending ? (
+                      <span className="text-sm dark:text-gray-500 text-gray-400">-</span>
+                    ) : (
+                      <>
+                        <span className={`text-sm ${stale ? 'text-red-400' : 'dark:text-gray-300 text-gray-700'}`}>
+                          {timeAgo(device.lastHeartbeatAt)}
+                        </span>
+                      </>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs dark:text-gray-400 text-gray-500">
@@ -310,14 +564,50 @@ export function FleetPage() {
                     {device.diskUsagePercent != null && <div>{device.diskUsagePercent.toFixed(1)}% disk</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleUpgradeSingle(device)}
-                      disabled={!canUpgrade || !selectedTag || upgradeDevice.isPending}
-                      title={!selectedTag ? 'Select a release first' : ''}
-                      className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Upgrade
-                    </button>
+                    <div className="flex flex-col gap-1">
+                      {pending && (
+                        <button
+                          onClick={() => setSetupDevice(device)}
+                          className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          View Setup
+                        </button>
+                      )}
+                      {!pending && (
+                        <button
+                          onClick={() => handleUpgradeSingle(device)}
+                          disabled={!canUpgrade || !selectedTag || upgradeDevice.isPending}
+                          title={!selectedTag ? 'Select a release first' : ''}
+                          className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Upgrade
+                        </button>
+                      )}
+                      {deleteConfirmId === device.id ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleDelete(device.id)}
+                            disabled={deleteDevice.isPending}
+                            className="px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
+                          >
+                            {deleteDevice.isPending ? '...' : 'Confirm'}
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="px-2 py-1 text-xs font-medium dark:bg-gray-600 bg-gray-300 dark:text-gray-200 text-gray-700 rounded hover:bg-gray-500 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirmId(device.id)}
+                          className="px-3 py-1.5 text-xs font-medium dark:bg-gray-700 bg-gray-200 text-red-400 rounded-lg hover:bg-red-900/30 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

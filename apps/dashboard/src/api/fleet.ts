@@ -4,6 +4,8 @@ import { apiClient } from './client';
 export interface EdgeDevice {
   id: string;
   siteId: string;
+  name: string | null;
+  activationKey: string | null;
   currentVersion: string | null;
   targetVersion: string | null;
   operatingMode: string | null;
@@ -19,6 +21,22 @@ export interface EdgeDevice {
   createdAt: string;
   updatedAt: string;
   site: { id: string; name: string; district: string };
+}
+
+export interface CreateDeviceResponse {
+  device: EdgeDevice;
+  activationKey: string;
+  siteId: string;
+  siteName: string;
+  setupInstructions: string[];
+}
+
+export interface DeviceSetupInfo {
+  activationKey: string | null;
+  siteId: string;
+  siteName: string;
+  deviceName: string | null;
+  ipAddress: string | null;
 }
 
 export interface FleetSummary {
@@ -92,5 +110,44 @@ export function useUpgradeSelected() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fleet'] });
     },
+  });
+}
+
+export function useCreateEdgeDevice() {
+  const qc = useQueryClient();
+  return useMutation<CreateDeviceResponse, Error, { siteId: string; name?: string; operatingMode?: string }>({
+    mutationFn: (data) => apiClient.post('/api/v1/fleet/devices', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fleet'] });
+    },
+  });
+}
+
+export function useUpdateEdgeDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; operatingMode?: string; regenerateKey?: boolean }) =>
+      apiClient.put(`/api/v1/fleet/devices/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fleet'] });
+    },
+  });
+}
+
+export function useDeleteEdgeDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/api/v1/fleet/devices/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fleet'] });
+    },
+  });
+}
+
+export function useDeviceSetup(deviceId: string | null) {
+  return useQuery<DeviceSetupInfo>({
+    queryKey: ['fleet', 'setup', deviceId],
+    queryFn: () => apiClient.get(`/api/v1/fleet/devices/${deviceId}/setup`),
+    enabled: !!deviceId,
   });
 }
