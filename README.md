@@ -97,22 +97,10 @@ Receives panic signals from wearables, mobile apps, and fixed stations. Configur
 Dual-path redundant dispatch with automatic failover chain: RapidSOS, Rave 911 Suite, SIP direct dial, and cellular backup. Pushes floor plans, camera feeds, and entry points to responding officers.
 
 ### Access Control & Lockdown
-One-button building-wide or zone-based lockdown. Integrates with 10+ access control systems:
-
-| System | Integration | Priority |
-|---|---|---|
-| **Sicunet** | Native REST + WebSocket | Primary |
-| Genetec Security Center | WebSDK | Tier 1 |
-| LenelS2 OnGuard | OpenAccess API | Tier 1 |
-| Brivo | OAuth2 Cloud API | Tier 1 |
-| Verkada | REST API | Tier 1 |
-| Openpath (Motorola) | REST API | Tier 2 |
-| HID Mercury | OAuth2 + OSDP | Tier 2 |
-| Allegion (Schlage) | ENGAGE API | Tier 2 |
-| ASSA ABLOY (Aperio) | Integration Hub | Tier 2 |
+One-button building-wide or zone-based lockdown. Integrates with 10+ access control systems including Sicunet, Genetec, LenelS2, Brivo, Verkada, and more.
 
 ### Visitor Management
-Self-service kiosk with ID scanning, real-time sex offender database (NSOPW) screening, custom watchlists, pre-registration, and contractor management. Raptor Technologies API supported for existing deployments.
+Self-service kiosk with ID scanning, real-time sex offender database (NSOPW) screening, custom watchlists, pre-registration, and contractor management.
 
 ### Threat Analysis & Intelligence
 - **AI weapon detection** — ZeroEyes, Omnilert (camera-based)
@@ -130,14 +118,35 @@ ONVIF-compatible camera discovery, VMS integration (Genetec, Milestone, Avigilon
 ### Emergency Operations & Reunification
 Drill management with Alyssa's Law compliance tracking, parent-student reunification with barcode check-in, staging area management, and after-action reporting.
 
-### Environmental Monitoring
-Sensor integration for air quality, temperature, and hazardous conditions with configurable alert thresholds.
-
 ### Student Transportation
 Real-time bus GPS tracking, RFID student scanning, geofence-based route monitoring, and automated parent notifications (boarding, arrival, delays, missed bus alerts).
 
-### Grant & Funding Finder
-Searchable database of federal, state, and private school safety grants (SVPP, COPS, BSCA, E-Rate, FEMA, state-specific programs) with eligibility matching and application tracking.
+---
+
+## Project Structure
+
+```
+safeschool-os/
+├── packages/
+│   ├── core/                 # Shared types, logger, error classes
+│   ├── activation/           # License key codec, validation, proxy table
+│   ├── sync-engine/          # Bidirectional cloud sync, offline queue, conflict resolution
+│   ├── runtime/              # EdgeRuntime orchestrator, Fastify API server
+│   ├── cloud-sync/           # Cloud-side sync routes, fleet management, dashboard
+│   ├── module-loader/        # Dynamic product module loading
+│   ├── connector-framework/  # Base connector class, connector registry
+│   └── setup-wizard/         # On-site setup wizard UI
+├── modules/
+│   └── safeschool/           # SafeSchool campus safety module
+│       └── src/connectors/   # Lenel, Milestone, fire alarm, intrusion, intercom
+├── deploy/
+│   ├── safeschool/           # Gateway, appliance, and Windows deployment configs
+│   └── safeschoolos/         # Ubuntu ISO builder, NanoPi gateway, Windows gateway
+├── tests/
+│   └── e2e/safeschool/       # Playwright end-to-end tests
+├── Dockerfile                # Multi-stage Docker build
+└── turbo.json                # Turborepo build config
+```
 
 ---
 
@@ -145,66 +154,25 @@ Searchable database of federal, state, and private school safety grants (SVPP, C
 
 | Component | Technology |
 |---|---|
-| **Backend API** | TypeScript, Fastify 5, BullMQ workers |
-| **Real-time** | WebSocket for live alerts |
-| **Database** | PostgreSQL 16 + Redis 7 |
-| **Dashboard** | React 19, Vite 6, TailwindCSS 4, React Query |
-| **Mobile App** | Expo SDK 54 (React Native) |
-| **Kiosk App** | React 19, Vite 6 |
-| **Auth** | Clerk SSO (production) / JWT (development) |
-| **Monorepo** | Turborepo with npm workspaces |
-| **Cloud Hosting** | Railway (or any Docker host) |
-| **Edge Runtime** | Pre-built Docker image (`ghcr.io/bwattendorf/edgeruntime`) |
-| **CI/CD** | GitHub Actions |
-
----
-
-## Project Structure
-
-```
-safeschool/
-├── apps/
-│   ├── dashboard/          # React web dashboard (command center)
-│   ├── mobile/             # Expo mobile app (panic button + alerts)
-│   └── kiosk/              # Visitor check-in kiosk
-├── packages/
-│   ├── core/               # Shared types, utilities, notification templates
-│   ├── api/                # Fastify REST API + WebSocket + RBAC middleware
-│   ├── db/                 # Prisma schema, migrations, seed data
-│   ├── integrations/
-│   │   ├── access-control/ # Sicunet, Genetec, LenelS2, Brivo, Verkada, etc.
-│   │   ├── dispatch/       # RapidSOS, Rave 911, SIP, cellular failover
-│   │   ├── cameras/        # ONVIF, Genetec VMS, Milestone, Avigilon
-│   │   ├── notifications/  # Twilio, SendGrid, FCM, PA/intercom
-│   │   ├── threat-intel/   # ZeroEyes, weapon detection
-│   │   ├── threat-assessment/ # CSTAG scoring, Navigate360
-│   │   ├── social-media/   # Bark, Gaggle monitoring
-│   │   ├── visitor-mgmt/   # Visitor screening, Raptor
-│   │   ├── panic-devices/  # Centegix, Rave Panic Button
-│   │   ├── gunshot-detection/ # SoundThinking
-│   │   └── environmental/  # Sensor monitoring
-│   └── (edge runtime)       # Pre-built Docker image (ghcr.io/bwattendorf/edgeruntime)
-├── deploy/
-│   ├── railway/            # Cloud deployment (start-api.sh, railway.toml)
-│   ├── edge/               # On-site Docker Compose + setup scripts
-│   └── docker/             # Dockerfiles for all services
-├── docs/                   # Admin guide, deployment guide, architecture
-├── test/load/              # k6 load testing scripts
-└── .github/workflows/      # CI/CD pipelines
-```
+| **Runtime** | TypeScript, Node.js 20+ |
+| **API Server** | Fastify 5 |
+| **Real-time** | WebSocket (cloud sync + live events) |
+| **Sync Engine** | HMAC-signed REST + offline queue |
+| **Build** | Turborepo + npm workspaces |
+| **Deployment** | Docker, Docker Compose |
 
 ---
 
 ## EdgeRuntime
 
-The on-site sync engine, offline queue, and conflict resolver are provided as a **pre-built Docker image** (`ghcr.io/bwattendorf/edgeruntime`). This handles:
+The on-site sync engine, offline queue, and conflict resolver. Handles:
 
 - **Cloud sync** — bidirectional data sync between the on-site mini PC and the central cloud
-- **Offline queue** — SQLite-backed queue that persists operations during connectivity loss
-- **Conflict resolution** — per-entity strategy for bidirectional sync conflicts
-- **Activation** — optional license key enables cloud sync features
-
-The EdgeRuntime image is pulled automatically by `docker compose pull` during installation. No source code compilation required.
+- **Offline queue** — persisted queue that continues operations during connectivity loss
+- **Conflict resolution** — per-entity strategy (edge-wins, cloud-wins, last-write-wins)
+- **Connector framework** — pluggable adapters for access control, cameras, fire alarms, etc.
+- **Federation** — cross-product event sharing between edge devices
+- **Activation keys** — HMAC-verified license keys with cloud proxy routing
 
 ```bash
 # Check EdgeRuntime health
@@ -217,9 +185,7 @@ curl http://localhost:8470/health
 
 ### Prerequisites
 - Node.js 20+
-- Docker & Docker Compose
-- PostgreSQL 16+
-- Redis 7+
+- Docker & Docker Compose (for deployment)
 
 ### Local Development
 
@@ -231,26 +197,39 @@ cd safeschool-os
 # Install dependencies
 npm install
 
-# Generate Prisma client
-npx prisma generate --schema=packages/db/prisma/schema.prisma
+# Build all packages
+npm run build
 
-# Start database and Redis
-docker compose up -d postgres redis
+# Set required environment variables
+export EDGERUNTIME_HMAC_SECRET="your-hmac-secret-here"
+export EDGERUNTIME_ACTIVATION_KEY="your-activation-key"
 
-# Push schema and seed data
-npx prisma db push --schema=packages/db/prisma/schema.prisma
-npx tsx packages/db/src/seed.ts
-
-# Start API and dashboard in development mode
-npm run dev --workspace=@safeschool/api &
-npm run dev --workspace=@safeschool/dashboard
+# Start the runtime
+npm start
 ```
-
-The dashboard will be available at `http://localhost:5173`. Log in with `admin@lincoln.edu` / `safeschool123`.
 
 ### On-Site Edge Deployment
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full instructions on deploying the on-site mini PC with Docker Compose, cellular failover, and auto-updates.
+```bash
+# Gateway mode (lightweight sync agent)
+cd deploy/safeschool/gateway
+cp .env.example .env   # Edit with your config
+docker compose up -d
+
+# Full appliance mode (complete local stack)
+cd deploy/safeschool/appliance
+cp .env.example .env
+docker compose up -d
+```
+
+### SafeSchoolOS ISO
+
+Build a bootable Ubuntu-based appliance ISO:
+
+```bash
+cd deploy/safeschoolos/ubuntu-appliance
+sudo ./build-iso.sh
+```
 
 ### Recommended Edge Hardware
 
@@ -278,7 +257,7 @@ Plus a UPS battery backup and cellular failover modem.
 
 ## Contributing
 
-This is a safety-critical system. All contributions must include tests and undergo security review. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+This is a safety-critical system. All contributions must include tests and undergo security review.
 
 Key principles:
 - Adapter pattern for all integrations — never vendor-lock
@@ -301,7 +280,7 @@ SafeSchool OS is licensed under the [GNU Affero General Public License v3.0](LIC
 | **General** | info@safeschoolos.com |
 | **Sales & Pricing** | sales@safeschoolos.com |
 | **Support** | support@safeschoolos.com |
-| **Security Vulnerabilities** | security@safeschoolos.com (see [SECURITY.md](SECURITY.md)) |
+| **Security Vulnerabilities** | security@safeschoolos.com |
 | **Website** | [safeschoolos.com](https://safeschoolos.com) |
 
 ---

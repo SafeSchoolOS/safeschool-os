@@ -1,5 +1,0 @@
-#!/bin/bash
-echo ""
-echo "  SafeSchool Edge -- first boot provisioning pending..."
-echo "  The system will configure itself on next login."
-echo ""

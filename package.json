@@ -1,35 +1,32 @@
 {
-  "name": "safeschool",
+  "name": "safeschoolos",
   "version": "0.1.0",
   "private": true,
-  "description": "SafeSchool OS — Comprehensive school safety platform - Alyssa's Law compliant",
-  "author": "SafeSchool OS <info@safeschoolos.com> (https://safeschoolos.com)",
-  "license": "AGPL-3.0-only",
+  "description": "SafeSchoolOS - Open-source school safety platform powered by EdgeRuntime",
+  "license": "MIT",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "modules/*"
   ],
   "scripts": {
-    "dev": "turbo run dev",
     "build": "turbo run build",
+    "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "db:migrate": "turbo run db:migrate --filter=@safeschool/db",
-    "db:seed": "turbo run db:seed --filter=@safeschool/db"
+    "clean": "turbo run clean",
+    "start": "node packages/runtime/dist/index.js",
+    "up:safeschool": "docker compose -f deploy/safeschool/gateway/docker-compose.yml up -d",
+    "up:safeschool:full": "docker compose -f deploy/safeschool/appliance/docker-compose.yml up -d",
+    "down": "docker compose down"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "@types/node": "^25.2.1",
-    "@types/ws": "^8.18.1",
-    "eslint": "^9.16.0",
-    "prettier": "^3.4.0",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.55.0",
+    "@types/node": "^22.0.0",
     "vitest": "^3.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "packageManager": "npm@10.9.0"
+  "packageManager": "npm@10.0.0"
 }

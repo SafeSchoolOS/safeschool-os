@@ -1,126 +1,74 @@
-# ==========================================
-# SafeSchool Multi-Target Dockerfile
-# ==========================================
-# Usage (set BUILD_TARGET as Railway build variable):
-#   API (default):  BUILD_TARGET=api
-#   Dashboard:      BUILD_TARGET=dashboard
-#   Worker:         BUILD_TARGET=worker
-# ==========================================
+# EdgeRuntime Cloud Mode - Lighter image for Railway/cloud deployment
+# Same codebase, OPERATING_MODE=CLOUD skips SQLite offline queue
 
-ARG BUILD_TARGET=api
+FROM node:20-slim AS builder
 
-# ==========================================
-# Base: Install all workspace dependencies
-# ==========================================
-FROM node:20-alpine AS base
+# Install build tools for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-COPY package.json turbo.json tsconfig.json .npmrc ./
-COPY packages/ ./packages/
-COPY apps/ ./apps/
 
 # Authenticate with GitHub Packages for @bwattendorf/adapters
 ARG NODE_AUTH_TOKEN
-RUN echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
+ENV NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN}
+COPY .npmrc ./
 
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm install --legacy-peer-deps
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate --schema=packages/db/prisma/schema.prisma
+COPY package.json package-lock.json* ./
+COPY packages/core/package.json packages/core/
+COPY packages/activation/package.json packages/activation/
+COPY packages/sync-engine/package.json packages/sync-engine/
+COPY packages/module-loader/package.json packages/module-loader/
+COPY packages/connector-framework/package.json packages/connector-framework/
+COPY packages/runtime/package.json packages/runtime/
+COPY packages/cloud-sync/package.json packages/cloud-sync/
+COPY modules/badgekiosk/package.json modules/badgekiosk/
+COPY modules/access-gsoc/package.json modules/access-gsoc/
+COPY modules/safeschool/package.json modules/safeschool/
+COPY tools/keygen/package.json tools/keygen/
 
-# ==========================================
-# Build: API + all backend packages
-# ==========================================
-FROM base AS build-api
-RUN npx turbo run build --filter='./packages/**'
+# Install ALL dependencies (dev needed for build step, scripts needed for better-sqlite3)
+RUN npm ci
 
-# ==========================================
-# Build: Dashboard (Vite + React SPA)
-# ==========================================
-FROM base AS build-dashboard
-ARG VITE_API_URL
-ARG VITE_AUTH_PROVIDER=dev
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
-RUN npx turbo run build --filter=@safeschool/dashboard
+COPY tsconfig.base.json turbo.json ./
+COPY packages/core/ packages/core/
+COPY packages/activation/ packages/activation/
+COPY packages/sync-engine/ packages/sync-engine/
+COPY packages/module-loader/ packages/module-loader/
+COPY packages/connector-framework/ packages/connector-framework/
+COPY packages/runtime/ packages/runtime/
+COPY packages/cloud-sync/ packages/cloud-sync/
+COPY modules/ modules/
+COPY tools/ tools/
 
-# ==========================================
-# Runner: API
-# ==========================================
-FROM node:20-alpine AS runner-api
+# Build then strip dev dependencies, caches, and source files
+RUN npx turbo run build \
+    && npm prune --omit=dev \
+    && rm -rf .turbo node_modules/.cache \
+    && find packages modules -type d -name src -exec rm -rf {} + 2>/dev/null; \
+       find packages modules -name '*.ts' ! -name '*.d.ts' ! -path '*/dist/*' -delete 2>/dev/null; \
+       find packages modules -name 'tsconfig*.json' -delete 2>/dev/null; \
+       rm -rf turbo.json tsconfig.base.json; true
+
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules/ ./node_modules/
+COPY --from=builder /app/packages/ ./packages/
+COPY --from=builder /app/modules/ ./modules/
+COPY deploy/cloud/homepages/ ./homepages/
+
 ENV NODE_ENV=production
-ENV OPERATING_MODE=cloud
+ENV OPERATING_MODE=CLOUD
+ENV EDGERUNTIME_API_PORT=8470
 
-# Copy all workspace packages (dist + package.json for Node module resolution)
-COPY --from=build-api /app/packages/api/dist ./packages/api/dist
-COPY --from=build-api /app/packages/api/package.json ./packages/api/package.json
-COPY --from=build-api /app/packages/core/dist ./packages/core/dist
-COPY --from=build-api /app/packages/core/package.json ./packages/core/package.json
-COPY --from=build-api /app/packages/db/dist ./packages/db/dist
-COPY --from=build-api /app/packages/db/package.json ./packages/db/package.json
-COPY --from=build-api /app/packages/db/prisma ./packages/db/prisma
-COPY --from=build-api /app/node_modules ./node_modules
-COPY --from=build-api /app/package.json ./
+EXPOSE 8470
 
-# Create non-root user and data directories
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
-  && mkdir -p /app/data/students \
-  && chown -R appuser:appgroup /app
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:8470/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-# Build-time module test (adapters now come from @bwattendorf/adapters in node_modules)
-RUN node -e "require('@safeschool/db'); require('@safeschool/core'); require('fastify'); console.log('Modules OK')"
-
-# Copy startup script
-COPY deploy/railway/start-api.sh /app/start.sh
-RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
-
-USER appuser
-EXPOSE 3000
-CMD ["/app/start.sh"]
-
-# ==========================================
-# Runner: Worker (same packages as API, different entrypoint)
-# ==========================================
-FROM node:20-alpine AS runner-worker
-WORKDIR /app
-ENV NODE_ENV=production
-ENV OPERATING_MODE=cloud
-
-COPY --from=build-api /app/packages/api/dist ./packages/api/dist
-COPY --from=build-api /app/packages/api/package.json ./packages/api/package.json
-COPY --from=build-api /app/packages/core/dist ./packages/core/dist
-COPY --from=build-api /app/packages/core/package.json ./packages/core/package.json
-COPY --from=build-api /app/packages/db/dist ./packages/db/dist
-COPY --from=build-api /app/packages/db/package.json ./packages/db/package.json
-COPY --from=build-api /app/packages/db/prisma ./packages/db/prisma
-COPY --from=build-api /app/node_modules ./node_modules
-COPY --from=build-api /app/package.json ./
-
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
-  && chown -R appuser:appgroup /app
-
-USER appuser
-EXPOSE 3000
-CMD ["node", "packages/api/dist/worker-entry.js"]
-
-# ==========================================
-# Runner: Dashboard (Node.js static server for Vite SPA)
-# ==========================================
-FROM node:20-alpine AS runner-dashboard
-WORKDIR /app
-
-COPY --from=build-dashboard /app/apps/dashboard/dist ./dist
-COPY deploy/railway/serve-dashboard.js ./serve-dashboard.js
-
-# Verify build output exists
-RUN ls -la dist/ && test -f dist/index.html
-
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
-  && chown -R appuser:appgroup /app
-
-USER appuser
-EXPOSE 3000
-CMD ["node", "serve-dashboard.js"]
-
-# ==========================================
-# Final: Select target based on BUILD_TARGET arg
-# ==========================================
-FROM runner-${BUILD_TARGET} AS final
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "packages/runtime/dist/index.js"]
