@@ -1,0 +1,301 @@
+# SafeSchool Appliance - Full Standalone
+# Includes: EdgeRuntime + SafeSchool API + Dashboard + Kiosk + Admin + Postgres + Redis
+# This is the complete on-site SafeSchool deployment managed by EdgeRuntime
+#
+# Usage: copy to appliance, set .env, run: docker compose up -d
+
+services:
+  # ─── EdgeRuntime (sync engine + module loader) ───────────────────────
+  edgeruntime:
+    image: ghcr.io/bwattendorf/edgeruntime:latest
+    restart: unless-stopped
+    expose:
+      - "8470"
+    ports:
+      - "8080:80"
+    volumes:
+      - edgeruntime-data:/app/data
+      - edgeruntime-config:/opt/edgeruntime
+      - ./config.yaml:/app/config.yaml:ro
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - EDGERUNTIME_DATA_DIR=/app/data
+      - EDGERUNTIME_API_PORT=8470
+      - EDGERUNTIME_CONFIG=/app/config.yaml
+      - EDGERUNTIME_SITE_ID=${SITE_ID:-}
+      - EDGERUNTIME_CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY:-}
+      - WIZARD_PRODUCT=safeschool
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8470/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - safeschool
+
+  # ─── Database migration + seed ───────────────────────────────────────
+  migrate:
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "=== Running migrations ==="
+        npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma
+        echo "=== Seeding essential data ==="
+        node -e "
+        const { PrismaClient } = require('@prisma/client');
+        const bcrypt = require('bcryptjs');
+        const p = new PrismaClient();
+        (async () => {
+          try {
+            const orgId = '00000000-0000-4000-a000-000000008001';
+            const siteId = process.env.SITE_ID || '00000000-0000-4000-a000-000000000001';
+            const seedPw = process.env.SEED_ADMIN_PASSWORD || 'safeschool123';
+            const passwordHash = bcrypt.hashSync(seedPw, 10);
+            await p.organization.upsert({ where: { id: orgId }, update: {}, create: { id: orgId, name: process.env.ORG_NAME || 'School District', slug: 'school-district', type: 'DISTRICT' } });
+            await p.site.upsert({ where: { id: siteId }, update: { organizationId: orgId }, create: { id: siteId, name: process.env.SITE_NAME || 'School', organizationId: orgId, timezone: 'America/New_York' } });
+            await p.user.upsert({ where: { email: 'admin@safeschool.local' }, update: { passwordHash }, create: { email: 'admin@safeschool.local', name: 'Admin', role: 'SITE_ADMIN', passwordHash, sites: { create: { siteId } } } });
+            console.log('Seed complete');
+          } catch(e) { console.error('Seed error:', e.message); }
+          finally { await p.\$$disconnect(); }
+        })();
+        "
+    environment:
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - SITE_ID=${SITE_ID:-}
+      - SITE_NAME=${SITE_NAME}
+      - ORG_NAME=${ORG_NAME}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD:-safeschool123}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - safeschool
+
+  # ─── Caddy reverse proxy (HTTPS termination) ────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+      - "3443:3443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - dashboard
+      - kiosk
+      - edgeruntime
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # ─── SafeSchool API ─────────────────────────────────────────────────
+  api:
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    command: ["node", "packages/api/dist/server.js"]
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - SITE_ID=${SITE_ID:-}
+      - SITE_NAME=${SITE_NAME}
+      - OPERATING_MODE=edge
+      - AUTH_PROVIDER=${AUTH_PROVIDER:-dev}
+      - CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY:-}
+      - DISPATCH_ADAPTER=${DISPATCH_ADAPTER:-console}
+      - ACCESS_CONTROL_ADAPTER=${ACCESS_CONTROL_ADAPTER:-mock}
+      - NOTIFICATION_ADAPTER=${NOTIFICATION_ADAPTER:-console}
+      - VISITOR_SCREENING_ADAPTER=console
+    volumes:
+      - edge_data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - safeschool
+
+  # ─── SafeSchool Background Worker ───────────────────────────────────
+  worker:
+    image: ghcr.io/bwattendorf/safeschool/api:latest
+    command: ["node", "packages/api/dist/worker-entry.js"]
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
+      - REDIS_URL=redis://redis:6379
+      - DISPATCH_ADAPTER=${DISPATCH_ADAPTER:-console}
+      - ACCESS_CONTROL_ADAPTER=${ACCESS_CONTROL_ADAPTER:-mock}
+      - NOTIFICATION_ADAPTER=${NOTIFICATION_ADAPTER:-console}
+    volumes:
+      - edge_data:/app/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # ─── SafeSchool Dashboard (React SPA) ───────────────────────────────
+  dashboard:
+    image: ghcr.io/bwattendorf/safeschool/dashboard:latest
+    expose:
+      - "3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  # ─── SafeSchool Kiosk (visitor check-in) ────────────────────────────
+  kiosk:
+    image: ghcr.io/bwattendorf/safeschool/kiosk:latest
+    expose:
+      - "3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - safeschool
+
+  # ─── SafeSchool Admin Console ───────────────────────────────────────
+  admin:
+    image: ghcr.io/bwattendorf/safeschool/admin:latest
+    environment:
+      - PORT=80
+    ports:
+      - "127.0.0.1:9091:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=safeschool
+      - POSTGRES_USER=safeschool
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safeschool"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # ─── Redis ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # ─── Database backup (daily at 2 AM UTC) ────────────────────────────
+  backup:
+    image: postgres:16-alpine
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        while true; do
+          sleep 86400
+          TIMESTAMP=$$(date -u '+%Y%m%dT%H%M%SZ')
+          mkdir -p /backups/daily /backups/weekly
+          PGPASSWORD=$${POSTGRES_PASSWORD} pg_dump \
+            -h postgres -U safeschool -d safeschool \
+            --format=custom --compress=6 --no-owner \
+            > "/backups/daily/safeschool_$${TIMESTAMP}.sql.gz" 2>/dev/null && \
+          echo "[backup] Saved: safeschool_$${TIMESTAMP}.sql.gz"
+          ls -1t /backups/daily/safeschool_*.sql.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null || true
+        done
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - safeschool
+
+  # ─── Watchtower (auto-update images) ────────────────────────────────
+  watchtower:
+    image: nickfedor/watchtower:latest
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-3600}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  edgeruntime-data:
+  edgeruntime-config:
+  postgres_data:
+  redis_data:
+  edge_data:
+  caddy_data:
+  caddy_config:
+  backup_data:
+
+networks:
+  safeschool:
+    driver: bridge

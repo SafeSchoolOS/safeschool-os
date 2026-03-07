@@ -1,0 +1,12 @@
+export { SyncEngine, type SyncEngineConfig, type SyncStatus, type SyncEventCallback } from './sync-engine.js';
+export { SyncClient, type SyncClientConfig, type SyncEntity, type PushResponse, type PullResponse, type HeartbeatRequest, type HeartbeatResponse, type PeerInfo, type DeviceConfigPayload, type ConnectorConfigEntry, type DeviceCommand } from './sync-client.js';
+export { SyncRouter, type SyncRouteConfig } from './sync-router.js';
+export { LatencyProber, type ProbeResult, type ProxyEndpoint } from './latency-prober.js';
+export { OfflineQueue, type QueuedOperation, type QueueStats } from './offline-queue.js';
+export { ConflictResolver, type ConflictStrategy, type SyncRecord } from './conflict-resolver.js';
+export { HealthMonitor, type HealthCheckResult, type HealthMonitorConfig, type HealthStatus, type ModeChangeCallback } from './health-monitor.js';
+export { PhoneHomeClient, type PhoneHomeConfig } from './phone-home.js';
+export { RealtimeClient, type RealtimeClientConfig, type RealtimeCommand, type CommandHandler } from './realtime-client.js';
+export { UserAccountStore, type UserAccount } from './user-account-store.js';
+export { PeerManager } from './peer-manager.js';
+export { FederationManager, type FederationManagerConfig, type FederationStatus, type FederationEventHandler } from './federation-manager.js';

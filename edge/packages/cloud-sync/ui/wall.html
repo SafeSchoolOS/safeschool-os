@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSOC Video Wall</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  /* ── Overlays ── */
+
+  #overlay-top {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(10,10,26,0.85) 0%, transparent 100%);
+  }
+
+  #clock {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #c0c0d0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #screen-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #00ff88;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #ws-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff3344;
+    transition: background 0.3s ease;
+    flex-shrink: 0;
+  }
+
+  #ws-status.connected { background: #00ff88; }
+
+  /* ── Main Content ── */
+
+  #wall-content {
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* ── Camera Grid ── */
+
+  .camera-grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    gap: 2px;
+    background: #0a0a1a;
+  }
+
+  .camera-cell {
+    position: relative;
+    overflow: hidden;
+    background: #0d0d24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .camera-cell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .camera-cell .cam-label {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #00ff88;
+    background: linear-gradient(0deg, rgba(10,10,26,0.9) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .camera-cell .cam-error {
+    color: #555;
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+  }
+
+  /* ── Single Camera ── */
+
+  .single-view {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+
+  .single-view img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .single-view .cam-label {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #00ff88;
+    background: rgba(10,10,26,0.7);
+    padding: 6px 14px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Event Feed ── */
+
+  .event-feed {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .event-feed-header {
+    padding: 14px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #00ff88;
+    border-bottom: 1px solid #1a1a3a;
+    flex-shrink: 0;
+    margin-top: 48px;
+  }
+
+  .event-feed-list {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .event-feed-list::-webkit-scrollbar { display: none; }
+
+  .event-item {
+    padding: 14px 20px;
+    border-bottom: 1px solid #12122a;
+    animation: eventSlideIn 0.3s ease-out;
+  }
+
+  .event-item:hover { background: #12122e; }
+
+  .event-item .event-time {
+    font-size: 11px;
+    color: #00ff88;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .event-item .event-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 2px;
+  }
+
+  .event-item .event-detail {
+    font-size: 12px;
+    color: #888;
+  }
+
+  .event-item.severity-critical { border-left: 3px solid #ff3344; }
+  .event-item.severity-warning  { border-left: 3px solid #ffaa00; }
+  .event-item.severity-info     { border-left: 3px solid #00ff88; }
+
+  @keyframes eventSlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Split Layout ── */
+
+  .split-layout {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+  }
+
+  .split-layout .split-camera {
+    position: relative;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .split-layout .split-camera img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .split-layout .split-camera .cam-label {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #00ff88;
+    background: rgba(10,10,26,0.7);
+    padding: 4px 12px;
+    border-radius: 4px;
+  }
+
+  .split-layout .split-events {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0a0a1a;
+  }
+
+  /* ── No-Content State ── */
+
+  .no-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    gap: 12px;
+  }
+
+  .no-content-icon {
+    font-size: 48px;
+    line-height: 1;
+  }
+
+  .no-content-text {
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay-top">
+  <div id="clock"></div>
+  <div id="screen-label">
+    <span id="screen-text">SCREEN --</span>
+    <span id="ws-status"></span>
+  </div>
+</div>
+
+<div id="wall-content"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ──
+
+  const state = {
+    screenId: 1,
+    layout: 'cameras',
+    cameraIds: [],
+    allCameras: [],
+    singleCameraId: null,
+    events: [],
+    wsConnected: false,
+  };
+
+  const MAX_EVENTS = 200;
+  const WS_RECONNECT_BASE = 1000;
+  const WS_RECONNECT_MAX = 30000;
+
+  let ws = null;
+  let wsReconnectDelay = WS_RECONNECT_BASE;
+  let wsReconnectTimer = null;
+
+  // ── Parse screen ID from URL ──
+
+  function parseScreenId() {
+    const match = window.location.pathname.match(/\/wall\/(\d+)/);
+    if (match) return parseInt(match[1], 10);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('screen')) return parseInt(params.get('screen'), 10);
+    return 1;
+  }
+
+  state.screenId = parseScreenId();
+  document.getElementById('screen-text').textContent = 'SCREEN ' + state.screenId;
+
+  // ── Clock ──
+
+  function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    document.getElementById('clock').textContent = h + ':' + m + ':' + s;
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ── Auth helper ──
+
+  function getAuthHeaders() {
+    const token = localStorage.getItem('jwt') || localStorage.getItem('token');
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return headers;
+  }
+
+  // ── Fetch cameras ──
+
+  async function fetchCameras() {
+    try {
+      const resp = await fetch('/api/v1/data/cameras?limit=50', { headers: getAuthHeaders() });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const body = await resp.json();
+      const list = Array.isArray(body) ? body : (body.data || body.rows || body.items || []);
+      state.allCameras = list;
+      if (!state.cameraIds.length) {
+        state.cameraIds = list.map(function (c) { return c.id || c.cameraId || c.camera_id; }).filter(Boolean);
+      }
+      render();
+    } catch (err) {
+      console.error('[wall] Failed to fetch cameras:', err);
+      render();
+    }
+  }
+
+  // ── Grid sizing ──
+
+  function gridDimensions(count) {
+    if (count <= 1) return [1, 1];
+    if (count === 2) return [2, 1];
+    if (count <= 4) return [2, 2];
+    if (count <= 9) return [3, 3];
+    return [4, 4];
+  }
+
+  // ── Camera name lookup ──
+
+  function cameraName(id) {
+    for (var i = 0; i < state.allCameras.length; i++) {
+      var c = state.allCameras[i];
+      var cid = c.id || c.cameraId || c.camera_id;
+      if (cid === id) return c.name || c.label || cid;
+    }
+    return id;
+  }
+
+  // ── Render helpers ──
+
+  function createCameraImg(id) {
+    var img = document.createElement('img');
+    img.src = '/api/v1/cameras/' + encodeURIComponent(id) + '/stream';
+    img.alt = cameraName(id);
+    img.draggable = false;
+    img.onerror = function () {
+      if (!img._retryCount) img._retryCount = 0;
+      img._retryCount++;
+      if (img._retryCount < 5) {
+        setTimeout(function () {
+          img.src = '/api/v1/cameras/' + encodeURIComponent(id) + '/stream?_t=' + Date.now();
+        }, 2000 * img._retryCount);
+      } else {
+        var errDiv = document.createElement('div');
+        errDiv.className = 'cam-error';
+        errDiv.textContent = 'Stream unavailable';
+        img.replaceWith(errDiv);
+      }
+    };
+    return img;
+  }
+
+  function createCameraCell(id) {
+    var cell = document.createElement('div');
+    cell.className = 'camera-cell';
+    cell.appendChild(createCameraImg(id));
+    var label = document.createElement('div');
+    label.className = 'cam-label';
+    label.textContent = cameraName(id);
+    cell.appendChild(label);
+    return cell;
+  }
+
+  function formatEventTime(ts) {
+    var d = ts ? new Date(ts) : new Date();
+    var h = String(d.getHours()).padStart(2, '0');
+    var m = String(d.getMinutes()).padStart(2, '0');
+    var s = String(d.getSeconds()).padStart(2, '0');
+    return h + ':' + m + ':' + s;
+  }
+
+  function createEventItem(ev) {
+    var el = document.createElement('div');
+    var severity = ev.severity || ev.level || 'info';
+    el.className = 'event-item severity-' + severity;
+
+    var timeEl = document.createElement('div');
+    timeEl.className = 'event-time';
+    timeEl.textContent = formatEventTime(ev.timestamp || ev.time);
+    el.appendChild(timeEl);
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'event-title';
+    titleEl.textContent = ev.title || ev.type || ev.eventType || 'Event';
+    el.appendChild(titleEl);
+
+    if (ev.detail || ev.description || ev.message || ev.location) {
+      var detailEl = document.createElement('div');
+      detailEl.className = 'event-detail';
+      detailEl.textContent = ev.detail || ev.description || ev.message || ev.location;
+      el.appendChild(detailEl);
+    }
+
+    return el;
+  }
+
+  function renderEventFeed(container) {
+    var feed = document.createElement('div');
+    feed.className = 'event-feed';
+
+    var header = document.createElement('div');
+    header.className = 'event-feed-header';
+    header.textContent = 'Live Events';
+    feed.appendChild(header);
+
+    var list = document.createElement('div');
+    list.className = 'event-feed-list';
+
+    for (var i = 0; i < state.events.length; i++) {
+      list.appendChild(createEventItem(state.events[i]));
+    }
+
+    if (state.events.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'no-content';
+      empty.style.height = 'auto';
+      empty.style.padding = '40px 0';
+      empty.innerHTML = '<div class="no-content-text">Waiting for events</div>';
+      list.appendChild(empty);
+    }
+
+    feed.appendChild(list);
+    container.appendChild(feed);
+  }
+
+  function renderNoContent(container, message) {
+    var nc = document.createElement('div');
+    nc.className = 'no-content';
+    nc.innerHTML =
+      '<div class="no-content-icon">&#9634;</div>' +
+      '<div class="no-content-text">' + message + '</div>';
+    container.appendChild(nc);
+  }
+
+  // ── Main render ──
+
+  function render() {
+    var root = document.getElementById('wall-content');
+    root.innerHTML = '';
+
+    switch (state.layout) {
+      case 'cameras':
+        renderCamerasLayout(root);
+        break;
+      case 'single':
+        renderSingleLayout(root);
+        break;
+      case 'events':
+        renderEventFeed(root);
+        break;
+      case 'split':
+        renderSplitLayout(root);
+        break;
+      default:
+        renderCamerasLayout(root);
+    }
+  }
+
+  function renderCamerasLayout(root) {
+    var ids = state.cameraIds;
+    if (!ids.length) {
+      renderNoContent(root, 'No cameras assigned');
+      return;
+    }
+
+    var dims = gridDimensions(ids.length);
+    var grid = document.createElement('div');
+    grid.className = 'camera-grid';
+    grid.style.gridTemplateColumns = 'repeat(' + dims[0] + ', 1fr)';
+    grid.style.gridTemplateRows = 'repeat(' + dims[1] + ', 1fr)';
+
+    var maxSlots = dims[0] * dims[1];
+    for (var i = 0; i < Math.min(ids.length, maxSlots); i++) {
+      grid.appendChild(createCameraCell(ids[i]));
+    }
+
+    root.appendChild(grid);
+  }
+
+  function renderSingleLayout(root) {
+    var id = state.singleCameraId || (state.cameraIds.length ? state.cameraIds[0] : null);
+    if (!id) {
+      renderNoContent(root, 'No camera selected');
+      return;
+    }
+
+    var view = document.createElement('div');
+    view.className = 'single-view';
+    view.appendChild(createCameraImg(id));
+
+    var label = document.createElement('div');
+    label.className = 'cam-label';
+    label.textContent = cameraName(id);
+    view.appendChild(label);
+
+    root.appendChild(view);
+  }
+
+  function renderSplitLayout(root) {
+    var split = document.createElement('div');
+    split.className = 'split-layout';
+
+    var camSide = document.createElement('div');
+    camSide.className = 'split-camera';
+    var camId = state.singleCameraId || (state.cameraIds.length ? state.cameraIds[0] : null);
+    if (camId) {
+      camSide.appendChild(createCameraImg(camId));
+      var label = document.createElement('div');
+      label.className = 'cam-label';
+      label.textContent = cameraName(camId);
+      camSide.appendChild(label);
+    } else {
+      renderNoContent(camSide, 'No camera');
+    }
+    split.appendChild(camSide);
+
+    var eventSide = document.createElement('div');
+    eventSide.className = 'split-events';
+    renderEventFeed(eventSide);
+    split.appendChild(eventSide);
+
+    root.appendChild(split);
+  }
+
+  // ── WebSocket ──
+
+  function wsConnect() {
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+
+    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var url = protocol + '//' + window.location.host + '/ws/wall';
+
+    try {
+      ws = new WebSocket(url);
+    } catch (err) {
+      console.error('[wall] WebSocket creation failed:', err);
+      scheduleReconnect();
+      return;
+    }
+
+    ws.onopen = function () {
+      console.log('[wall] WebSocket connected');
+      state.wsConnected = true;
+      wsReconnectDelay = WS_RECONNECT_BASE;
+      updateWsIndicator();
+
+      // Register this screen with the server
+      ws.send(JSON.stringify({
+        action: 'wall:register',
+        screen: state.screenId,
+      }));
+    };
+
+    ws.onclose = function () {
+      console.log('[wall] WebSocket disconnected');
+      state.wsConnected = false;
+      updateWsIndicator();
+      scheduleReconnect();
+    };
+
+    ws.onerror = function (err) {
+      console.error('[wall] WebSocket error:', err);
+      ws.close();
+    };
+
+    ws.onmessage = function (evt) {
+      var msg;
+      try {
+        msg = JSON.parse(evt.data);
+      } catch (e) {
+        return;
+      }
+      handleWsMessage(msg);
+    };
+  }
+
+  function scheduleReconnect() {
+    if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = setTimeout(function () {
+      wsReconnectTimer = null;
+      wsConnect();
+    }, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, WS_RECONNECT_MAX);
+  }
+
+  function updateWsIndicator() {
+    var el = document.getElementById('ws-status');
+    if (state.wsConnected) {
+      el.classList.add('connected');
+    } else {
+      el.classList.remove('connected');
+    }
+  }
+
+  // ── Message handling ──
+
+  function isForThisScreen(msg) {
+    // Accept messages with no screen (broadcast) or matching our screen
+    return msg.screen === undefined || msg.screen === null || msg.screen === state.screenId || msg.screen === '*';
+  }
+
+  function handleWsMessage(msg) {
+    if (!msg || !msg.action) return;
+    if (!isForThisScreen(msg)) return;
+
+    switch (msg.action) {
+      case 'wall:layout':
+        if (msg.layout && typeof msg.layout === 'string') {
+          state.layout = msg.layout;
+          render();
+        }
+        break;
+
+      case 'wall:push':
+        handlePush(msg);
+        break;
+
+      case 'wall:cameras':
+        if (Array.isArray(msg.ids)) {
+          state.cameraIds = msg.ids;
+          if (state.layout === 'cameras') render();
+        }
+        break;
+
+      default:
+        // Forward unrecognized events to the event feed
+        if (msg.type || msg.eventType) {
+          pushEvent(msg);
+        }
+        break;
+    }
+  }
+
+  function handlePush(msg) {
+    if (msg.type === 'camera' && msg.id) {
+      state.singleCameraId = msg.id;
+      // Auto-switch to single view when a camera is pushed
+      if (state.layout !== 'split') {
+        state.layout = 'single';
+      }
+      render();
+    } else if (msg.type === 'event' && msg.data) {
+      pushEvent(msg.data);
+    }
+  }
+
+  function pushEvent(ev) {
+    state.events.unshift(ev);
+    if (state.events.length > MAX_EVENTS) {
+      state.events = state.events.slice(0, MAX_EVENTS);
+    }
+    if (state.layout === 'events' || state.layout === 'split') {
+      render();
+    }
+  }
+
+  // ── Init ──
+
+  fetchCameras();
+  wsConnect();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appliance Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #4CAF50;
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --surface-alt: #2a2a2a;
+      --text: #e0e0e0;
+      --text-dim: #999;
+      --border: #333;
+      --error: #ef5350;
+      --success: #66bb6a;
+      --radius: 8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .wizard {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 520px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .wizard-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .wizard-header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .wizard-header p {
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 15px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="text"].error {
+      border-color: var(--error);
+    }
+
+    input[type="text"].valid {
+      border-color: var(--success);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-row input { flex: 1; }
+
+    .btn {
+      padding: 10px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-alt);
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: var(--border); }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      margin-top: 8px;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .validation-badge {
+      margin-top: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      display: none;
+    }
+
+    .validation-badge.show { display: block; }
+
+    .validation-badge.valid {
+      background: rgba(102,187,106,0.1);
+      border: 1px solid rgba(102,187,106,0.3);
+      color: var(--success);
+    }
+
+    .validation-badge.invalid {
+      background: rgba(239,83,80,0.1);
+      border: 1px solid rgba(239,83,80,0.3);
+      color: var(--error);
+    }
+
+    .validation-badge .detail {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    .validation-badge .warning {
+      display: block;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #ffa726;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+
+    .complete-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .complete-overlay.show {
+      display: flex;
+    }
+
+    .complete-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 48px;
+      text-align: center;
+      max-width: 400px;
+    }
+
+    .complete-card h2 { margin-bottom: 12px; }
+    .complete-card p { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
+
+    .spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .field-error {
+      color: var(--error);
+      font-size: 12px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .field-error.show { display: block; }
+
+    @media (max-width: 560px) {
+      .wizard { padding: 24px 20px; }
+      .wizard-header h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wizard" id="wizard">
+    <div class="wizard-header">
+      <h1 id="title">Appliance Setup</h1>
+      <p>Enter your activation key and site details to get started.</p>
+    </div>
+
+    <form id="setupForm" autocomplete="off">
+      <div class="form-group">
+        <label for="activationKey">Activation Key</label>
+        <input type="text" id="activationKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" spellcheck="false" autocomplete="off">
+        <div class="validation-badge" id="keyBadge"></div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-group">
+        <label for="siteName">Site Name</label>
+        <input type="text" id="siteName" placeholder="e.g. Main Office">
+        <div class="field-error" id="siteNameError">Site name is required</div>
+      </div>
+
+      <div class="form-group">
+        <label for="orgName">Organization Name</label>
+        <input type="text" id="orgName" placeholder="e.g. Acme Corp">
+        <div class="field-error" id="orgNameError">Organization name is required</div>
+      </div>
+
+      <div class="form-group">
+        <label for="siteId">Site ID</label>
+        <div class="input-row">
+          <input type="text" id="siteId" placeholder="UUID" spellcheck="false">
+          <button type="button" class="btn" id="genUuidBtn">Generate</button>
+        </div>
+        <div class="field-error" id="siteIdError">Site ID is required</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Save Configuration</button>
+    </form>
+  </div>
+
+  <div class="complete-overlay" id="completeOverlay">
+    <div class="complete-card">
+      <div class="spinner"></div>
+      <h2>Configuration Saved</h2>
+      <p>Starting services... This may take several minutes.<br>You can close this tab.</p>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // State
+      let productInfo = null;
+      let keyValid = false;
+      let keyProducts = [];
+      let debounceTimer = null;
+
+      const $ = (id) => document.getElementById(id);
+
+      // Fetch product info on load
+      fetch('/api/product-info')
+        .then(r => r.json())
+        .then(info => {
+          productInfo = info;
+          $('title').textContent = info.label + ' Setup';
+          document.title = info.label + ' Setup';
+          document.documentElement.style.setProperty('--accent', info.accentColor);
+        })
+        .catch(() => {});
+
+      // Auto-generate a Site ID on load
+      fetch('/api/generate-uuid')
+        .then(r => r.json())
+        .then(data => { $('siteId').value = data.uuid; updateSubmitState(); })
+        .catch(() => {});
+
+      // ── Activation Key: auto-dash formatting ──
+      const keyInput = $('activationKey');
+      keyInput.addEventListener('input', function() {
+        let raw = this.value.replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 16);
+        let formatted = '';
+        for (let i = 0; i < raw.length; i++) {
+          if (i > 0 && i % 4 === 0) formatted += '-';
+          formatted += raw[i];
+        }
+        this.value = formatted;
+
+        // Debounced validation
+        keyValid = false;
+        updateSubmitState();
+        clearTimeout(debounceTimer);
+        if (raw.length === 16) {
+          debounceTimer = setTimeout(() => validateKey(formatted), 300);
+        } else {
+          hideBadge();
+          keyInput.classList.remove('valid', 'error');
+        }
+      });
+
+      function validateKey(key) {
+        fetch('/api/validate-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        })
+          .then(r => r.json())
+          .then(result => {
+            const badge = $('keyBadge');
+            badge.classList.add('show');
+
+            if (result.valid) {
+              keyValid = true;
+              keyProducts = result.products || [];
+              keyInput.classList.add('valid');
+              keyInput.classList.remove('error');
+              badge.classList.add('valid');
+              badge.classList.remove('invalid');
+
+              let html = 'Valid key';
+              let details = [];
+              if (result.tier) details.push('Tier: ' + result.tier);
+              if (result.products) details.push('Products: ' + result.products.join(', '));
+              if (result.proxyUrl) details.push('Cloud: ' + result.proxyUrl);
+              if (details.length) html += '<span class="detail">' + details.join(' &middot; ') + '</span>';
+
+              // Warn if product mismatch
+              if (productInfo && keyProducts.length > 0 && !keyProducts.includes(productInfo.product)) {
+                html += '<span class="warning">Warning: This key does not include ' + productInfo.label + '</span>';
+              }
+
+              badge.innerHTML = html;
+            } else {
+              keyValid = false;
+              keyInput.classList.add('error');
+              keyInput.classList.remove('valid');
+              badge.classList.add('invalid');
+              badge.classList.remove('valid');
+              badge.innerHTML = result.error || 'Invalid key';
+            }
+            updateSubmitState();
+          })
+          .catch(() => {
+            keyValid = false;
+            updateSubmitState();
+          });
+      }
+
+      function hideBadge() {
+        const badge = $('keyBadge');
+        badge.classList.remove('show', 'valid', 'invalid');
+        badge.innerHTML = '';
+      }
+
+      // ── Generate UUID ──
+      $('genUuidBtn').addEventListener('click', function() {
+        fetch('/api/generate-uuid')
+          .then(r => r.json())
+          .then(data => { $('siteId').value = data.uuid; updateSubmitState(); })
+          .catch(() => {});
+      });
+
+      // ── Submit state ──
+      function updateSubmitState() {
+        const canSubmit = keyValid
+          && $('siteName').value.trim()
+          && $('orgName').value.trim()
+          && $('siteId').value.trim();
+        $('submitBtn').disabled = !canSubmit;
+      }
+
+      $('siteName').addEventListener('input', updateSubmitState);
+      $('orgName').addEventListener('input', updateSubmitState);
+      $('siteId').addEventListener('input', updateSubmitState);
+
+      // ── Form submit ──
+      $('setupForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Validate required fields
+        let hasError = false;
+        ['siteName', 'orgName', 'siteId'].forEach(id => {
+          const empty = !$(id).value.trim();
+          $(id + 'Error').classList.toggle('show', empty);
+          if (empty) hasError = true;
+        });
+        if (hasError || !keyValid) return;
+
+        $('submitBtn').disabled = true;
+        $('submitBtn').textContent = 'Saving...';
+
+        fetch('/api/save-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activationKey: $('activationKey').value.trim(),
+            siteName: $('siteName').value.trim(),
+            orgName: $('orgName').value.trim(),
+            siteId: $('siteId').value.trim(),
+          }),
+        })
+          .then(r => r.json())
+          .then(result => {
+            if (result.success) {
+              $('completeOverlay').classList.add('show');
+            } else {
+              alert('Error: ' + (result.error || 'Unknown error'));
+              $('submitBtn').disabled = false;
+              $('submitBtn').textContent = 'Save Configuration';
+            }
+          })
+          .catch(() => {
+            alert('Failed to save configuration. Please try again.');
+            $('submitBtn').disabled = false;
+            $('submitBtn').textContent = 'Save Configuration';
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

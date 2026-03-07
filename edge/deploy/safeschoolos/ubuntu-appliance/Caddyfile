@@ -1,0 +1,43 @@
+# SafeSchoolOS Appliance - Caddy Reverse Proxy
+# Auto-HTTPS with self-signed certs for local network
+
+{
+	auto_https disable_redirects
+}
+
+# Dashboard (main UI) - HTTPS on 443
+:443 {
+	tls internal
+	reverse_proxy dashboard:3000
+}
+
+# Kiosk (visitor check-in) - HTTPS on 8443
+:8443 {
+	tls internal
+	reverse_proxy kiosk:3000
+}
+
+# API - HTTPS on 3443
+:3443 {
+	tls internal
+	reverse_proxy api:3000
+}
+
+# EdgeRuntime health/API - HTTP on 80
+:80 {
+	handle /health {
+		reverse_proxy edgeruntime:8470
+	}
+	handle /ready {
+		reverse_proxy edgeruntime:8470
+	}
+	handle /modules {
+		reverse_proxy edgeruntime:8470
+	}
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+	handle {
+		reverse_proxy dashboard:3000
+	}
+}

@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Visitor Kiosk</title>
+<style>
+:root {
+  --bg-primary: #0f0f23;
+  --bg-secondary: #1a1d2e;
+  --bg-tertiary: #242840;
+  --border: #2e3348;
+  --text-primary: #e4e6f0;
+  --text-secondary: #8b8fa3;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-dim: rgba(245,158,11,0.15);
+  --success: #22c55e;
+  --danger: #ef4444;
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Screen management */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  transform: scale(0.97);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+/* Welcome screen */
+.welcome {
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+  text-align: center;
+}
+.welcome-clock {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+.welcome h1 {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.welcome h1 span {
+  color: var(--accent);
+}
+.welcome-org {
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  color: var(--text-secondary);
+  margin-top: -0.5rem;
+}
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 1rem;
+}
+.btn-kiosk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1.25rem 2rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 64px;
+  font-family: inherit;
+}
+.btn-kiosk:hover, .btn-kiosk:active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.btn-kiosk.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f0f23;
+}
+.btn-kiosk.primary:hover, .btn-kiosk.primary:active {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn-kiosk svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* Shared header bar for inner screens */
+.screen-header {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 1rem;
+}
+.screen-header h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  flex: 1;
+}
+.btn-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.btn-back:hover { background: var(--border); }
+
+/* Form styles */
+.form-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  font-size: 1.1rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 0.15s;
+}
+.form-group input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--accent);
+}
+.form-group select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b8fa3' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* Photo capture */
+.photo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.photo-preview {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  background: var(--bg-tertiary);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.photo-preview video,
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-preview .photo-icon {
+  color: var(--text-secondary);
+  font-size: 3rem;
+}
+.photo-preview canvas { display: none; }
+.btn-photo {
+  padding: 0.65rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  min-height: 48px;
+}
+.btn-photo:hover { border-color: var(--accent); background: var(--accent-dim); }
+
+/* Form submit bar */
+.form-footer {
+  padding: 1rem 1.5rem;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+.form-footer .btn-kiosk { font-size: 1.1rem; }
+.form-footer .btn-kiosk.cancel {
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  flex: 0 0 auto;
+  width: auto;
+  padding: 1rem 2rem;
+}
+.form-footer .btn-kiosk.cancel:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Checkout visitor list */
+.search-bar {
+  padding: 1rem 1.5rem;
+  flex-shrink: 0;
+}
+.search-bar input {
+  width: 100%;
+  padding: 0.9rem 1rem 0.9rem 3rem;
+  font-size: 1.1rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='%238b8fa3' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.85rem center;
+}
+.search-bar input:focus { border-color: var(--accent); }
+.visitor-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.visitor-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 64px;
+}
+.visitor-item:hover, .visitor-item:active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.visitor-item .visitor-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.visitor-item .visitor-info { flex: 1; }
+.visitor-item .visitor-info .vname { font-size: 1.1rem; font-weight: 600; }
+.visitor-item .visitor-info .vmeta { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.15rem; }
+.visitor-item .checkout-label { font-size: 0.8rem; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.visitor-list .empty-state {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 3rem 1rem;
+  font-size: 1.1rem;
+}
+
+/* Guard PIN pad */
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  max-width: 320px;
+  margin: 0 auto;
+}
+.pin-btn {
+  width: 100%;
+  aspect-ratio: 1.4;
+  font-size: 1.8rem;
+  font-weight: 600;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+}
+.pin-btn:hover, .pin-btn:active { border-color: var(--accent); background: var(--accent-dim); }
+.pin-btn.fn { font-size: 1rem; color: var(--text-secondary); }
+.pin-btn.fn.clear { color: var(--danger); }
+.pin-display {
+  text-align: center;
+  font-size: 2rem;
+  letter-spacing: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Badge preview overlay */
+.badge-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,15,35,0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  padding: 2rem;
+}
+.badge-overlay.active { opacity: 1; pointer-events: auto; }
+.badge-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 380px;
+  padding: 2rem;
+  text-align: center;
+  color: #1a1a2e;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  transform: scale(0.9);
+  transition: transform 0.35s ease;
+}
+.badge-overlay.active .badge-card { transform: scale(1); }
+.badge-label {
+  display: inline-block;
+  background: var(--accent);
+  color: #0f0f23;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.4rem 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 1.25rem;
+}
+.badge-photo {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+  overflow: hidden;
+  border: 3px solid #e5e7eb;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.badge-photo img { width: 100%; height: 100%; object-fit: cover; }
+.badge-photo .no-photo { color: #9ca3af; font-size: 2.5rem; }
+.badge-name { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+.badge-company { font-size: 1rem; color: #6b7280; margin-bottom: 1rem; }
+.badge-details { font-size: 0.9rem; color: #4b5563; line-height: 1.8; }
+.badge-number { font-size: 0.85rem; color: #9ca3af; margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 0.75rem; }
+
+/* Success/goodbye message overlay */
+.message-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  background: var(--bg-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  text-align: center;
+  padding: 2rem;
+}
+.message-overlay.active { opacity: 1; pointer-events: auto; }
+.message-overlay .msg-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+}
+.message-overlay h2 {
+  font-size: clamp(1.5rem, 5vw, 2.5rem);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+.message-overlay h2 .name-highlight { color: var(--accent); }
+.message-overlay p {
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
+  color: var(--text-secondary);
+}
+
+/* Toast notifications */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(1rem);
+  background: var(--danger);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 500;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive adjustments */
+@media (min-width: 768px) {
+  .welcome-actions {
+    flex-direction: row;
+    max-width: 700px;
+  }
+  .welcome-actions .btn-kiosk {
+    flex: 1;
+    flex-direction: column;
+    padding: 2rem 1rem;
+    font-size: 1.15rem;
+  }
+  .welcome-actions .btn-kiosk svg {
+    width: 40px;
+    height: 40px;
+  }
+  .form-body { padding: 2rem; }
+}
+
+@media (max-height: 600px) {
+  .welcome { gap: 1rem; }
+  .welcome h1 { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- WELCOME SCREEN -->
+<div id="screen-welcome" class="screen welcome active">
+  <div class="welcome-clock" id="clock"></div>
+  <h1>Welcome<span>.</span></h1>
+  <div class="welcome-org" id="org-name">Visitor Check-In</div>
+  <div class="welcome-actions">
+    <button class="btn-kiosk primary" onclick="showScreen('checkin')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      Check In
+    </button>
+    <button class="btn-kiosk" onclick="showScreen('checkout')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Check Out
+    </button>
+    <button class="btn-kiosk" onclick="showScreen('guard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Guard Sign In
+    </button>
+  </div>
+</div>
+
+<!-- CHECK-IN SCREEN -->
+<div id="screen-checkin" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('welcome')" aria-label="Back">&#8592;</button>
+    <h2>Visitor Check-In</h2>
+  </div>
+  <div class="form-body" id="checkin-form">
+    <div class="photo-section">
+      <div class="photo-preview" id="photo-preview">
+        <span class="photo-icon">&#128100;</span>
+        <video id="camera-video" autoplay playsinline muted style="display:none"></video>
+        <img id="camera-snap" style="display:none" alt="Photo">
+        <canvas id="camera-canvas"></canvas>
+      </div>
+      <button class="btn-photo" id="btn-take-photo" onclick="handlePhoto()">Take Photo</button>
+    </div>
+    <div class="form-group">
+      <label>Full Name *</label>
+      <input type="text" id="ci-name" placeholder="Enter your full name" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Company / Organization</label>
+      <input type="text" id="ci-company" placeholder="Company name" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Who are you visiting? *</label>
+      <input type="text" id="ci-host" placeholder="Host name" autocomplete="off">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Reason for Visit</label>
+        <select id="ci-reason">
+          <option value="Meeting">Meeting</option>
+          <option value="Delivery">Delivery</option>
+          <option value="Contractor">Contractor</option>
+          <option value="Interview">Interview</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Phone (optional)</label>
+        <input type="tel" id="ci-phone" placeholder="Phone number" autocomplete="off">
+      </div>
+    </div>
+  </div>
+  <div class="form-footer">
+    <button class="btn-kiosk cancel" onclick="showScreen('welcome')">Cancel</button>
+    <button class="btn-kiosk primary" id="btn-checkin-submit" onclick="submitCheckin()">Check In &amp; Print Badge</button>
+  </div>
+</div>
+
+<!-- CHECK-OUT SCREEN -->
+<div id="screen-checkout" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('welcome')" aria-label="Back">&#8592;</button>
+    <h2>Visitor Check-Out</h2>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="checkout-search" placeholder="Search by badge number or name..." autocomplete="off" oninput="filterVisitors()">
+  </div>
+  <div class="visitor-list" id="visitor-list">
+    <div class="empty-state" id="visitor-loading">Loading visitors...</div>
+  </div>
+</div>
+
+<!-- GUARD SIGN-IN SCREEN -->
+<div id="screen-guard" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('welcome')" aria-label="Back">&#8592;</button>
+    <h2>Guard Sign-In</h2>
+  </div>
+  <div class="form-body">
+    <div class="form-group">
+      <label>Guard ID / Badge Number</label>
+      <input type="text" id="guard-badge" placeholder="Enter badge number" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>PIN</label>
+      <div class="pin-display" id="pin-display"></div>
+      <div class="pin-pad">
+        <button class="pin-btn" onclick="pinInput('1')">1</button>
+        <button class="pin-btn" onclick="pinInput('2')">2</button>
+        <button class="pin-btn" onclick="pinInput('3')">3</button>
+        <button class="pin-btn" onclick="pinInput('4')">4</button>
+        <button class="pin-btn" onclick="pinInput('5')">5</button>
+        <button class="pin-btn" onclick="pinInput('6')">6</button>
+        <button class="pin-btn" onclick="pinInput('7')">7</button>
+        <button class="pin-btn" onclick="pinInput('8')">8</button>
+        <button class="pin-btn" onclick="pinInput('9')">9</button>
+        <button class="pin-btn fn clear" onclick="pinClear()">Clear</button>
+        <button class="pin-btn" onclick="pinInput('0')">0</button>
+        <button class="pin-btn fn" onclick="pinBackspace()">&#9003;</button>
+      </div>
+    </div>
+    <button class="btn-kiosk primary" style="margin-top:0.5rem" onclick="submitGuardSignin()">Sign In</button>
+  </div>
+</div>
+
+<!-- BADGE PREVIEW OVERLAY -->
+<div class="badge-overlay" id="badge-overlay">
+  <div class="badge-card">
+    <div class="badge-label">VISITOR</div>
+    <div class="badge-photo" id="badge-photo">
+      <span class="no-photo">&#128100;</span>
+    </div>
+    <div class="badge-name" id="badge-name"></div>
+    <div class="badge-company" id="badge-company"></div>
+    <div class="badge-details">
+      <div>Host: <strong id="badge-host"></strong></div>
+      <div id="badge-date"></div>
+    </div>
+    <div class="badge-number" id="badge-number"></div>
+  </div>
+</div>
+
+<!-- MESSAGE OVERLAY -->
+<div class="message-overlay" id="message-overlay">
+  <div class="msg-icon" id="msg-icon"></div>
+  <h2 id="msg-title"></h2>
+  <p id="msg-subtitle"></p>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- Configuration ----
+  const params = new URLSearchParams(window.location.search);
+  const API_KEY = params.get('key') || '';
+  const ORG_NAME = params.get('org') || '';
+  const BASE = window.location.origin;
+
+  if (ORG_NAME) {
+    document.getElementById('org-name').textContent = ORG_NAME;
+  }
+
+  // ---- Auth header ----
+  function authHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    const jwt = localStorage.getItem('token');
+    if (jwt) {
+      h['Authorization'] = 'Bearer ' + jwt;
+    } else if (API_KEY) {
+      h['X-API-Key'] = API_KEY;
+    }
+    return h;
+  }
+
+  // ---- Clock ----
+  function updateClock() {
+    const now = new Date();
+    const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+    document.getElementById('clock').textContent = now.toLocaleDateString(undefined, opts);
+  }
+  updateClock();
+  setInterval(updateClock, 10000);
+
+  // ---- Screen navigation ----
+  let currentScreen = 'welcome';
+  window.showScreen = function (id) {
+    document.getElementById('screen-' + currentScreen).classList.remove('active');
+    document.getElementById('screen-' + id).classList.add('active');
+    currentScreen = id;
+
+    if (id === 'welcome') resetAll();
+    if (id === 'checkout') loadVisitors();
+    if (id === 'checkin') {
+      setTimeout(function () { document.getElementById('ci-name').focus(); }, 400);
+    }
+    if (id === 'guard') {
+      guardPin = '';
+      renderPin();
+      setTimeout(function () { document.getElementById('guard-badge').focus(); }, 400);
+    }
+  };
+
+  // ---- Toast ----
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 3500);
+  }
+
+  // ---- Message overlay ----
+  function showMessage(icon, title, subtitle, duration) {
+    document.getElementById('msg-icon').textContent = icon;
+    document.getElementById('msg-title').innerHTML = title;
+    document.getElementById('msg-subtitle').textContent = subtitle;
+    document.getElementById('message-overlay').classList.add('active');
+    setTimeout(function () {
+      document.getElementById('message-overlay').classList.remove('active');
+      showScreen('welcome');
+    }, duration || 5000);
+  }
+
+  // ---- Badge overlay ----
+  function showBadge(data) {
+    document.getElementById('badge-name').textContent = data.name || '';
+    document.getElementById('badge-company').textContent = data.company || '';
+    document.getElementById('badge-host').textContent = data.host || '';
+    document.getElementById('badge-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    document.getElementById('badge-number').textContent = data.badgeNumber ? 'Badge #' + data.badgeNumber : '';
+
+    var photoContainer = document.getElementById('badge-photo');
+    if (data.photo) {
+      photoContainer.innerHTML = '<img src="' + data.photo + '" alt="Visitor photo">';
+    } else {
+      photoContainer.innerHTML = '<span class="no-photo">&#128100;</span>';
+    }
+
+    document.getElementById('badge-overlay').classList.add('active');
+    setTimeout(function () {
+      document.getElementById('badge-overlay').classList.remove('active');
+      showMessage(
+        '\u2705',
+        'Welcome, <span class="name-highlight">' + escHtml(data.name) + '</span>!',
+        'Your badge is printing.',
+        5000
+      );
+    }, 4000);
+  }
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ---- Reset forms ----
+  function resetAll() {
+    document.getElementById('ci-name').value = '';
+    document.getElementById('ci-company').value = '';
+    document.getElementById('ci-host').value = '';
+    document.getElementById('ci-reason').selectedIndex = 0;
+    document.getElementById('ci-phone').value = '';
+    document.getElementById('checkout-search').value = '';
+    document.getElementById('guard-badge').value = '';
+    guardPin = '';
+    renderPin();
+    stopCamera();
+    capturedPhoto = null;
+    var snap = document.getElementById('camera-snap');
+    snap.style.display = 'none';
+    document.getElementById('photo-preview').querySelector('.photo-icon').style.display = '';
+    document.getElementById('btn-take-photo').textContent = 'Take Photo';
+  }
+
+  // ---- Camera / Photo ----
+  let cameraStream = null;
+  let capturedPhoto = null;
+
+  window.handlePhoto = function () {
+    var video = document.getElementById('camera-video');
+    var snap = document.getElementById('camera-snap');
+    var canvas = document.getElementById('camera-canvas');
+    var icon = document.getElementById('photo-preview').querySelector('.photo-icon');
+    var btn = document.getElementById('btn-take-photo');
+
+    if (capturedPhoto) {
+      // Retake
+      capturedPhoto = null;
+      snap.style.display = 'none';
+      startCamera();
+      btn.textContent = 'Capture';
+      return;
+    }
+
+    if (cameraStream) {
+      // Capture
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      capturedPhoto = canvas.toDataURL('image/jpeg', 0.8);
+      snap.src = capturedPhoto;
+      snap.style.display = 'block';
+      video.style.display = 'none';
+      icon.style.display = 'none';
+      stopCamera();
+      btn.textContent = 'Retake';
+      return;
+    }
+
+    // Start camera
+    startCamera();
+    btn.textContent = 'Capture';
+  };
+
+  function startCamera() {
+    var video = document.getElementById('camera-video');
+    var icon = document.getElementById('photo-preview').querySelector('.photo-icon');
+    var snap = document.getElementById('camera-snap');
+    snap.style.display = 'none';
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } } })
+      .then(function (stream) {
+        cameraStream = stream;
+        video.srcObject = stream;
+        video.style.display = 'block';
+        icon.style.display = 'none';
+      })
+      .catch(function () {
+        showToast('Camera not available');
+      });
+  }
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function (t) { t.stop(); });
+      cameraStream = null;
+    }
+    document.getElementById('camera-video').style.display = 'none';
+  }
+
+  // ---- Check-In Submit ----
+  window.submitCheckin = async function () {
+    var name = document.getElementById('ci-name').value.trim();
+    var company = document.getElementById('ci-company').value.trim();
+    var host = document.getElementById('ci-host').value.trim();
+    var reason = document.getElementById('ci-reason').value;
+    var phone = document.getElementById('ci-phone').value.trim();
+
+    if (!name) { showToast('Please enter your name'); document.getElementById('ci-name').focus(); return; }
+    if (!host) { showToast('Please enter who you are visiting'); document.getElementById('ci-host').focus(); return; }
+
+    var btn = document.getElementById('btn-checkin-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/checkin', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ name: name, company: company, host: host, reason: reason, phone: phone, photo: capturedPhoto || null })
+      });
+      if (!res.ok) throw new Error('Check-in failed (' + res.status + ')');
+      var data = await res.json();
+      showBadge({ name: name, company: company, host: host, photo: capturedPhoto, badgeNumber: data.badgeNumber || data.id || '' });
+    } catch (e) {
+      showToast(e.message || 'Check-in failed. Please try again.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Check In & Print Badge';
+    }
+  };
+
+  // ---- Check-Out ----
+  let allVisitors = [];
+
+  async function loadVisitors() {
+    var list = document.getElementById('visitor-list');
+    list.innerHTML = '<div class="empty-state">Loading visitors...</div>';
+    try {
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors?status=checked_in', { headers: authHeaders() });
+      if (!res.ok) throw new Error('Failed to load');
+      allVisitors = await res.json();
+      if (Array.isArray(allVisitors.visitors)) allVisitors = allVisitors.visitors;
+      renderVisitors(allVisitors);
+    } catch (e) {
+      list.innerHTML = '<div class="empty-state">Could not load visitors</div>';
+    }
+  }
+
+  function renderVisitors(visitors) {
+    var list = document.getElementById('visitor-list');
+    if (!visitors || visitors.length === 0) {
+      list.innerHTML = '<div class="empty-state">No visitors currently checked in</div>';
+      return;
+    }
+    list.innerHTML = visitors.map(function (v) {
+      var initials = (v.name || '?').split(' ').map(function (w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
+      var meta = [v.company, v.host ? 'Visiting ' + v.host : ''].filter(Boolean).join(' \u2022 ');
+      return '<div class="visitor-item" onclick="checkoutVisitor(\'' + v.id + '\',\'' + escHtml(v.name) + '\')">' +
+        '<div class="visitor-avatar">' + initials + '</div>' +
+        '<div class="visitor-info"><div class="vname">' + escHtml(v.name) + '</div><div class="vmeta">' + escHtml(meta) + '</div></div>' +
+        '<div class="checkout-label">Tap to check out</div></div>';
+    }).join('');
+  }
+
+  window.filterVisitors = function () {
+    var q = document.getElementById('checkout-search').value.toLowerCase();
+    if (!q) { renderVisitors(allVisitors); return; }
+    renderVisitors(allVisitors.filter(function (v) {
+      return (v.name || '').toLowerCase().indexOf(q) !== -1 ||
+             (v.badgeNumber || '').toString().indexOf(q) !== -1 ||
+             (v.company || '').toLowerCase().indexOf(q) !== -1;
+    }));
+  };
+
+  window.checkoutVisitor = async function (id, name) {
+    try {
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/' + id + '/checkout', {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (!res.ok) throw new Error('Checkout failed');
+      showMessage(
+        '\uD83D\uDC4B',
+        'Goodbye, <span class="name-highlight">' + escHtml(name) + '</span>!',
+        'Have a great day.',
+        4000
+      );
+    } catch (e) {
+      showToast(e.message || 'Check-out failed');
+    }
+  };
+
+  // ---- Guard Sign-In ----
+  let guardPin = '';
+
+  function renderPin() {
+    document.getElementById('pin-display').textContent = guardPin.replace(/./g, '\u2022');
+  }
+
+  window.pinInput = function (d) {
+    if (guardPin.length < 8) { guardPin += d; renderPin(); }
+  };
+  window.pinClear = function () { guardPin = ''; renderPin(); };
+  window.pinBackspace = function () { guardPin = guardPin.slice(0, -1); renderPin(); };
+
+  window.submitGuardSignin = async function () {
+    var badge = document.getElementById('guard-badge').value.trim();
+    if (!badge) { showToast('Please enter your badge number'); document.getElementById('guard-badge').focus(); return; }
+    if (!guardPin) { showToast('Please enter your PIN'); return; }
+
+    try {
+      var res = await fetch(BASE + '/api/v1/kiosk/guards/signin', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ badgeNumber: badge, pin: guardPin })
+      });
+      if (!res.ok) throw new Error('Sign-in failed (' + res.status + ')');
+      var data = await res.json();
+      var gname = data.guardName || data.name || badge;
+      showMessage(
+        '\uD83D\uDEE1\uFE0F',
+        'Welcome, <span class="name-highlight">' + escHtml(gname) + '</span>.',
+        'Shift started.',
+        4000
+      );
+    } catch (e) {
+      showToast(e.message || 'Sign-in failed');
+    }
+  };
+
+  // ---- Idle timeout: return to welcome after 2 min of inactivity ----
+  let idleTimer = null;
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+      if (currentScreen !== 'welcome') showScreen('welcome');
+    }, 120000);
+  }
+  ['touchstart', 'mousedown', 'keydown'].forEach(function (evt) {
+    document.addEventListener(evt, resetIdle, { passive: true });
+  });
+  resetIdle();
+})();
+</script>
+</body>
+</html>

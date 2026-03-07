@@ -1,0 +1,120 @@
+#!/bin/bash
+# SafeSchoolOS CLI - Appliance management helper
+# Usage: safeschool <command>
+
+set -euo pipefail
+
+COMPOSE_DIR="/opt/safeschoolos"
+COMPOSE="docker compose -f $COMPOSE_DIR/docker-compose.yml"
+
+case "${1:-help}" in
+  status)
+    echo "=== SafeSchoolOS Status ==="
+    $COMPOSE ps
+    echo ""
+    echo "=== EdgeRuntime Health ==="
+    curl -s http://localhost:8470/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "EdgeRuntime not responding"
+    ;;
+
+  logs)
+    SERVICE="${2:-}"
+    if [ -n "$SERVICE" ]; then
+      $COMPOSE logs -f --tail=100 "$SERVICE"
+    else
+      $COMPOSE logs -f --tail=50
+    fi
+    ;;
+
+  restart)
+    SERVICE="${2:-}"
+    if [ -n "$SERVICE" ]; then
+      echo "Restarting $SERVICE..."
+      $COMPOSE restart "$SERVICE"
+    else
+      echo "Restarting all services..."
+      $COMPOSE restart
+    fi
+    ;;
+
+  update)
+    echo "Pulling latest images..."
+    $COMPOSE pull
+    echo "Recreating containers..."
+    $COMPOSE up -d --remove-orphans
+    echo "Cleaning old images..."
+    docker image prune -f
+    echo "Update complete."
+    ;;
+
+  backup)
+    echo "Creating database backup..."
+    TIMESTAMP=$(date -u '+%Y%m%dT%H%M%SZ')
+    $COMPOSE exec -T postgres pg_dump -U safeschool -d safeschool --format=custom --compress=6 \
+      > "/opt/safeschoolos/backups/manual_${TIMESTAMP}.sql.gz"
+    echo "Backup saved: /opt/safeschoolos/backups/manual_${TIMESTAMP}.sql.gz"
+    ;;
+
+  restore)
+    BACKUP_FILE="${2:-}"
+    if [ -z "$BACKUP_FILE" ]; then
+      echo "Usage: safeschool restore <backup-file>"
+      echo "Available backups:"
+      ls -la /opt/safeschoolos/backups/*.sql.gz 2>/dev/null || echo "  (none)"
+      exit 1
+    fi
+    echo "WARNING: This will replace the current database!"
+    read -p "Continue? (y/N) " confirm
+    if [ "$confirm" = "y" ]; then
+      $COMPOSE exec -T postgres pg_restore -U safeschool -d safeschool --clean --if-exists < "$BACKUP_FILE"
+      echo "Restore complete. Restarting API..."
+      $COMPOSE restart api worker
+    fi
+    ;;
+
+  config)
+    echo "=== Configuration ==="
+    echo "Compose: $COMPOSE_DIR/docker-compose.yml"
+    echo "Env:     $COMPOSE_DIR/.env"
+    echo "Config:  $COMPOSE_DIR/config.yaml"
+    echo ""
+    echo "=== Activation Key ==="
+    grep -o 'EDGERUNTIME_ACTIVATION_KEY=.*' "$COMPOSE_DIR/.env" 2>/dev/null | head -1
+    echo ""
+    echo "=== Site ==="
+    grep -E '^SITE_' "$COMPOSE_DIR/.env" 2>/dev/null
+    ;;
+
+  key)
+    echo "=== Modules Loaded ==="
+    curl -s http://localhost:8470/modules 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "EdgeRuntime not responding"
+    ;;
+
+  stop)
+    echo "Stopping SafeSchoolOS..."
+    $COMPOSE down
+    ;;
+
+  start)
+    echo "Starting SafeSchoolOS..."
+    $COMPOSE up -d
+    ;;
+
+  help|*)
+    echo "SafeSchoolOS Appliance CLI"
+    echo ""
+    echo "Usage: safeschool <command>"
+    echo ""
+    echo "Commands:"
+    echo "  status    Show service status and health"
+    echo "  logs      View logs (optionally: safeschool logs api)"
+    echo "  restart   Restart services (optionally: safeschool restart api)"
+    echo "  update    Pull latest images and restart"
+    echo "  backup    Create a database backup"
+    echo "  restore   Restore from a backup file"
+    echo "  config    Show configuration"
+    echo "  key       Show loaded modules from activation key"
+    echo "  start     Start all services"
+    echo "  stop      Stop all services"
+    echo "  help      Show this help"
+    ;;
+esac

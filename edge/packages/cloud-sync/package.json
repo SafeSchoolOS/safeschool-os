@@ -1,0 +1,22 @@
+{
+  "name": "@edgeruntime/cloud-sync",
+  "version": "0.3.4",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b && node -e \"const fs=require('fs');const p=require('path');fs.cpSync(p.join(__dirname,'ui'),p.join(__dirname,'dist','ui'),{recursive:true})\"",
+    "dev": "tsc -b --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@edgeruntime/core": "*",
+    "@edgeruntime/activation": "*",
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

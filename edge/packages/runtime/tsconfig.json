@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../core" },
+    { "path": "../activation" },
+    { "path": "../sync-engine" },
+    { "path": "../module-loader" },
+    { "path": "../connector-framework" },
+    { "path": "../cloud-sync" }
+  ]
+}

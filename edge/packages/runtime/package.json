@@ -1,0 +1,30 @@
+{
+  "name": "@edgeruntime/runtime",
+  "version": "0.2.7",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@edgeruntime/activation": "*",
+    "@edgeruntime/cloud-sync": "*",
+    "@edgeruntime/connector-framework": "*",
+    "@edgeruntime/core": "*",
+    "@edgeruntime/module-loader": "*",
+    "@edgeruntime/sync-engine": "*",
+    "@fastify/cors": "^11.2.0",
+    "@fastify/websocket": "^11.0.0",
+    "fastify": "^5.0.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
+  }
+}
