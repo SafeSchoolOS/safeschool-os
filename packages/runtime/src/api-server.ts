@@ -130,9 +130,19 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
   const app = Fastify({ logger: false });
   let realtimeChannel: RealtimeChannel | undefined;
 
-  // CORS — allow separate product frontends to call cloud API
+  // CORS — allow product frontends to call cloud API
+  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : ['https://safeschoolos.org', 'https://edge.safeschool.org'];
   await app.register(fastifyCors, {
-    origin: true,           // reflect request origin (allow any)
+    origin: (origin, cb) => {
+      // Allow requests with no origin (server-to-server, curl, etc.)
+      if (!origin) return cb(null, true);
+      // Allow localhost in development
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error('CORS: origin not allowed'), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id', 'X-Sync-Key', 'X-Sync-Timestamp', 'X-Sync-Signature'],
@@ -259,8 +269,6 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         url.startsWith('/api/v1/sync') ||
         url.startsWith('/api/v1/connector-events') ||
         url.startsWith('/api/v1/federation') ||
-        /\/api\/v1\/cameras\/[^/]+\/snapshot/.test(url) ||
-        /\/api\/v1\/cameras\/[^/]+\/stream/.test(url) ||
         url.startsWith('/api/v1/kiosk/')
       ) {
         return;
@@ -282,6 +290,11 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
 
       // Attach user info to request for downstream handlers
       (request as any).user = payload;
+
+      // Demo users are read-only — block all write operations
+      if (payload.demo && request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS') {
+        return reply.code(403).send({ error: 'Demo mode is read-only' });
+      }
     });
 
     log.info('Auth middleware and login endpoint registered');
@@ -307,7 +320,7 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       return { accepted: body.events.length, timestamp: new Date().toISOString() };
     });
 
-    // Return federated analytics (from peers like SafeSchool)
+    // Return federated analytics (from peers like BadgeGuard)
     app.get('/api/v1/federation/analytics', async (request: FastifyRequest) => {
       const query = request.query as { since?: string };
       const events = fm.getAnalytics(query.since);
@@ -434,12 +447,48 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
 
     });
 
-    // Camera snapshot proxy — NO AUTH required (used by <img src> tags)
-    // Fetches snapshot from PAC emulator URL stored in camera entity
+    // Camera snapshot/stream proxy — requires JWT auth (via header or ?token= query param)
+    // URL validation: only allow proxying to private/local network addresses
+    const ALLOWED_CAMERA_HOSTS = process.env.CAMERA_ALLOWED_HOSTS
+      ? process.env.CAMERA_ALLOWED_HOSTS.split(',').map(s => s.trim())
+      : [];
+
+    function isAllowedCameraUrl(urlStr: string): boolean {
+      let parsed: URL;
+      try {
+        parsed = new URL(urlStr);
+      } catch {
+        return false;
+      }
+      // Must be http or https
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+      const hostname = parsed.hostname;
+      // Allow explicit allowlist
+      if (ALLOWED_CAMERA_HOSTS.includes(hostname)) return true;
+      // Allow private/local network ranges (RFC 1918 + link-local)
+      if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+      if (hostname.startsWith('192.168.') || hostname.startsWith('10.')) return true;
+      if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
+      // Block everything else (cloud metadata, public internet, etc.)
+      return false;
+    }
+
+    function verifyCameraAuth(request: FastifyRequest, reply: FastifyReply): boolean {
+      // Accept JWT from Authorization header or ?token= query param (for <img src> usage)
+      const authHeader = request.headers.authorization;
+      const queryToken = (request.query as Record<string, string>)?.token;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : queryToken;
+      if (!token || !verifyJwt(token)) {
+        reply.code(401).send({ error: 'Camera access requires authentication. Pass JWT via Authorization header or ?token= query param.' });
+        return false;
+      }
+      return true;
+    }
+
     await app.register(async (scope) => {
       scope.get('/api/v1/cameras/:cameraId/snapshot', async (request: FastifyRequest, reply: FastifyReply) => {
+        if (!verifyCameraAuth(request, reply)) return;
         const { cameraId } = request.params as { cameraId: string };
-        // Query camera entity using HMAC sync adapter directly (no auth needed)
         const result = await opts.syncAdapter.queryEntities({
           entityType: ['camera_status', 'camera'],
           filters: { id: cameraId },
@@ -450,6 +499,10 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         const snapshotUrl = cam?.snapshotUrl as string | undefined;
         if (!snapshotUrl) {
           return reply.code(404).send({ error: 'No snapshot URL for camera' });
+        }
+        if (!isAllowedCameraUrl(snapshotUrl)) {
+          log.warn({ snapshotUrl, cameraId }, 'Blocked camera snapshot proxy to disallowed URL');
+          return reply.code(403).send({ error: 'Camera URL not in allowed network range' });
         }
         try {
           const imgResp = await fetch(snapshotUrl, { signal: AbortSignal.timeout(10000) });
@@ -463,8 +516,9 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         }
       });
 
-      // Camera MJPEG stream proxy — pipes live video from PAC emulator
+      // Camera MJPEG stream proxy — requires auth, validates URL
       scope.get('/api/v1/cameras/:cameraId/stream', async (request: FastifyRequest, reply: FastifyReply) => {
+        if (!verifyCameraAuth(request, reply)) return;
         const { cameraId } = request.params as { cameraId: string };
         const result = await opts.syncAdapter.queryEntities({
           entityType: ['camera_status', 'camera'],
@@ -476,6 +530,10 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         const streamUrl = cam?.streamUrl as string | undefined;
         if (!streamUrl) {
           return reply.code(404).send({ error: 'No stream URL for camera' });
+        }
+        if (!isAllowedCameraUrl(streamUrl)) {
+          log.warn({ streamUrl, cameraId }, 'Blocked camera stream proxy to disallowed URL');
+          return reply.code(403).send({ error: 'Camera URL not in allowed network range' });
         }
         try {
           const streamResp = await fetch(streamUrl, { signal: AbortSignal.timeout(30000) });
@@ -625,6 +683,11 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
 
       scope.get('/login', async (_request: FastifyRequest, reply: FastifyReply) => {
         return reply.redirect('/dashboard');
+      });
+
+      // /demo — redirect to /dashboard/demo (no-login demo mode)
+      scope.get('/demo', async (_request: FastifyRequest, reply: FastifyReply) => {
+        return reply.redirect('/dashboard/demo');
       });
     });
 

@@ -35,7 +35,7 @@ export interface DashboardRoutesOptions {
   } | null>;
   /** User database adapter for OAuth-based login */
   userAdapter?: UserDatabaseAdapter;
-  /** Product name for dashboard branding (e.g. 'safeschool') */
+  /** Product name for dashboard branding (e.g. 'badgeguard', 'access-gsoc') */
   productName?: string;
   /** OAuth provider configuration */
   oauth?: {
@@ -77,6 +77,9 @@ export async function dashboardRoutes(fastify: FastifyInstance, options: Dashboa
   const { signJwt, verifyJwt, verifyCredentials, userAdapter, oauth, productName } = options;
   if (productName) log.info({ productName }, 'Dashboard product branding active');
 
+  const demoEnabled = process.env.DEMO_MODE === 'true' || process.env.DEMO_MODE === '1';
+  const demoOrgId = process.env.DEMO_ORG_ID || process.env.DASHBOARD_ADMIN_ORG || 'demo';
+
   // GET / — serve dashboard HTML (unauthenticated, contains its own login form)
   fastify.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
     let html = loadDashboardHtml();
@@ -86,6 +89,34 @@ export async function dashboardRoutes(fastify: FastifyInstance, options: Dashboa
     }
     return reply.type('text/html').send(html);
   });
+
+  // GET /demo — no-login demo mode (read-only, auto-authenticated)
+  if (demoEnabled) {
+    fastify.get('/demo', async (_request: FastifyRequest, reply: FastifyReply) => {
+      const demoToken = signJwt({
+        sub: 'demo',
+        username: 'demo',
+        orgId: demoOrgId,
+        role: 'viewer',
+        demo: true,
+      });
+
+      let html = loadDashboardHtml();
+      const demoScript = `<script>
+window.DEMO_MODE=true;
+sessionStorage.setItem('fleet_token',${JSON.stringify(demoToken)});
+sessionStorage.setItem('fleet_org',${JSON.stringify(demoOrgId)});
+</script>`;
+      if (options.productName) {
+        html = html.replace('</head>',
+          `<script>window.PRODUCT=${JSON.stringify(options.productName)}</script>\n${demoScript}\n</head>`);
+      } else {
+        html = html.replace('</head>', `${demoScript}\n</head>`);
+      }
+      return reply.type('text/html').send(html);
+    });
+    log.info({ orgId: demoOrgId }, 'Demo mode enabled at /dashboard/demo');
+  }
 
   // POST /auth/login — authenticate and return JWT
   fastify.post('/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
