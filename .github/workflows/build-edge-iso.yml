@@ -19,7 +19,7 @@ on:
 
   # Auto-build when edge image files change on main
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'deploy/edge/image/**'
       - '.github/workflows/build-edge-iso.yml'
