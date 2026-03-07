@@ -55,58 +55,79 @@ export class EdgeRuntime {
       mkdirSync(dataDir, { recursive: true });
     }
 
-    // Step 2-4: Validate activation key(s) — supports single key or array
-    if (!this.config.activationKey || (Array.isArray(this.config.activationKey) && this.config.activationKey.length === 0)) {
-      throw new ActivationError('No activation key provided. Set EDGERUNTIME_ACTIVATION_KEY or config.activationKey');
+    // Step 2-4: Validate activation key(s) — supports single key, array, or standalone mode
+    const hasActivationKey = this.config.activationKey &&
+      !(Array.isArray(this.config.activationKey) && this.config.activationKey.length === 0) &&
+      this.config.activationKey !== '';
+
+    let cloudSyncUrl: string | undefined;
+    let cloudSyncKey: string;
+
+    if (!hasActivationKey) {
+      // Standalone / demo mode — no activation key required, no cloud sync
+      log.info('No activation key provided — running in STANDALONE mode (no cloud sync)');
+      this.activation = {
+        valid: true,
+        products: ['safeschool'] as ProductFlag[],
+        tier: 'community',
+        proxyIndex: -1,
+        proxyUrl: undefined,
+      } as ValidationResult;
+      cloudSyncUrl = undefined;
+      cloudSyncKey = 'standalone';
+    } else {
+      const keys = Array.isArray(this.config.activationKey)
+        ? this.config.activationKey
+        : [this.config.activationKey];
+
+      this.activation = keys.length === 1
+        ? validateKey(keys[0]!)
+        : validateKeys(keys);
+
+      if (!this.activation.valid) {
+        throw new ActivationError(`Activation key invalid: ${this.activation.error}`);
+      }
+
+      log.info({
+        products: this.activation.products,
+        tier: this.activation.tier,
+        proxyUrl: this.activation.proxyUrl,
+        keyCount: keys.length,
+      }, 'Activation key(s) validated');
+
+      // Step 5: Resolve primary proxy URL (used for heartbeat/upgrade)
+      cloudSyncUrl = this.activation.proxyUrl;
+      if (!cloudSyncUrl) {
+        throw new ActivationError(
+          `Proxy index ${this.activation.proxyIndex} is not configured. ` +
+          `Set EDGERUNTIME_PROXY_${this.activation.proxyIndex} environment variable to the cloud sync URL.`,
+        );
+      }
+      cloudSyncKey = this.config.cloudSyncKey ?? 'default-sync-key';
     }
-
-    const keys = Array.isArray(this.config.activationKey)
-      ? this.config.activationKey
-      : [this.config.activationKey];
-
-    this.activation = keys.length === 1
-      ? validateKey(keys[0]!)
-      : validateKeys(keys);
-
-    if (!this.activation.valid) {
-      throw new ActivationError(`Activation key invalid: ${this.activation.error}`);
-    }
-
-    log.info({
-      products: this.activation.products,
-      tier: this.activation.tier,
-      proxyUrl: this.activation.proxyUrl,
-      keyCount: keys.length,
-    }, 'Activation key(s) validated');
-
-    // Step 5: Resolve primary proxy URL (used for heartbeat/upgrade)
-    const cloudSyncUrl = this.activation.proxyUrl;
-    if (!cloudSyncUrl) {
-      throw new ActivationError(
-        `Proxy index ${this.activation.proxyIndex} is not configured. ` +
-        `Set EDGERUNTIME_PROXY_${this.activation.proxyIndex} environment variable to the cloud sync URL.`,
-      );
-    }
-    const cloudSyncKey = this.config.cloudSyncKey ?? 'default-sync-key';
     const queueDbPath = resolve(dataDir, 'sync-queue.db');
 
-    // Step 6: Create SyncEngine with primary URL (modules can trackChange immediately)
-    this.syncEngine = new SyncEngine({
-      siteId: this.config.siteId,
-      cloudSyncUrl,
-      cloudSyncKey,
-      syncIntervalMs: this.config.syncIntervalMs,
-      healthCheckIntervalMs: this.config.healthCheckIntervalMs,
-      queueDbPath,
-      dataDir,
-      cloudTlsFingerprint: this.config.cloudTlsFingerprint,
-      operatingMode: this.config.operatingMode,
-      orgId: this.config.orgId,
-    });
+    // Step 6: Create SyncEngine (skipped in standalone mode without cloud URL)
+    if (cloudSyncUrl) {
+      this.syncEngine = new SyncEngine({
+        siteId: this.config.siteId,
+        cloudSyncUrl,
+        cloudSyncKey,
+        syncIntervalMs: this.config.syncIntervalMs,
+        healthCheckIntervalMs: this.config.healthCheckIntervalMs,
+        queueDbPath,
+        dataDir,
+        cloudTlsFingerprint: this.config.cloudTlsFingerprint,
+        operatingMode: this.config.operatingMode,
+        orgId: this.config.orgId,
+      });
+    } else {
+      log.info('Standalone mode — sync engine disabled');
+    }
 
     // Step 7: Load product modules
     const enabledProducts = this.activation.products!;
-    const conflictResolver = this.syncEngine.getConflictResolver();
+    const conflictResolver = this.syncEngine?.getConflictResolver();
 
     // Collect federation handlers registered by modules (deferred — FederationManager created later)
     const federationHandlers: Array<(fromProduct: string, events: Record<string, unknown>[]) => Record<string, unknown>[]> = [];
@@ -118,21 +139,21 @@ export class EdgeRuntime {
         siteId: this.config.siteId,
         dataDir,
         registerConflictStrategy: (entityType, strategy) => {
-          conflictResolver.registerStrategy(entityType, strategy as any);
+          conflictResolver?.registerStrategy(entityType, strategy as any);
         },
         registerConflictMerger: (entityType, merger) => {
-          conflictResolver.registerMerger(entityType, merger);
+          conflictResolver?.registerMerger(entityType, merger);
         },
         registerConnectorType: (typeName, connectorClass) => {
           this.connectorRegistry.registerType(typeName, connectorClass);
         },
         trackChange: (entity) => {
-          this.syncEngine!.trackChange(entity);
+          this.syncEngine?.trackChange(entity);
         },
         registerFederationHandler: (handler) => {
           federationHandlers.push(handler);
         },
-        userAccountStore: this.syncEngine.userAccountStore,
+        userAccountStore: this.syncEngine?.userAccountStore,
       },
     });
 
@@ -142,16 +163,15 @@ export class EdgeRuntime {
       modules: this.moduleRegistry.getNames(),
     }, 'Modules loaded');
 
-    // Step 8: Build routing map from loaded module manifests
-    const routeConfigs = await this.buildRoutingMap(enabledProducts);
-
-    if (routeConfigs.length > 0) {
-      this.syncEngine.setRoutes(routeConfigs);
-      log.info({ routes: routeConfigs.length }, 'Multi-backend sync routing activated');
+    // Step 8-9: Build routing map and start sync engine (if available)
+    if (this.syncEngine) {
+      const routeConfigs = await this.buildRoutingMap(enabledProducts);
+      if (routeConfigs.length > 0) {
+        this.syncEngine.setRoutes(routeConfigs);
+        log.info({ routes: routeConfigs.length }, 'Multi-backend sync routing activated');
+      }
+      this.syncEngine.start();
     }
-
-    // Step 9: Start sync engine (now routes correctly)
-    this.syncEngine.start();
 
     // Start modules
     await this.moduleRegistry.startAll();
@@ -250,7 +270,7 @@ export class EdgeRuntime {
       federationManager: this.federationManager ?? undefined,
       port: this.config.apiPort,
       operatingMode: this.config.operatingMode,
-      userAccountStore: this.syncEngine.userAccountStore,
+      userAccountStore: this.syncEngine?.userAccountStore,
       ...(this.config.operatingMode === 'CLOUD' ? {
         cloudOptions: {
           syncKey: cloudSyncKey,
@@ -266,7 +286,7 @@ export class EdgeRuntime {
 
     log.info({
       siteId: this.config.siteId,
-      mode: this.syncEngine.getOperatingMode(),
+      mode: this.syncEngine?.getOperatingMode() ?? 'STANDALONE',
       products: enabledProducts,
       tier: this.activation.tier,
       apiPort: this.config.apiPort,

@@ -12,7 +12,9 @@
   "dependencies": {
     "@edgeruntime/core": "*",
     "@edgeruntime/module-loader": "*",
-    "@edgeruntime/connector-framework": "*",
+    "@edgeruntime/connector-framework": "*"
+  },
+  "optionalDependencies": {
     "@safeschoolos/adapters": "*"
   }
 }

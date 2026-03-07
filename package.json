@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "SafeSchoolOS - Open-source school safety platform powered by EdgeRuntime",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "workspaces": [
     "packages/*",
     "modules/*"
