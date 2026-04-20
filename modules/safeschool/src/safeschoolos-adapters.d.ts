@@ -7,14 +7,14 @@
 // package or trigger the graceful fallback path.
 
 declare module '@safeschoolos/adapters/access-control' {
-  export const SicunetAdapter: any;
+  export class SicunetAdapter { constructor(...args: any[]); [key: string]: any }
   export const createAdapter: any;
   export type AccessControlAdapter = any;
   export type CredentialManagementAdapter = any;
 }
 
 declare module '@safeschoolos/adapters/cameras' {
-  export const MilestoneAdapter: any;
+  export class MilestoneAdapter { constructor(...args: any[]); [key: string]: any }
   export const createCameraAdapter: any;
   export type CameraAdapter = any;
   export type CameraConfig = any;
