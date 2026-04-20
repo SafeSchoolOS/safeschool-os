@@ -46,43 +46,6 @@ const DEFAULT_PRODUCT_RECIPES: Record<string, { name: string; integrations: stri
       'auth/saml',
     ],
   },
-  safeschool: {
-    name: 'safeschool',
-    integrations: [
-      'access-control/genetec',
-      'cameras/genetec-vms',
-      'badge-design/canvas-renderer',
-      'badge-printing/http',
-      'visitor-mgmt/informdata-sor',
-      'background-screening/watchlist',
-      'notifications/sendgrid-email',
-      'notifications/twilio-sms',
-      'hr-sync/blackboard',
-      'reporting/docusign',
-      'auth/oidc',
-      'weather/open-meteo',
-    ],
-  },
-  'safeschool': {
-    name: 'safeschool',
-    integrations: [
-      'access-control/genetec',
-      'access-control/vendor',
-      'cameras/milestone',
-      'cameras/avigilon',
-      'dispatch/rapidsos',
-      'dispatch/sip-direct',
-      'guard-tour/sqlite',
-      'notifications/twilio-sms',
-      'notifications/pa-intercom',
-      'panic-devices/rave-panic',
-      'weapons-detection/ceia',
-      'threat-intel/zeroeyes',
-      'environmental/iot-sensors',
-      'auth/ldap-auth',
-      'weather/open-meteo',
-    ],
-  },
 };
 
 // Unambiguous 26-char alphabet: no 0/O, 1/I/L, B/8, S/5, Z/2

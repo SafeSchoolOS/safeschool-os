@@ -214,12 +214,6 @@ export interface OrgLicense {
 }
 
 
-export interface StripeWebhookOptions {
-  stripeWebhookSecret: string;
-  licenseAdapter: LicenseDatabaseAdapter;
-  productMappings: StripeProductMapping[];
-  gracePeriodMs?: number;
-}
 
 // ─── License Database Adapter Interface ─────────────────────────────
 
