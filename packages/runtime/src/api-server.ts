@@ -512,7 +512,7 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
   // MIRROR = edge device with local dashboard (runs EDGE sync + CLOUD routes backed by local SQLite/Postgres)
   // Both modes mount the full set of cloud-sync route modules (~44 route files).
   if ((deps.operatingMode === 'CLOUD' || deps.operatingMode === 'MIRROR') && deps.cloudOptions) {
-    const { syncRoutes, fleetRoutes, entityRoutes, userRoutes, licenseRoutes, dashboardRoutes, deviceConfigRoutes, backupRoutes, visitorRoutes, panicRoutes, incidentRoutes, alarmRoutes, alarmIngestRoute, drillRoutes, guardRoutes, notificationRoutes, tipRoutes, contractorRoutes, caseRoutes, channelRoutes, reunificationRoutes, threatRoutes, sensorRoutes, sensorIngestRoute, riskRoutes, hallpassRoutes, grantRoutes, tenantRoutes, passRoutes, buildingRoutes, agencyRoutes, webhookRoutes, apiDocsRoute, startDemoResetCron, startPacEmulator, generateDemoSeed, RealtimeChannel: RealtimeChannelClass, healthRoutes, healthIngestRoute, analyticsRoutes, analyticsIngestRoute, uebaRoutes, nlqueryRoutes, postureRoutes, siemRoutes, briefingRoutes, multisiteRoutes, widgetRoutes, ticketRoutes, auditRoutes, floorplanRoutes, signinFlowRoutes, vmsRoutes, accountRoutes, gsocEnterpriseRoutes, pairingRoutes, recipeRoutes, adapterRegistryRoutes, telephonyVoiceRoutes, telephonyRoutes, badgeRoutes, packageRoutes, cardholderSyncRoutes, aiInsightsRoutes, configuratorRoutes } = await import('@edgeruntime/cloud-sync');
+    const { syncRoutes, fleetRoutes, entityRoutes, userRoutes, dashboardRoutes, deviceConfigRoutes, backupRoutes, visitorRoutes, panicRoutes, incidentRoutes, alarmRoutes, alarmIngestRoute, drillRoutes, guardRoutes, notificationRoutes, tipRoutes, contractorRoutes, caseRoutes, channelRoutes, reunificationRoutes, threatRoutes, sensorRoutes, sensorIngestRoute, riskRoutes, hallpassRoutes, grantRoutes, tenantRoutes, passRoutes, buildingRoutes, agencyRoutes, webhookRoutes, apiDocsRoute, startDemoResetCron, startPacEmulator, generateDemoSeed, RealtimeChannel: RealtimeChannelClass, healthRoutes, healthIngestRoute, analyticsRoutes, analyticsIngestRoute, uebaRoutes, nlqueryRoutes, postureRoutes, siemRoutes, briefingRoutes, multisiteRoutes, widgetRoutes, ticketRoutes, auditRoutes, floorplanRoutes, signinFlowRoutes, vmsRoutes, accountRoutes, gsocEnterpriseRoutes, pairingRoutes, recipeRoutes, adapterRegistryRoutes, telephonyVoiceRoutes, telephonyRoutes, badgeRoutes, packageRoutes, cardholderSyncRoutes, aiInsightsRoutes, configuratorRoutes } = await import('@edgeruntime/cloud-sync');
     const opts = deps.cloudOptions;
 
     // Register WebSocket plugin (required for RealtimeChannel)
@@ -1206,16 +1206,6 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
 
     // ── License & Subscription Routes ──
 
-    // Customer-facing license/subscription endpoints (JWT-protected)
-    await app.register(async (scope) => {
-      scope.addHook('preHandler', fleetAuthHook);
-      await scope.register(licenseRoutes, {
-        prefix: '/api/v1/license',
-        adapter: opts.licenseAdapter,
-        getOrgId: opts.getOrgId ?? ((request: any) => getOrgIdFromJwt(request) || ''),
-      });
-    });
-
     // ── Fleet Dashboard (HTML UI + OAuth + homepage) ──
 
     // Fleet dashboard (HTML + login endpoint + optional OAuth)
@@ -1310,8 +1300,6 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
             const cards = activeProducts.map((p: string) => {
               const labels: Record<string, { name: string; color: string; desc: string }> = {
                 'safeschool': { name: 'SafeSchool', color: '#f59e0b', desc: 'School safety & visitor management' },
-                'safeschool': { name: 'SafeSchool', color: '#3b82f6', desc: 'Badge printing & access control' },
-                'safeschool': { name: 'SafeSchool', color: '#10b981', desc: 'Global security operations center' },
               };
               const info = labels[p] || { name: p, color: '#6366f1', desc: '' };
               return `<a href="/dashboard?product=${p}" style="display:block;background:#1e2030;border:2px solid ${info.color};border-radius:12px;padding:2rem;text-decoration:none;color:#e2e8f0;transition:transform 0.2s,box-shadow 0.2s" onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''"><div style="font-size:1.5rem;font-weight:700;color:${info.color}">${info.name}</div><div style="margin-top:0.5rem;color:#94a3b8;font-size:0.9rem">${info.desc}</div></a>`;
