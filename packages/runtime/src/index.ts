@@ -33,10 +33,11 @@ async function main(): Promise<void> {
   }
 }
 
-// Run if executed directly
+// Run if executed directly (supports tsc output, ts-node, and esbuild bundle)
 const isMainModule =
   process.argv[1]?.endsWith('index.js') ||
-  process.argv[1]?.endsWith('index.ts');
+  process.argv[1]?.endsWith('index.ts') ||
+  process.argv[1]?.endsWith('edgeruntime.bundle.mjs');
 
 if (isMainModule) {
   main().catch((err) => {

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elevator Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); } .val-accent { color: var(--accent); } .val-amber { color: var(--amber); } .val-red { color: var(--red); } .val-blue { color: var(--blue); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+@media (max-width: 1000px) { .grid-3 { grid-template-columns: 1fr; } }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+.card-body { padding: 20px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.btn { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--accent-hover); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-danger { background: var(--red); } .btn-danger:hover { opacity: 0.9; background: var(--red); }
+.btn-warning { background: var(--amber); color: #000; } .btn-warning:hover { opacity: 0.9; background: var(--amber); }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+/* Elevator shaft visualization */
+.elevator-panel { padding: 20px; display: flex; flex-direction: column; align-items: center; }
+.shaft { position: relative; width: 80px; height: 320px; background: var(--bg); border: 2px solid var(--border); border-radius: 8px; margin: 10px 0; }
+.shaft-floor { position: absolute; left: -30px; width: 24px; text-align: right; font-size: 11px; color: var(--text3); font-weight: 600; }
+.shaft-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--border); }
+.elevator-car { position: absolute; left: 6px; right: 6px; height: 28px; background: var(--accent); border-radius: 4px; transition: bottom 1.5s ease-in-out; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+.elevator-car.idle { background: var(--bg3); color: var(--text2); }
+.elevator-car.emergency { background: var(--red); animation: emergPulse 1s infinite; }
+@keyframes emergPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+.elev-label { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.elev-status { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.elev-floor-display { font-size: 32px; font-weight: 700; color: var(--accent); font-family: 'Courier New', monospace; margin: 8px 0; }
+.direction-arrow { font-size: 20px; color: var(--accent); }
+.direction-arrow.idle { color: var(--text3); }
+
+.emergency-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.emerg-btn { padding: 14px; border-radius: 8px; border: 2px solid; text-align: center; cursor: pointer; font-weight: 600; font-size: 12px; background: var(--bg); transition: all 0.15s; }
+.emerg-btn:hover { transform: scale(1.02); }
+.emerg-btn.recall { border-color: var(--amber); color: var(--amber); }
+.emerg-btn.recall:hover { background: rgba(245,158,11,0.1); }
+.emerg-btn.oos { border-color: var(--red); color: var(--red); }
+.emerg-btn.oos:hover { background: rgba(239,68,68,0.1); }
+.emerg-btn.fire { border-color: #ff6b35; color: #ff6b35; }
+.emerg-btn.fire:hover { background: rgba(255,107,53,0.1); }
+.emerg-btn.active { background: rgba(239,68,68,0.2); border-color: var(--red); }
+
+.floor-bar { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.floor-bar-label { width: 30px; font-size: 12px; color: var(--text3); text-align: right; }
+.floor-bar-fill { height: 20px; border-radius: 4px; background: var(--accent); min-width: 2px; transition: width 0.3s; }
+.floor-bar-count { font-size: 11px; color: var(--text2); margin-left: 6px; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.tab-btn { padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--text3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var floors = ['B2','B1','L','2','3','4','5','6','7','8','9','10','11','12','P'];
+  var numFloors = floors.length;
+
+  var elevators = [
+    { id: 'A', name: 'Elevator A', floor: 0, targetFloor: 5, direction: 'up', status: 'running', passengers: 3 },
+    { id: 'B', name: 'Elevator B', floor: 8, targetFloor: 2, direction: 'down', status: 'running', passengers: 1 },
+    { id: 'C', name: 'Elevator C', floor: 2, targetFloor: 2, direction: 'idle', status: 'idle', passengers: 0 }
+  ];
+
+  var floorUsage = {};
+  floors.forEach(function(f, i) {
+    floorUsage[f] = Math.floor(Math.random() * 80) + 10;
+  });
+  floorUsage['L'] = 156;
+  floorUsage['P'] = 12;
+
+  var tenantFloorAccess = [
+    { tenant: 'Maria Santos', unit: '4B', floors: ['B1','L','4'], restricted: ['P','B2'] },
+    { tenant: 'James Chen', unit: '12A', floors: ['B1','L','12','P'], restricted: ['B2'] },
+    { tenant: 'Sarah O\'Brien', unit: '7C', floors: ['B1','L','7'], restricted: ['P','B2'] },
+    { tenant: 'David Kim', unit: '3D', floors: ['B1','L','3','P'], restricted: [] },
+    { tenant: 'Emily Johnson', unit: '8B', floors: ['B1','L','8'], restricted: ['P','B2'] },
+  ];
+
+  var accessLog = [];
+  var names = ['Maria Santos','James Chen','Sarah O\'Brien','David Kim','Emily Johnson','Michael Brown','Lisa Wang','Robert Taylor','Anna Garcia','Tom Wilson'];
+  var now = new Date();
+  for (var i = 0; i < 25; i++) {
+    var t = new Date(now - i * 300000 - Math.random() * 600000);
+    var f = floors[Math.floor(Math.random() * floors.length)];
+    accessLog.push({
+      time: t,
+      name: names[i % names.length],
+      unit: ['4B','12A','7C','3D','8B','15A','6C','11B','2A','9D'][i % 10],
+      floor: f,
+      elevator: ['A','B','C'][Math.floor(Math.random() * 3)],
+      granted: Math.random() > 0.1
+    });
+  }
+
+  var maintenance = [
+    { elevator: 'A', task: 'Annual safety inspection', date: '2026-03-20', tech: 'AllSafe Elevators', status: 'Scheduled' },
+    { elevator: 'B', task: 'Door sensor calibration', date: '2026-03-18', tech: 'AllSafe Elevators', status: 'Scheduled' },
+    { elevator: 'C', task: 'Cable tension check', date: '2026-04-01', tech: 'AllSafe Elevators', status: 'Scheduled' },
+    { elevator: 'A', task: 'Motor bearing replacement', date: '2026-03-05', tech: 'AllSafe Elevators', status: 'Completed' },
+    { elevator: 'B', task: 'Emergency phone test', date: '2026-03-10', tech: 'AllSafe Elevators', status: 'Completed' },
+  ];
+
+  var currentTab = 'status';
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function timeStr(d) { return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+
+  function floorToBottom(floorIdx) {
+    return Math.round((floorIdx / (numFloors - 1)) * 280);
+  }
+
+  function render() {
+    var tripsToday = 342 + Math.floor(Math.random() * 20);
+    var activeCount = elevators.filter(function(e){ return e.status === 'running'; }).length;
+
+    var html = '<div class="header"><h1><span>Elevator</span> Management</h1></div>';
+
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Active Elevators</div><div class="value val-green">' + activeCount + ' / 3</div><div class="sub">All systems nominal</div></div>';
+    html += '<div class="stat-card"><div class="label">Trips Today</div><div class="value val-accent">' + tripsToday + '</div><div class="sub">Avg wait: 28s</div></div>';
+    html += '<div class="stat-card"><div class="label">Busiest Floor</div><div class="value val-blue">Lobby</div><div class="sub">' + floorUsage['L'] + ' trips today</div></div>';
+    html += '<div class="stat-card"><div class="label">Next Maintenance</div><div class="value val-amber">Mar 18</div><div class="sub">Elev B - Door sensor</div></div>';
+    html += '</div>';
+
+    html += '<div class="tab-bar">';
+    html += '<button class="tab-btn' + (currentTab==='status'?' active':'') + '" onclick="switchTab(\'status\')">Live Status</button>';
+    html += '<button class="tab-btn' + (currentTab==='access'?' active':'') + '" onclick="switchTab(\'access\')">Floor Access</button>';
+    html += '<button class="tab-btn' + (currentTab==='emergency'?' active':'') + '" onclick="switchTab(\'emergency\')">Emergency Controls</button>';
+    html += '<button class="tab-btn' + (currentTab==='usage'?' active':'') + '" onclick="switchTab(\'usage\')">Usage Stats</button>';
+    html += '<button class="tab-btn' + (currentTab==='maint'?' active':'') + '" onclick="switchTab(\'maint\')">Maintenance</button>';
+    html += '<button class="tab-btn' + (currentTab==='log'?' active':'') + '" onclick="switchTab(\'log\')">Access Log</button>';
+    html += '</div>';
+
+    if (currentTab === 'status') html += renderStatus();
+    else if (currentTab === 'access') html += renderAccess();
+    else if (currentTab === 'emergency') html += renderEmergency();
+    else if (currentTab === 'usage') html += renderUsage();
+    else if (currentTab === 'maint') html += renderMaintenance();
+    else if (currentTab === 'log') html += renderLog();
+
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function renderStatus() {
+    var html = '<div class="grid-3">';
+    elevators.forEach(function(e) {
+      var dirIcon = e.direction === 'up' ? '\u25B2' : e.direction === 'down' ? '\u25BC' : '\u25CF';
+      var carClass = e.status === 'emergency' ? 'emergency' : e.direction === 'idle' ? 'idle' : '';
+      html += '<div class="card" style="margin-bottom:0"><div class="elevator-panel">';
+      html += '<div class="elev-label">Elevator ' + e.id + '</div>';
+      html += '<div class="elev-floor-display">' + floors[e.floor] + '</div>';
+      html += '<div class="direction-arrow ' + (e.direction === 'idle' ? 'idle' : '') + '">' + dirIcon + '</div>';
+      html += '<div class="elev-status">';
+      if (e.status === 'running') html += '<span class="badge badge-green">Running</span>';
+      else if (e.status === 'idle') html += '<span class="badge badge-gray">Idle</span>';
+      else if (e.status === 'emergency') html += '<span class="badge badge-red">Emergency</span>';
+      else html += '<span class="badge badge-amber">' + esc(e.status) + '</span>';
+      html += '</div>';
+
+      // Shaft visualization
+      html += '<div class="shaft">';
+      for (var fi = 0; fi < numFloors; fi++) {
+        var bottom = floorToBottom(fi);
+        html += '<div class="shaft-floor" style="bottom:' + (bottom - 4) + 'px">' + floors[fi] + '</div>';
+        html += '<div class="shaft-line" style="bottom:' + bottom + 'px"></div>';
+      }
+      html += '<div class="elevator-car ' + carClass + '" style="bottom:' + floorToBottom(e.floor) + 'px">' + e.id + '</div>';
+      html += '</div>';
+
+      html += '<div style="font-size:11px;color:var(--text3);margin-top:8px">Passengers: ~' + e.passengers + '</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderAccess() {
+    var html = '<div class="card"><div class="card-head"><h2>Floor Access by Tenant</h2><span class="count">' + tenantFloorAccess.length + ' tenants</span></div>';
+    html += '<div style="padding:0"><table><thead><tr><th>Tenant</th><th>Unit</th><th>Allowed Floors</th><th>Restricted</th><th>Actions</th></tr></thead><tbody>';
+    tenantFloorAccess.forEach(function(t) {
+      html += '<tr><td>' + esc(t.tenant) + '</td><td>' + esc(t.unit) + '</td>';
+      html += '<td>' + t.floors.map(function(f){ return '<span class="badge badge-green" style="margin-right:3px">' + f + '</span>'; }).join('') + '</td>';
+      html += '<td>' + (t.restricted.length ? t.restricted.map(function(f){ return '<span class="badge badge-red" style="margin-right:3px">' + f + '</span>'; }).join('') : '<span class="badge badge-gray">None</span>') + '</td>';
+      html += '<td><button class="btn btn-sm btn-outline">Edit</button></td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  function renderEmergency() {
+    var html = '<div class="card"><div class="card-head"><h2>Emergency Controls</h2><span class="badge badge-green">Normal Operation</span></div>';
+    html += '<div class="card-body"><div class="emergency-panel">';
+    elevators.forEach(function(e) {
+      html += '<div class="emerg-btn recall" onclick="recallElevator(\'' + e.id + '\')">Recall Elev ' + e.id + '<br><span style="font-size:10px;font-weight:400">Return to Lobby</span></div>';
+    });
+    elevators.forEach(function(e) {
+      html += '<div class="emerg-btn oos" onclick="toggleOOS(\'' + e.id + '\')">Elev ' + e.id + ' Out of Service<br><span style="font-size:10px;font-weight:400">Disable elevator</span></div>';
+    });
+    html += '<div class="emerg-btn fire" onclick="fireMode()">FIRE MODE<br><span style="font-size:10px;font-weight:400">All to Lobby + Lock</span></div>';
+    html += '<div class="emerg-btn recall" onclick="recallAll()">RECALL ALL<br><span style="font-size:10px;font-weight:400">Return all to Lobby</span></div>';
+    html += '<div class="emerg-btn oos" onclick="lockdownElev()">LOCKDOWN<br><span style="font-size:10px;font-weight:400">Suspend all service</span></div>';
+    html += '</div></div></div>';
+    return html;
+  }
+
+  function renderUsage() {
+    var maxUsage = Math.max.apply(null, Object.values(floorUsage));
+    var html = '<div class="card"><div class="card-head"><h2>Daily Usage by Floor</h2></div><div class="card-body">';
+    floors.slice().reverse().forEach(function(f) {
+      var pct = Math.round((floorUsage[f] / maxUsage) * 100);
+      html += '<div class="floor-bar"><div class="floor-bar-label">' + f + '</div>';
+      html += '<div class="floor-bar-fill" style="width:' + pct + '%;background:' + (floorUsage[f] > 100 ? 'var(--accent)' : floorUsage[f] > 50 ? 'var(--blue)' : 'var(--bg3)') + '"></div>';
+      html += '<div class="floor-bar-count">' + floorUsage[f] + ' trips</div></div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderMaintenance() {
+    var html = '<div class="card"><div class="card-head"><h2>Maintenance Schedule</h2></div>';
+    html += '<div style="padding:0"><table><thead><tr><th>Elevator</th><th>Task</th><th>Date</th><th>Technician</th><th>Status</th></tr></thead><tbody>';
+    maintenance.forEach(function(m) {
+      var badge = m.status === 'Completed' ? 'badge-green' : 'badge-amber';
+      html += '<tr><td>Elevator ' + esc(m.elevator) + '</td><td>' + esc(m.task) + '</td><td>' + esc(m.date) + '</td><td>' + esc(m.tech) + '</td><td><span class="badge ' + badge + '">' + esc(m.status) + '</span></td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  function renderLog() {
+    var html = '<div class="card"><div class="card-head"><h2>Access Log</h2><span class="count">' + accessLog.length + ' entries</span></div>';
+    html += '<div style="padding:0"><table><thead><tr><th>Time</th><th>Tenant</th><th>Unit</th><th>Floor</th><th>Elevator</th><th>Status</th></tr></thead><tbody>';
+    accessLog.forEach(function(a) {
+      html += '<tr><td style="font-size:12px;color:var(--text3)">' + timeStr(a.time) + '</td>';
+      html += '<td>' + esc(a.name) + '</td><td>' + esc(a.unit) + '</td>';
+      html += '<td>' + esc(a.floor) + '</td><td>Elev ' + a.elevator + '</td>';
+      html += '<td>' + (a.granted ? '<span class="badge badge-green">Granted</span>' : '<span class="badge badge-red">Denied</span>') + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  window.switchTab = function(t) { currentTab = t; render(); };
+  window.recallElevator = function(id) {
+    var e = elevators.find(function(x){return x.id===id;});
+    if (e) { e.targetFloor = 2; e.direction = e.floor > 2 ? 'down' : e.floor < 2 ? 'up' : 'idle'; e.status = 'running'; }
+    render();
+  };
+  window.toggleOOS = function(id) {
+    var e = elevators.find(function(x){return x.id===id;});
+    if (e) { e.status = e.status === 'out-of-service' ? 'idle' : 'out-of-service'; e.direction = 'idle'; }
+    render();
+  };
+  window.fireMode = function() {
+    elevators.forEach(function(e){ e.targetFloor = 2; e.direction = 'down'; e.status = 'emergency'; });
+    render();
+  };
+  window.recallAll = function() {
+    elevators.forEach(function(e){ e.targetFloor = 2; e.direction = e.floor > 2 ? 'down' : 'up'; e.status = 'running'; });
+    render();
+  };
+  window.lockdownElev = function() {
+    elevators.forEach(function(e){ e.status = 'out-of-service'; e.direction = 'idle'; });
+    render();
+  };
+
+  // Animate elevators
+  setInterval(function() {
+    elevators.forEach(function(e) {
+      if (e.status !== 'running' && e.status !== 'emergency') return;
+      if (e.floor < e.targetFloor) { e.floor++; e.direction = 'up'; }
+      else if (e.floor > e.targetFloor) { e.floor--; e.direction = 'down'; }
+      else {
+        e.direction = 'idle';
+        e.passengers = Math.floor(Math.random() * 5);
+        // Pick new random target
+        e.targetFloor = Math.floor(Math.random() * numFloors);
+        if (e.targetFloor !== e.floor) {
+          e.direction = e.targetFloor > e.floor ? 'up' : 'down';
+          e.status = 'running';
+        }
+      }
+    });
+    if (currentTab === 'status') render();
+  }, 2000);
+
+  render();
+})();
+</script>
+</body>
+</html>

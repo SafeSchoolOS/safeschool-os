@@ -231,10 +231,24 @@ export async function syncRoutes(fastify: FastifyInstance, options: CloudSyncOpt
     }
 
     try {
+      // Auto-resolve account from activation key (edge devices don't need org config)
+      let resolvedOrgId = body.orgId;
+      if (!resolvedOrgId && body.activationKey && adapter.resolveActivationKey) {
+        try {
+          const resolved = await adapter.resolveActivationKey(body.activationKey);
+          if (resolved) {
+            resolvedOrgId = resolved.accountId;
+            log.debug({ siteId: body.siteId, accountId: resolvedOrgId }, 'Resolved account from activation key');
+          }
+        } catch (err) {
+          log.warn({ err, siteId: body.siteId }, 'Failed to resolve activation key');
+        }
+      }
+
       // Update or create device record
       const device = await adapter.upsertDevice({
         siteId: body.siteId,
-        orgId: body.orgId,
+        orgId: resolvedOrgId,
         hostname: body.hostname,
         ipAddress: body.ipAddress ?? request.ip,
         apiPort: body.apiPort,
@@ -310,6 +324,32 @@ export async function syncRoutes(fastify: FastifyInstance, options: CloudSyncOpt
         }
       } catch (err) {
         log.warn({ err, siteId: body.siteId }, 'Failed to load device config');
+      }
+
+      // If device has no org association, signal unclaimed so it re-enters pairing mode
+      if (!device.orgId) {
+        response.unclaimed = true;
+      }
+
+      // Check for adapter updates if device reports installed adapters
+      if (body.installedAdapters && Object.keys(body.installedAdapters).length > 0) {
+        try {
+          const { resolveUpdates } = await import('./adapter-update-resolver.js');
+          // Load manifest from the adapter registry
+          const manifestPath = process.env.ADAPTER_MANIFEST_PATH || 'adapters/dist/bundles/manifest.json';
+          const { readFileSync, existsSync } = await import('node:fs');
+          if (existsSync(manifestPath)) {
+            const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+            const updates = resolveUpdates(body.installedAdapters, manifest.adapters || [], body.version);
+            if (updates.length > 0) {
+              if (!response.config) response.config = { version: 0 };
+              response.config.adapterUpdates = updates;
+              log.info({ siteId: body.siteId, updates: updates.length }, 'Adapter updates available for device');
+            }
+          }
+        } catch (err) {
+          log.debug({ err }, 'Adapter update check skipped');
+        }
       }
 
       log.debug({

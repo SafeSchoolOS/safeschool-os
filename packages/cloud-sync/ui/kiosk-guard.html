@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Guard Checkpoint Station</title>
+<style>
+:root {
+  --bg-primary: #0f0f23;
+  --bg-secondary: #1a1d2e;
+  --bg-tertiary: #242840;
+  --border: #2e3348;
+  --text-primary: #e4e6f0;
+  --text-secondary: #8b8fa3;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-dim: rgba(245,158,11,0.15);
+  --success: #22c55e;
+  --success-dim: rgba(34,197,94,0.15);
+  --danger: #ef4444;
+  --danger-dim: rgba(239,68,68,0.15);
+  --warning: #f59e0b;
+  --warning-dim: rgba(245,158,11,0.15);
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  transform: scale(0.97);
+}
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.corner-clock {
+  position: fixed;
+  top: 1rem;
+  right: 1.5rem;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  z-index: 100;
+  letter-spacing: 0.04em;
+}
+
+/* Idle screen */
+.idle-screen {
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  text-align: center;
+  padding: 2rem;
+}
+.shield-icon {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse-ring 2.5s ease-in-out infinite;
+}
+.shield-icon svg {
+  width: 60px;
+  height: 60px;
+  fill: var(--accent);
+}
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.3); }
+  50% { box-shadow: 0 0 0 20px rgba(245,158,11,0); }
+}
+.idle-screen h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+}
+.idle-screen h1 span { color: var(--accent); }
+.checkpoint-label {
+  font-size: 1.3rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 0.75rem 2rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.scan-prompt {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  animation: fade-blink 2s ease-in-out infinite;
+}
+@keyframes fade-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Verified screen */
+.verified-screen {
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+.guard-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  border: 3px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.guard-name {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+.tour-name {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+.checkpoint-progress {
+  width: 100%;
+  max-width: 500px;
+  margin: 1rem 0;
+}
+.progress-bar-track {
+  width: 100%;
+  height: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 6px;
+  transition: width 0.8s ease;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+.checkpoint-number {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--success);
+  margin: 0.5rem 0;
+}
+.checkpoint-number small {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.check-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--success-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.check-circle svg { width: 44px; height: 44px; fill: var(--success); }
+@keyframes pop-in {
+  0% { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
+/* Instructions panel */
+.instructions-panel {
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  text-align: left;
+}
+.instructions-panel h3 {
+  font-size: 1rem;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.instructions-panel ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.instructions-panel li {
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  line-height: 1.4;
+}
+.instructions-panel li .bullet {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 0.45rem;
+}
+
+/* Overdue warning */
+.overdue-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--danger);
+  color: #fff;
+  padding: 1rem;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  z-index: 200;
+  animation: flash-warn 1s ease-in-out infinite;
+  display: none;
+}
+.overdue-banner.show { display: block; }
+@keyframes flash-warn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Tour summary */
+.summary-screen {
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+.summary-card {
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.1rem;
+}
+.summary-row:last-child { border-bottom: none; }
+.summary-row .label { color: var(--text-secondary); }
+.summary-row .value { font-weight: 600; }
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--success-dim);
+  color: var(--success);
+  padding: 0.5rem 1.25rem;
+  border-radius: 2rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.1rem 2.5rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+  min-height: 56px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+.btn-primary:active { background: var(--accent-hover); transform: scale(0.97); }
+
+/* Touch ripple */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  transform: scale(0);
+  animation: ripple-anim 0.6s linear;
+  pointer-events: none;
+}
+@keyframes ripple-anim {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* Help footer */
+.help-footer {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  z-index: 100;
+  opacity: 0.6;
+}
+
+/* Landscape / Portrait responsiveness */
+@media (orientation: portrait) {
+  .idle-screen h1 { font-size: clamp(1.8rem, 6vw, 2.5rem); }
+  .checkpoint-number { font-size: 2.5rem; }
+}
+@media (max-width: 600px) {
+  .instructions-panel { padding: 1rem; }
+  .summary-card { padding: 1.25rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="corner-clock" id="clock"></div>
+<div class="overdue-banner" id="overdueBanner">OVERDUE — Guard checkpoint behind schedule</div>
+
+<!-- Screen: Idle -->
+<div class="screen active" id="screenIdle">
+  <div class="idle-screen">
+    <div class="shield-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.67-3.13 9.06-7 10.2-3.87-1.14-7-5.53-7-10.2V6.3l7-3.12z"/><path d="M10 12.5l-2-2-1.41 1.41L10 15.33l5.41-5.41L14 8.5z"/></svg>
+    </div>
+    <h1>Guard <span>Checkpoint</span></h1>
+    <div class="checkpoint-label" id="checkpointName">Checkpoint: Main Lobby</div>
+    <div class="scan-prompt">Scan Badge to Begin</div>
+    <button class="btn btn-primary" onclick="simulateScan()" style="margin-top:1rem;">Demo: Scan Badge</button>
+  </div>
+</div>
+
+<!-- Screen: Verified -->
+<div class="screen" id="screenVerified">
+  <div class="verified-screen">
+    <div class="guard-avatar" id="guardInitials">MR</div>
+    <div class="guard-name" id="guardName">Marcus Rodriguez</div>
+    <div class="tour-name" id="tourName">Night Perimeter Tour</div>
+    <div class="check-circle">
+      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+    </div>
+    <div class="checkpoint-number" id="checkpointProgress">4<small> / 8 Complete</small></div>
+    <div class="checkpoint-progress">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill" style="width:50%"></div>
+      </div>
+      <div class="progress-label">
+        <span id="progressStart">Started 22:00</span>
+        <span id="progressEta">ETA 23:30</span>
+      </div>
+    </div>
+    <div class="instructions-panel" id="instructionsPanel">
+      <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 9h-2v6h2v-6zm0-4h-2v2h2V7z"/></svg> Checkpoint Instructions</h3>
+      <ul id="instructionsList">
+        <li><span class="bullet"></span>Check fire exit doors are secured</li>
+        <li><span class="bullet"></span>Verify camera 12 operational</li>
+        <li><span class="bullet"></span>Test emergency lighting panel B</li>
+      </ul>
+    </div>
+    <button class="btn btn-primary" onclick="nextCheckpoint()">Continue Tour</button>
+  </div>
+</div>
+
+<!-- Screen: Tour Summary -->
+<div class="screen" id="screenSummary">
+  <div class="summary-screen">
+    <div class="check-circle" style="width:100px;height:100px;">
+      <svg viewBox="0 0 24 24" style="width:56px;height:56px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+    </div>
+    <h1 style="font-size:2rem;font-weight:700;">Tour Complete</h1>
+    <div class="score-badge" id="scoreBadge">A+ On Time</div>
+    <div class="summary-card">
+      <div class="summary-row"><span class="label">Guard</span><span class="value" id="sumGuard">Marcus Rodriguez</span></div>
+      <div class="summary-row"><span class="label">Tour</span><span class="value" id="sumTour">Night Perimeter Tour</span></div>
+      <div class="summary-row"><span class="label">Checkpoints</span><span class="value" id="sumCheckpoints">8 / 8</span></div>
+      <div class="summary-row"><span class="label">Start Time</span><span class="value" id="sumStart">22:00</span></div>
+      <div class="summary-row"><span class="label">End Time</span><span class="value" id="sumEnd">23:12</span></div>
+      <div class="summary-row"><span class="label">Total Duration</span><span class="value" id="sumDuration">1h 12m</span></div>
+      <div class="summary-row"><span class="label">Status</span><span class="value" style="color:var(--success);" id="sumStatus">All Clear</span></div>
+    </div>
+    <button class="btn btn-primary" onclick="resetToIdle()">Done</button>
+  </div>
+</div>
+
+<div class="help-footer">Need Help? Contact Control Room</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const accentColor = params.get('accent');
+const product = params.get('product') || '';
+const checkpointParam = params.get('checkpoint') || 'Main Lobby';
+
+if (accentColor) {
+  document.documentElement.style.setProperty('--accent', accentColor);
+  document.documentElement.style.setProperty('--accent-dim', accentColor + '26');
+}
+
+document.getElementById('checkpointName').textContent = 'Checkpoint: ' + checkpointParam;
+
+const CHECKPOINTS = [
+  { name: 'Main Lobby', instructions: ['Verify front doors locked after hours', 'Check visitor log for anomalies', 'Test panic button under reception desk'] },
+  { name: 'East Stairwell', instructions: ['Check fire exit doors are secured', 'Verify stairwell lighting functional', 'Inspect fire extinguisher seal'] },
+  { name: 'Server Room', instructions: ['Verify AC unit running (target 68°F)', 'Check for water leaks under raised floor', 'Confirm access log matches badge readers'] },
+  { name: 'Loading Dock', instructions: ['Verify roll-up doors secured', 'Check camera 12 operational', 'Inspect perimeter fence gate lock'] },
+  { name: 'Parking Garage L1', instructions: ['Walk full perimeter loop', 'Check emergency call boxes (test button)', 'Report any unauthorized vehicles'] },
+  { name: 'Roof Access', instructions: ['Verify roof door locked and alarmed', 'Check HVAC equipment for tampering', 'Inspect antenna array mounting bolts'] },
+  { name: 'West Wing', instructions: ['Test emergency lighting panel B', 'Check all office doors secured', 'Verify no propped-open fire doors'] },
+  { name: 'Control Room', instructions: ['Log tour completion on paper backup', 'Report any findings to supervisor', 'Clock out tour on system'] }
+];
+
+let currentCheckpoint = 0;
+let tourStartTime = null;
+let idleTimer = null;
+const IDLE_TIMEOUT = 60000;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  resetIdleTimer();
+}
+
+function simulateScan() {
+  currentCheckpoint = 0;
+  tourStartTime = new Date();
+  updateVerifiedScreen();
+  showScreen('screenVerified');
+}
+
+function updateVerifiedScreen() {
+  const cp = CHECKPOINTS[currentCheckpoint];
+  document.getElementById('checkpointName').textContent = 'Checkpoint: ' + cp.name;
+  document.getElementById('checkpointProgress').innerHTML = (currentCheckpoint + 1) + '<small> / ' + CHECKPOINTS.length + ' Complete</small>';
+  const pct = ((currentCheckpoint + 1) / CHECKPOINTS.length) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+  const now = new Date();
+  document.getElementById('progressStart').textContent = 'Started ' + formatTime(tourStartTime);
+  const eta = new Date(tourStartTime.getTime() + 90 * 60000);
+  document.getElementById('progressEta').textContent = 'ETA ' + formatTime(eta);
+  const list = document.getElementById('instructionsList');
+  list.innerHTML = cp.instructions.map(i => '<li><span class="bullet"></span>' + i + '</li>').join('');
+
+  // Overdue check: if more than 15min per checkpoint
+  const elapsed = (now - tourStartTime) / 60000;
+  const expected = (currentCheckpoint + 1) * 11;
+  if (elapsed > expected) {
+    document.getElementById('overdueBanner').classList.add('show');
+  } else {
+    document.getElementById('overdueBanner').classList.remove('show');
+  }
+}
+
+function nextCheckpoint() {
+  currentCheckpoint++;
+  if (currentCheckpoint >= CHECKPOINTS.length) {
+    showTourSummary();
+    return;
+  }
+  updateVerifiedScreen();
+}
+
+function showTourSummary() {
+  document.getElementById('overdueBanner').classList.remove('show');
+  const endTime = new Date();
+  const duration = endTime - tourStartTime;
+  const mins = Math.floor(duration / 60000);
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  document.getElementById('sumStart').textContent = formatTime(tourStartTime);
+  document.getElementById('sumEnd').textContent = formatTime(endTime);
+  document.getElementById('sumDuration').textContent = hrs > 0 ? hrs + 'h ' + remMins + 'm' : remMins + 'm';
+  document.getElementById('sumCheckpoints').textContent = CHECKPOINTS.length + ' / ' + CHECKPOINTS.length;
+  const onTime = mins <= 90;
+  document.getElementById('scoreBadge').textContent = onTime ? 'A+ On Time' : 'B Late';
+  document.getElementById('scoreBadge').style.background = onTime ? 'var(--success-dim)' : 'var(--warning-dim)';
+  document.getElementById('scoreBadge').style.color = onTime ? 'var(--success)' : 'var(--warning)';
+  document.getElementById('sumStatus').textContent = onTime ? 'All Clear' : 'Completed Late';
+  document.getElementById('sumStatus').style.color = onTime ? 'var(--success)' : 'var(--warning)';
+  showScreen('screenSummary');
+}
+
+function resetToIdle() {
+  currentCheckpoint = 0;
+  tourStartTime = null;
+  document.getElementById('checkpointName').textContent = 'Checkpoint: ' + checkpointParam;
+  showScreen('screenIdle');
+}
+
+function formatTime(d) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Clock
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Idle timer
+function resetIdleTimer() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => resetToIdle(), IDLE_TIMEOUT);
+}
+['pointerdown', 'pointermove', 'keydown'].forEach(evt =>
+  document.addEventListener(evt, resetIdleTimer, { passive: true })
+);
+
+// Touch ripple
+document.addEventListener('pointerdown', e => {
+  const btn = e.target.closest('.btn');
+  if (!btn) return;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.width = r.style.height = size + 'px';
+  r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+});
+
+// Fullscreen on first touch
+let fsRequested = false;
+document.addEventListener('pointerdown', () => {
+  if (!fsRequested && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+    fsRequested = true;
+  }
+}, { once: true });
+</script>
+</body>
+</html>

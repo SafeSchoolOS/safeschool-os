@@ -2,6 +2,7 @@
  * Reads .env.example template, merges wizard values, writes .env
  */
 
+import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -37,6 +38,13 @@ export function writeEnvFile(installDir: string, activationKeyEnvVar: string, co
     ].join('\n') + '\n';
   }
 
+  // Auto-generate a cloud sync key if not already present
+  const syncKeyRegex = /^EDGERUNTIME_CLOUD_SYNC_KEY=.+$/m;
+  if (!syncKeyRegex.test(content)) {
+    const syncKey = randomBytes(32).toString('hex');
+    content += `EDGERUNTIME_CLOUD_SYNC_KEY=${syncKey}\n`;
+  }
+
   // Replace or append each wizard field
   const replacements: Record<string, string> = {
     [activationKeyEnvVar]: config.activationKey,
@@ -56,6 +64,10 @@ export function writeEnvFile(installDir: string, activationKeyEnvVar: string, co
   }
 
   writeFileSync(envPath, content, 'utf-8');
+
+  // Write marker so the setup AP service knows config was saved and won't restart on reboot
+  const markerPath = join(installDir, '.env-configured');
+  writeFileSync(markerPath, new Date().toISOString() + '\n', 'utf-8');
 }
 
 function escapeRegex(str: string): string {

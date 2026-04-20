@@ -35,7 +35,7 @@ export interface DashboardRoutesOptions {
   } | null>;
   /** User database adapter for OAuth-based login */
   userAdapter?: UserDatabaseAdapter;
-  /** Product name for dashboard branding (e.g. 'badgeguard', 'access-gsoc') */
+  /** Product name for dashboard branding (e.g. 'safeschool') */
   productName?: string;
   /** OAuth provider configuration */
   oauth?: {
@@ -84,36 +84,28 @@ export async function dashboardRoutes(fastify: FastifyInstance, options: Dashboa
   fastify.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
     let html = loadDashboardHtml();
     if (options.productName) {
-      html = html.replace('</head>',
-        `<script>window.PRODUCT=${JSON.stringify(options.productName)}</script>\n</head>`);
+      // Inject BEFORE the early-branding script so window.PRODUCT is set before it reads it
+      html = html.replace('// Early product branding',
+        `window.PRODUCT=${JSON.stringify(options.productName)};\n// Early product branding`);
     }
     return reply.type('text/html').send(html);
   });
 
-  // GET /demo — no-login demo mode (read-only, auto-authenticated)
+  // GET /demo — no-login demo mode (serve HTML with demo flag, no JWT needed)
   if (demoEnabled) {
     fastify.get('/demo', async (_request: FastifyRequest, reply: FastifyReply) => {
-      const demoToken = signJwt({
-        sub: 'demo',
-        username: 'demo',
-        orgId: demoOrgId,
-        role: 'viewer',
-        demo: true,
-      });
-
+      // Serve the dashboard HTML with demo mode flags injected
+      // The client will use X-Demo-Mode header instead of JWT token
       let html = loadDashboardHtml();
-      const demoScript = `<script>
-window.DEMO_MODE=true;
-sessionStorage.setItem('fleet_token',${JSON.stringify(demoToken)});
-sessionStorage.setItem('fleet_org',${JSON.stringify(demoOrgId)});
-</script>`;
+      const inject = [
+        `window.DEMO_MODE=true;`,
+        `window.DEMO_ORG=${JSON.stringify(demoOrgId)};`,
+      ];
       if (options.productName) {
-        html = html.replace('</head>',
-          `<script>window.PRODUCT=${JSON.stringify(options.productName)}</script>\n${demoScript}\n</head>`);
-      } else {
-        html = html.replace('</head>', `${demoScript}\n</head>`);
+        inject.push(`window.PRODUCT=${JSON.stringify(options.productName)};`);
       }
-      return reply.type('text/html').send(html);
+      html = html.replace('// Early product branding', inject.join('\n') + '\n// Early product branding');
+      return reply.header('Cache-Control', 'no-store').type('text/html').send(html);
     });
     log.info({ orgId: demoOrgId }, 'Demo mode enabled at /dashboard/demo');
   }

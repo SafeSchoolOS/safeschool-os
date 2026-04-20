@@ -114,4 +114,45 @@ export class ConnectorRegistry {
     }
     return result;
   }
+
+  /**
+   * Get capabilities of all connectors.
+   */
+  getCapabilitiesAll(): Record<string, ReturnType<BaseConnector['getCapabilities']>> {
+    const result: Record<string, ReturnType<BaseConnector['getCapabilities']>> = {};
+    for (const [name, instance] of this.instances) {
+      result[name] = instance.getCapabilities();
+    }
+    return result;
+  }
+
+  /**
+   * Execute a command on the appropriate connector(s).
+   * Routes by connector type or name. Returns results per connector.
+   */
+  async executeCommand(
+    command: string,
+    payload: Record<string, unknown>,
+    connectorName?: string,
+  ): Promise<Record<string, { status: 'completed' | 'failed'; detail?: string }>> {
+    const results: Record<string, { status: 'completed' | 'failed'; detail?: string }> = {};
+
+    if (connectorName) {
+      const instance = this.instances.get(connectorName);
+      if (instance) {
+        results[connectorName] = await instance.executeCommand(command, payload);
+      } else {
+        results[connectorName] = { status: 'failed', detail: `Connector ${connectorName} not found` };
+      }
+    } else {
+      // Broadcast to all connectors that support this command
+      for (const [name, instance] of this.instances) {
+        const caps = instance.getCapabilities();
+        if (caps.supportedCommands.includes(command)) {
+          results[name] = await instance.executeCommand(command, payload);
+        }
+      }
+    }
+    return results;
+  }
 }

@@ -374,7 +374,7 @@ export async function oauthRoutes(fastify: FastifyInstance, options: OAuthRoutes
             const firstName = userData.name?.firstName || '';
             const lastName = userData.name?.lastName || '';
             name = [firstName, lastName].filter(Boolean).join(' ') || undefined;
-          } catch { /* ignore parse errors */ }
+          } catch (err) { log.debug({ err }, 'Failed to parse Apple OAuth user data'); }
         }
 
         return finishOAuth(reply, 'apple', {

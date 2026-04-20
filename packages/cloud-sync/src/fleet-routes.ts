@@ -37,6 +37,7 @@ export async function fleetRoutes(fastify: FastifyInstance, options: FleetRoutes
   fastify.get('/devices', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const orgId = getOrgId?.(request);
+      // Show all devices for the org, plus any unassigned devices (org_id IS NULL)
       const devices = await adapter.listDevices(orgId);
       const now = Date.now();
 
@@ -209,10 +210,15 @@ export async function fleetRoutes(fastify: FastifyInstance, options: FleetRoutes
   const VALID_TIERS: LicenseTier[] = ['trial', 'starter', 'pro', 'enterprise'];
 
   fastify.post('/licenses/generate', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { products, tier, proxy } = request.body as {
+    const { products, tier, proxy, account_name, account_id, site_name, billing_email, billing_model } = request.body as {
       products: string[];
       tier: string;
       proxy?: string;
+      account_name?: string;
+      account_id?: string;
+      site_name?: string;
+      billing_email?: string;
+      billing_model?: string;
     };
 
     if (!Array.isArray(products) || products.length === 0) {
@@ -265,6 +271,38 @@ export async function fleetRoutes(fastify: FastifyInstance, options: FleetRoutes
 
       log.info({ products, tier, proxyIndex }, 'Activation key generated');
 
+      // Auto-create or link account if multi-tenancy methods are available
+      let linkedAccountId: string | undefined;
+      if (adapter.linkKeyToAccount) {
+        try {
+          if (account_id) {
+            // Link to existing account
+            await adapter.linkKeyToAccount(key, account_id);
+            linkedAccountId = account_id;
+          } else if (account_name && adapter.createAccount) {
+            // Auto-create new account and link
+            const account = await adapter.createAccount({
+              accountName: account_name,
+              products: products,
+              plan: tier,
+              billingEmail: billing_email,
+              billingModel: billing_model,
+            });
+            await adapter.linkKeyToAccount(key, account.id);
+            linkedAccountId = account.id;
+
+            // Auto-create initial site if requested
+            if (site_name && adapter.createAccountSite) {
+              await adapter.createAccountSite(account.id, { siteName: site_name });
+            }
+
+            log.info({ accountId: account.id, accountName: account_name }, 'Account auto-created for key');
+          }
+        } catch (err) {
+          log.warn({ err }, 'Failed to link key to account (key still valid)');
+        }
+      }
+
       return reply.send({
         key,
         products: validation.products,
@@ -272,6 +310,7 @@ export async function fleetRoutes(fastify: FastifyInstance, options: FleetRoutes
         proxyIndex: validation.proxyIndex,
         proxyUrl: validation.proxyUrl ?? null,
         issuedAt: validation.issuedAt?.toISOString(),
+        accountId: linkedAccountId ?? null,
       });
     } catch (err) {
       log.error({ err }, 'Failed to generate key');

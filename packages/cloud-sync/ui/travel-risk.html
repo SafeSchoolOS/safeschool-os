@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Travel Risk Monitoring</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.header-actions { display: flex; gap: 8px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); }
+.val-accent { color: var(--accent); }
+.val-amber { color: var(--amber); }
+.val-red { color: var(--red); }
+.val-blue { color: var(--blue); }
+.val-purple { color: var(--purple); }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.tab-btn { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--text3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em; }
+.tab-btn:hover { color: var(--text2); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Cards & tables */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+.card-body { padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 900px; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.badge-accent { background: var(--accent-dim); color: var(--accent); }
+.badge-critical { background: rgba(239,68,68,0.2); color: #ff6b6b; animation: pulse-badge 1.5s ease-in-out infinite; }
+@keyframes pulse-badge { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { opacity: 0.85; box-shadow: 0 0 8px 2px rgba(239,68,68,0.3); } }
+
+/* Buttons */
+.btn { padding: 5px 12px; font-size: 11px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-accent { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.btn-accent:hover { background: var(--accent); color: #0f0f23; }
+.btn-danger { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-warning { background: rgba(245,158,11,0.15); border-color: var(--amber); color: var(--amber); }
+.btn-warning:hover { background: var(--amber); color: #0f0f23; }
+
+.news-text { font-size: 12px; color: var(--text2); max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Risk map */
+.map-container { position: relative; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; min-height: 500px; overflow: hidden; }
+.map-svg { width: 100%; height: auto; }
+.map-pin { position: absolute; transform: translate(-50%, -100%); cursor: pointer; transition: transform 0.15s; }
+.map-pin:hover { transform: translate(-50%, -100%) scale(1.3); z-index: 10; }
+.map-pin .pin-icon { width: 20px; height: 28px; }
+.map-tooltip { display: none; position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; white-space: nowrap; font-size: 12px; z-index: 20; min-width: 200px; }
+.map-pin:hover .map-tooltip { display: block; }
+.map-tooltip .tt-name { font-weight: 600; margin-bottom: 2px; }
+.map-tooltip .tt-loc { color: var(--text2); font-size: 11px; margin-bottom: 4px; }
+.map-tooltip .tt-news { color: var(--text3); font-size: 11px; max-width: 280px; white-space: normal; }
+
+/* Alert feed */
+.alert-item { display: flex; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.alert-item:last-child { border-bottom: none; }
+.alert-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.alert-meta span { font-size: 11px; color: var(--text3); }
+.alert-headline { font-size: 13px; font-weight: 500; }
+.alert-detail { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+/* Check-in */
+.checkin-status-safe { color: var(--green); font-weight: 600; }
+.checkin-status-assist { color: var(--amber); font-weight: 600; }
+.checkin-status-noresp { color: var(--red); font-weight: 600; }
+
+.loading { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading travel risk data...</div></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; render(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  function fmtTime(ts) {
+    if (!ts) return '--';
+    try { var d = new Date(ts); return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e) { return '--'; }
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return '--';
+    try { var d = new Date(ts); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return '--'; }
+  }
+
+  function fmtDateTime(ts) {
+    if (!ts) return '--';
+    try { var d = new Date(ts); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e) { return '--'; }
+  }
+
+  function relTime(ts) {
+    if (!ts) return '--';
+    var diff = Date.now() - new Date(ts).getTime();
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return Math.floor(diff / 86400000) + 'd ago';
+  }
+
+  // ── Demo Data ──────────────────────────────────────────────
+
+  var TRAVELERS = [
+    { name: 'Sarah Chen', title: 'VP Sales', dept: 'Sales', city: 'London', country: 'UK', risk: 'low', depart: '2026-03-10', ret: '2026-03-18', news: 'London transit running normally. Mild weather expected.', lastCheckin: new Date(Date.now() - 2*3600000).toISOString(), lat: 51.5, lon: -0.12 },
+    { name: 'Marcus Johnson', title: 'Regional Director', dept: 'Operations', city: 'Sao Paulo', country: 'Brazil', risk: 'medium', depart: '2026-03-08', ret: '2026-03-17', news: 'Protests reported near Paulista Ave. Police presence increased.', lastCheckin: new Date(Date.now() - 5*3600000).toISOString(), lat: -23.55, lon: -46.63 },
+    { name: 'David Park', title: 'Field Engineer', dept: 'Engineering', city: 'Mexico City', country: 'Mexico', risk: 'high', depart: '2026-03-12', ret: '2026-03-19', news: 'Cartel activity reported on highway between Mexico City and Puebla.', lastCheckin: new Date(Date.now() - 8*3600000).toISOString(), lat: 19.43, lon: -99.13 },
+    { name: 'Jennifer Walsh', title: 'Account Manager', dept: 'Sales', city: 'Tokyo', country: 'Japan', risk: 'low', depart: '2026-03-11', ret: '2026-03-20', news: 'Typhoon season advisory issued. No immediate threat to Tokyo.', lastCheckin: new Date(Date.now() - 1*3600000).toISOString(), lat: 35.68, lon: 139.69 },
+    { name: 'Robert Kim', title: 'Project Manager', dept: 'Delivery', city: 'Lagos', country: 'Nigeria', risk: 'high', depart: '2026-03-09', ret: '2026-03-16', news: 'Civil unrest in Lagos state. Airport operations intermittently affected.', lastCheckin: new Date(Date.now() - 14*3600000).toISOString(), lat: 6.52, lon: 3.38 },
+    { name: 'Amanda Torres', title: 'Business Analyst', dept: 'Strategy', city: 'Dubai', country: 'UAE', risk: 'low', depart: '2026-03-13', ret: '2026-03-21', news: 'Normal operations across all UAE airports. Expo events ongoing.', lastCheckin: new Date(Date.now() - 3*3600000).toISOString(), lat: 25.2, lon: 55.27 },
+    { name: 'Michael Brown', title: 'Solutions Architect', dept: 'Engineering', city: 'Bogota', country: 'Colombia', risk: 'medium', depart: '2026-03-07', ret: '2026-03-15', news: 'Increased police presence near El Dorado airport due to labor dispute.', lastCheckin: new Date(Date.now() - 6*3600000).toISOString(), lat: 4.71, lon: -74.07 },
+    { name: 'Lisa Nguyen', title: 'Marketing Director', dept: 'Marketing', city: 'Singapore', country: 'Singapore', risk: 'low', depart: '2026-03-10', ret: '2026-03-17', news: 'All clear. Changi Airport operating at full capacity.', lastCheckin: new Date(Date.now() - 1.5*3600000).toISOString(), lat: 1.35, lon: 103.82 },
+    { name: 'James Wilson', title: 'Consultant', dept: 'Advisory', city: 'Istanbul', country: 'Turkey', risk: 'medium', depart: '2026-03-11', ret: '2026-03-18', news: 'Political tensions following local elections. Demonstrations near Taksim.', lastCheckin: new Date(Date.now() - 10*3600000).toISOString(), lat: 41.01, lon: 28.98 },
+    { name: 'Emily Davis', title: 'HR Manager', dept: 'Human Resources', city: 'Paris', country: 'France', risk: 'low', depart: '2026-03-12', ret: '2026-03-19', news: 'Transit strike planned for Thursday. May affect Paris metro lines 4, 7, 9.', lastCheckin: new Date(Date.now() - 4*3600000).toISOString(), lat: 48.86, lon: 2.35 },
+    { name: 'Carlos Ruiz', title: 'Supply Chain Lead', dept: 'Logistics', city: 'Nairobi', country: 'Kenya', risk: 'medium', depart: '2026-03-09', ret: '2026-03-16', news: 'Water shortage advisory in Nairobi county. Road disruptions possible.', lastCheckin: new Date(Date.now() - 7*3600000).toISOString(), lat: -1.29, lon: 36.82 },
+    { name: 'Rachel Green', title: 'Legal Counsel', dept: 'Legal', city: 'Tel Aviv', country: 'Israel', risk: 'high', depart: '2026-03-10', ret: '2026-03-17', news: 'Regional conflict escalation. Rocket sirens activated in southern Israel.', lastCheckin: new Date(Date.now() - 12*3600000).toISOString(), lat: 32.09, lon: 34.78 },
+    { name: 'Thomas Lee', title: 'Data Scientist', dept: 'Analytics', city: 'Mumbai', country: 'India', risk: 'low', depart: '2026-03-13', ret: '2026-03-22', news: 'Normal conditions. Heavy traffic expected due to festival season.', lastCheckin: new Date(Date.now() - 2.5*3600000).toISOString(), lat: 19.08, lon: 72.88 },
+    { name: 'Diana Cruz', title: 'Procurement Officer', dept: 'Operations', city: 'Kyiv', country: 'Ukraine', risk: 'critical', depart: '2026-03-05', ret: '2026-03-16', news: 'ACTIVE CONFLICT: Missile strikes reported in Kyiv region overnight.', lastCheckin: new Date(Date.now() - 26*3600000).toISOString(), lat: 50.45, lon: 30.52 },
+    { name: "Kevin O'Brien", title: 'Training Manager', dept: 'Learning & Dev', city: 'Bangkok', country: 'Thailand', risk: 'low', depart: '2026-03-11', ret: '2026-03-20', news: 'All clear. High temperatures advisory. Stay hydrated.', lastCheckin: new Date(Date.now() - 0.5*3600000).toISOString(), lat: 13.76, lon: 100.5 },
+  ];
+
+  var ALERTS = [
+    { severity: 'critical', location: 'Kyiv, Ukraine', headline: 'Missile strikes reported in Kyiv region. Multiple explosions heard near city center.', affected: 1, time: new Date(Date.now() - 45*60000).toISOString(), source: 'OSINT / Reuters' },
+    { severity: 'high', location: 'Lagos, Nigeria', headline: 'Protests in Lagos state escalate. Airport operations affected. Armed police deployed.', affected: 1, time: new Date(Date.now() - 2*3600000).toISOString(), source: 'Local Embassy Alert' },
+    { severity: 'high', location: 'Mexico City, Mexico', headline: 'Cartel activity reported on highway between Mexico City and Puebla. Travel advisory issued.', affected: 1, time: new Date(Date.now() - 3*3600000).toISOString(), source: 'US State Dept' },
+    { severity: 'high', location: 'Tel Aviv, Israel', headline: 'Rocket sirens activated in southern Israel. Iron Dome interceptions reported.', affected: 1, time: new Date(Date.now() - 4*3600000).toISOString(), source: 'IDF Spokesman' },
+    { severity: 'medium', location: 'Sao Paulo, Brazil', headline: 'Large-scale protests near Paulista Avenue. Riot police deploying tear gas.', affected: 1, time: new Date(Date.now() - 5*3600000).toISOString(), source: 'AP News' },
+    { severity: 'medium', location: 'Istanbul, Turkey', headline: 'Political demonstrations near Taksim Square. Roads blocked in Beyoglu district.', affected: 1, time: new Date(Date.now() - 6*3600000).toISOString(), source: 'Anadolu Agency' },
+    { severity: 'medium', location: 'Bogota, Colombia', headline: 'Labor strike at El Dorado airport. Expect delays for domestic and international flights.', affected: 1, time: new Date(Date.now() - 7*3600000).toISOString(), source: 'FlightAware' },
+    { severity: 'medium', location: 'Nairobi, Kenya', headline: 'Water crisis worsens in Nairobi county. Potential for civil unrest in affected areas.', affected: 1, time: new Date(Date.now() - 8*3600000).toISOString(), source: 'UN OCHA' },
+    { severity: 'low', location: 'Paris, France', headline: 'Transit strike planned for Thursday. Metro lines 4, 7, and 9 may be suspended.', affected: 1, time: new Date(Date.now() - 10*3600000).toISOString(), source: 'RATP Official' },
+    { severity: 'low', location: 'London, UK', headline: 'Planned protests at Parliament Square on Saturday. Minor road closures expected.', affected: 1, time: new Date(Date.now() - 12*3600000).toISOString(), source: 'Met Police' },
+    { severity: 'info', location: 'Tokyo, Japan', headline: 'Typhoon season advisory. No immediate threat but travelers should monitor forecasts.', affected: 1, time: new Date(Date.now() - 14*3600000).toISOString(), source: 'JMA' },
+    { severity: 'info', location: 'Dubai, UAE', headline: 'Expo events causing increased traffic near Dubai World Trade Centre through March 20.', affected: 1, time: new Date(Date.now() - 16*3600000).toISOString(), source: 'Dubai Police' },
+    { severity: 'info', location: 'Singapore', headline: 'Heightened security at Changi Airport for ASEAN summit. Expect additional screening.', affected: 1, time: new Date(Date.now() - 18*3600000).toISOString(), source: 'MHA Singapore' },
+    { severity: 'low', location: 'Mumbai, India', headline: 'Festival season traffic congestion expected. Avoid Western Express Highway during peak hours.', affected: 1, time: new Date(Date.now() - 20*3600000).toISOString(), source: 'Mumbai Traffic Police' },
+    { severity: 'info', location: 'Bangkok, Thailand', headline: 'Extreme heat warning issued. Temperatures exceeding 40C expected through end of week.', affected: 1, time: new Date(Date.now() - 22*3600000).toISOString(), source: 'Thai Met Dept' },
+  ];
+
+  var METHODS = ['App', 'SMS', 'Email', 'Call'];
+  var STATUSES = ['Safe', 'Safe', 'Safe', 'Safe', 'Safe', 'Safe', 'Need Assistance', 'No Response'];
+
+  function generateCheckins() {
+    var checkins = [];
+    var idx = 0;
+    for (var i = 0; i < TRAVELERS.length; i++) {
+      var t = TRAVELERS[i];
+      // Each traveler gets 2 check-ins
+      for (var j = 0; j < 2; j++) {
+        var hoursAgo = (i * 3 + j * 12 + 1);
+        var status;
+        if (t.name === 'Diana Cruz' && j === 0) status = 'No Response';
+        else if (t.name === 'Robert Kim' && j === 0) status = 'No Response';
+        else if (t.name === 'David Park' && j === 0) status = 'Need Assistance';
+        else status = 'Safe';
+        checkins.push({
+          id: idx++,
+          name: t.name,
+          location: t.city + ', ' + t.country,
+          time: new Date(Date.now() - hoursAgo * 3600000).toISOString(),
+          method: METHODS[(i + j) % METHODS.length],
+          status: status
+        });
+      }
+    }
+    checkins.sort(function(a, b) { return new Date(b.time) - new Date(a.time); });
+    return checkins;
+  }
+
+  var CHECKINS = generateCheckins();
+
+  // ── Render ─────────────────────────────────────────────────
+
+  function riskBadge(level) {
+    var cls = { low: 'badge-green', medium: 'badge-amber', high: 'badge-red', critical: 'badge-critical' }[level] || 'badge-gray';
+    return '<span class="badge ' + cls + '">' + esc(level.charAt(0).toUpperCase() + level.slice(1)) + '</span>';
+  }
+
+  function severityBadge(sev) {
+    var cls = { critical: 'badge-critical', high: 'badge-red', medium: 'badge-amber', low: 'badge-green', info: 'badge-blue' }[sev] || 'badge-gray';
+    return '<span class="badge ' + cls + '">' + esc(sev.toUpperCase()) + '</span>';
+  }
+
+  function checkinStatusHtml(status) {
+    if (status === 'Safe') return '<span class="checkin-status-safe">Safe</span>';
+    if (status === 'Need Assistance') return '<span class="checkin-status-assist">Need Assistance</span>';
+    return '<span class="checkin-status-noresp">No Response</span>';
+  }
+
+  var highRiskCount = TRAVELERS.filter(function(t) { return t.risk === 'high' || t.risk === 'critical'; }).length;
+  var countries = {};
+  TRAVELERS.forEach(function(t) { countries[t.country] = true; });
+  var countryCount = Object.keys(countries).length;
+
+  function render() {
+    var html = '';
+
+    // Header
+    html += '<div class="header">';
+    html += '<h1><span>Travel Risk</span> Monitoring</h1>';
+    html += '<div class="header-actions"><button class="btn btn-accent" onclick="alert(\'Export report generated\')">Export Report</button></div>';
+    html += '</div>';
+
+    // Stat cards
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Travelers Active</div><div class="value val-accent">' + TRAVELERS.length + '</div><div class="sub">Currently abroad</div></div>';
+    html += '<div class="stat-card"><div class="label">High Risk Locations</div><div class="value val-red">' + highRiskCount + '</div><div class="sub">Requiring monitoring</div></div>';
+    html += '<div class="stat-card"><div class="label">Travel Alerts</div><div class="value val-amber">' + ALERTS.filter(function(a) { return a.severity === 'high' || a.severity === 'critical'; }).length + '</div><div class="sub">Active warnings</div></div>';
+    html += '<div class="stat-card"><div class="label">Countries Covered</div><div class="value val-blue">' + countryCount + '</div><div class="sub">Across ' + TRAVELERS.length + ' travelers</div></div>';
+    html += '</div>';
+
+    // Tabs
+    html += '<div class="tabs">';
+    html += '<button class="tab-btn active" data-tab="travelers">Active Travelers</button>';
+    html += '<button class="tab-btn" data-tab="map">Risk Map</button>';
+    html += '<button class="tab-btn" data-tab="alerts">Travel Alerts</button>';
+    html += '<button class="tab-btn" data-tab="checkins">Check-In Log</button>';
+    html += '</div>';
+
+    // ── Active Travelers Tab ──
+    html += '<div id="tab-travelers" class="tab-panel active">';
+    html += '<div class="card"><div class="card-head"><h2>Active Travelers</h2><span class="count">' + TRAVELERS.length + ' travelers</span></div>';
+    html += '<div class="card-body"><div class="table-wrap"><table>';
+    html += '<thead><tr><th>Name</th><th>Department</th><th>Destination</th><th>Dates</th><th>Risk</th><th>Local News</th><th>Last Check-In</th><th>Actions</th></tr></thead><tbody>';
+    for (var i = 0; i < TRAVELERS.length; i++) {
+      var t = TRAVELERS[i];
+      html += '<tr>';
+      html += '<td><strong>' + esc(t.name) + '</strong><br><span style="font-size:11px;color:var(--text3)">' + esc(t.title) + '</span></td>';
+      html += '<td>' + esc(t.dept) + '</td>';
+      html += '<td>' + esc(t.city) + ', ' + esc(t.country) + '</td>';
+      html += '<td style="white-space:nowrap">' + esc(fmtDate(t.depart)) + ' &ndash; ' + esc(fmtDate(t.ret)) + '</td>';
+      html += '<td>' + riskBadge(t.risk) + '</td>';
+      html += '<td><div class="news-text" title="' + esc(t.news) + '">' + esc(t.news) + '</div></td>';
+      html += '<td style="white-space:nowrap">' + esc(relTime(t.lastCheckin)) + '</td>';
+      html += '<td style="white-space:nowrap">';
+      html += '<button class="btn" onclick="alert(\'Alert sent to ' + esc(t.name) + '\')">Send Alert</button> ';
+      html += '<button class="btn btn-accent" onclick="alert(\'Check-in request sent to ' + esc(t.name) + '\')">Check-In</button> ';
+      html += '<button class="btn" onclick="alert(\'Intel report for ' + esc(t.city) + ', ' + esc(t.country) + '\')">View Intel</button>';
+      html += '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div></div></div>';
+    html += '</div>';
+
+    // ── Risk Map Tab ──
+    html += '<div id="tab-map" class="tab-panel">';
+    html += renderMap();
+    html += '</div>';
+
+    // ── Travel Alerts Tab ──
+    html += '<div id="tab-alerts" class="tab-panel">';
+    html += '<div class="card"><div class="card-head"><h2>Travel Alert Feed</h2><span class="count">' + ALERTS.length + ' alerts</span></div>';
+    html += '<div class="card-body">';
+    for (var a = 0; a < ALERTS.length; a++) {
+      var al = ALERTS[a];
+      html += '<div class="alert-item">';
+      html += '<div>' + severityBadge(al.severity) + '</div>';
+      html += '<div style="flex:1">';
+      html += '<div class="alert-headline">' + esc(al.location) + ' &mdash; ' + esc(al.headline) + '</div>';
+      html += '<div class="alert-meta">';
+      html += '<span>' + esc(al.affected) + ' employee' + (al.affected > 1 ? 's' : '') + ' in area</span>';
+      html += '<span>&bull;</span>';
+      html += '<span>' + esc(relTime(al.time)) + '</span>';
+      html += '<span>&bull;</span>';
+      html += '<span>Source: ' + esc(al.source) + '</span>';
+      html += '</div></div></div>';
+    }
+    html += '</div></div>';
+    html += '</div>';
+
+    // ── Check-In Log Tab ──
+    html += '<div id="tab-checkins" class="tab-panel">';
+    html += '<div class="card"><div class="card-head"><h2>Check-In Log</h2><div style="display:flex;gap:8px;align-items:center"><span class="count">' + CHECKINS.length + ' entries</span><button class="btn btn-accent" onclick="alert(\'Mass check-in request sent to all ' + TRAVELERS.length + ' travelers\')">Send Mass Check-In</button></div></div>';
+    html += '<div class="card-body"><div class="table-wrap"><table>';
+    html += '<thead><tr><th>Traveler</th><th>Location</th><th>Check-In Time</th><th>Method</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    for (var c = 0; c < CHECKINS.length; c++) {
+      var ci = CHECKINS[c];
+      html += '<tr' + (ci.status === 'No Response' ? ' style="background:rgba(239,68,68,0.05)"' : '') + '>';
+      html += '<td><strong>' + esc(ci.name) + '</strong></td>';
+      html += '<td>' + esc(ci.location) + '</td>';
+      html += '<td style="white-space:nowrap">' + esc(fmtDateTime(ci.time)) + '</td>';
+      html += '<td><span class="badge badge-gray">' + esc(ci.method) + '</span></td>';
+      html += '<td>' + checkinStatusHtml(ci.status) + '</td>';
+      html += '<td>';
+      if (ci.status === 'No Response') {
+        html += '<button class="btn btn-danger" onclick="alert(\'Escalation initiated for ' + esc(ci.name) + '\')">Escalate</button>';
+      } else if (ci.status === 'Need Assistance') {
+        html += '<button class="btn btn-warning" onclick="alert(\'Response team notified for ' + esc(ci.name) + '\')">Respond</button>';
+      } else {
+        html += '<span style="color:var(--text3);font-size:11px">--</span>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div></div></div>';
+    html += '</div>';
+
+    document.getElementById('app').innerHTML = html;
+
+    // Tab switching
+    var tabBtns = document.querySelectorAll('.tab-btn');
+    for (var tb = 0; tb < tabBtns.length; tb++) {
+      tabBtns[tb].addEventListener('click', function() {
+        var target = this.getAttribute('data-tab');
+        var btns = document.querySelectorAll('.tab-btn');
+        var panels = document.querySelectorAll('.tab-panel');
+        for (var x = 0; x < btns.length; x++) btns[x].classList.remove('active');
+        for (var x = 0; x < panels.length; x++) panels[x].classList.remove('active');
+        this.classList.add('active');
+        document.getElementById('tab-' + target).classList.add('active');
+      });
+    }
+
+    // Simulate new alert appearing
+    setTimeout(function() {
+      simulateNewAlert();
+    }, 15000);
+  }
+
+  // ── Risk Map (SVG world outline with pins) ─────────────────
+
+  function renderMap() {
+    // Simple Mercator projection: lon -> x, lat -> y
+    var mapW = 960, mapH = 500;
+    function project(lat, lon) {
+      var x = (lon + 180) / 360 * mapW;
+      var latRad = lat * Math.PI / 180;
+      var mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+      var y = mapH / 2 - (mercN / Math.PI) * (mapH / 2) * 0.9;
+      return { x: x, y: Math.max(20, Math.min(mapH - 20, y)) };
+    }
+
+    var html = '<div class="map-container" style="position:relative">';
+
+    // SVG background with simplified continent outlines
+    html += '<svg viewBox="0 0 ' + mapW + ' ' + mapH + '" class="map-svg" style="opacity:0.15">';
+    // Simplified continent shapes
+    html += '<path d="M140,80 L180,60 L250,55 L280,70 L270,100 L290,120 L280,160 L260,200 L240,220 L200,260 L180,340 L160,380 L140,400 L120,380 L130,340 L120,300 L140,260 L120,220 L130,180 L110,140 L120,100 Z" fill="none" stroke="var(--text3)" stroke-width="1.5"/>';
+    html += '<path d="M200,260 L220,250 L260,260 L300,280 L320,320 L340,360 L360,400 L340,420 L300,440 L260,430 L230,400 L210,360 L190,320 L200,280 Z" fill="none" stroke="var(--text3)" stroke-width="1.5"/>';
+    html += '<path d="M440,40 L520,30 L600,40 L660,50 L700,60 L740,50 L780,60 L800,80 L820,60 L860,70 L880,90 L860,120 L830,130 L800,120 L770,130 L740,120 L700,130 L660,120 L620,130 L580,120 L540,130 L500,120 L470,140 L440,120 L430,90 Z" fill="none" stroke="var(--text3)" stroke-width="1.5"/>';
+    html += '<path d="M470,140 L510,150 L540,170 L560,200 L580,180 L620,190 L660,180 L700,200 L740,190 L770,210 L780,250 L760,280 L730,300 L700,280 L680,310 L640,330 L600,310 L560,300 L530,270 L510,240 L490,270 L470,250 L450,220 L440,180 Z" fill="none" stroke="var(--text3)" stroke-width="1.5"/>';
+    html += '<path d="M500,150 L520,160 L550,170 L570,190 L540,200 L510,210 L490,200 L470,180 L480,160 Z" fill="none" stroke="var(--text3)" stroke-width="1.5"/>';
+    html += '<path d="M780,250 L820,240 L860,260 L880,290 L860,330 L830,350 L800,340 L780,310 L770,280 Z" fill="none" stroke="var(--text3)" stroke-width="1.5"/>';
+    // Grid lines
+    for (var gx = 0; gx < mapW; gx += 96) html += '<line x1="' + gx + '" y1="0" x2="' + gx + '" y2="' + mapH + '" stroke="var(--border)" stroke-width="0.5"/>';
+    for (var gy = 0; gy < mapH; gy += 83) html += '<line x1="0" y1="' + gy + '" x2="' + mapW + '" y2="' + gy + '" stroke="var(--border)" stroke-width="0.5"/>';
+    html += '</svg>';
+
+    // Pin overlays
+    for (var p = 0; p < TRAVELERS.length; p++) {
+      var t = TRAVELERS[p];
+      var pos = project(t.lat, t.lon);
+      var pxPct = (pos.x / mapW * 100).toFixed(2);
+      var pyPct = (pos.y / mapH * 100).toFixed(2);
+      var pinColor = { low: 'var(--green)', medium: 'var(--amber)', high: 'var(--red)', critical: '#ff4444' }[t.risk] || 'var(--text3)';
+      var pulseAttr = t.risk === 'critical' ? ' style="animation: pulse-badge 1.5s ease-in-out infinite"' : '';
+
+      html += '<div class="map-pin" style="left:' + pxPct + '%;top:' + pyPct + '%"' + pulseAttr + '>';
+      html += '<svg class="pin-icon" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="' + pinColor + '"/><circle cx="12" cy="12" r="5" fill="var(--bg)"/></svg>';
+      html += '<div class="map-tooltip">';
+      html += '<div class="tt-name">' + esc(t.name) + ' ' + riskBadge(t.risk) + '</div>';
+      html += '<div class="tt-loc">' + esc(t.city) + ', ' + esc(t.country) + '</div>';
+      html += '<div class="tt-news">' + esc(t.news) + '</div>';
+      html += '</div></div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  // ── Simulated live alert ───────────────────────────────────
+
+  var newAlertPool = [
+    { severity: 'medium', location: 'Sao Paulo, Brazil', headline: 'UPDATE: Paulista Ave protests have dispersed. Road access restored.', affected: 1, source: 'Local Police' },
+    { severity: 'critical', location: 'Kyiv, Ukraine', headline: 'UPDATE: Air raid sirens sounding in Kyiv. Residents advised to seek shelter.', affected: 1, source: 'Ukraine MOD' },
+    { severity: 'high', location: 'Lagos, Nigeria', headline: 'UPDATE: International terminal at Murtala Muhammed Airport temporarily closed.', affected: 1, source: 'FAAN' },
+    { severity: 'low', location: 'Tokyo, Japan', headline: 'Minor earthquake (M3.2) detected off coast of Chiba. No tsunami warning.', affected: 1, source: 'JMA' },
+  ];
+  var newAlertIdx = 0;
+
+  function simulateNewAlert() {
+    if (newAlertIdx >= newAlertPool.length) return;
+    var feed = document.querySelector('#tab-alerts .card-body');
+    if (!feed) return;
+
+    var al = newAlertPool[newAlertIdx++];
+    al.time = new Date().toISOString();
+
+    var div = document.createElement('div');
+    div.className = 'alert-item';
+    div.style.background = 'rgba(255,255,255,0.03)';
+    div.style.transition = 'background 2s';
+    div.innerHTML = '<div>' + severityBadge(al.severity) + '</div>'
+      + '<div style="flex:1"><div class="alert-headline">' + esc(al.location) + ' &mdash; ' + esc(al.headline) + '</div>'
+      + '<div class="alert-meta"><span>' + al.affected + ' employee in area</span><span>&bull;</span><span>Just now</span><span>&bull;</span><span>Source: ' + esc(al.source) + '</span></div></div>';
+
+    feed.insertBefore(div, feed.firstChild);
+
+    // Update count
+    var countEl = document.querySelector('#tab-alerts .count');
+    if (countEl) {
+      var cur = parseInt(countEl.textContent) || 0;
+      countEl.textContent = (cur + 1) + ' alerts';
+    }
+
+    setTimeout(function() { div.style.background = 'transparent'; }, 100);
+    setTimeout(simulateNewAlert, 20000);
+  }
+
+  // ── Init ───────────────────────────────────────────────────
+  render();
+
+})();
+</script>
+</body>
+</html>

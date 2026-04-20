@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connector Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-green { background: transparent; border: 1px solid var(--green); color: var(--green); }
+.btn-green:hover { background: rgba(34,197,94,0.1); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+.connector-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+.connector-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; cursor: pointer; transition: border-color 0.15s; }
+.connector-card:hover { border-color: var(--accent); }
+.connector-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.connector-icon { width: 40px; height: 40px; background: var(--bg3); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; color: var(--accent); }
+.connector-name { font-weight: 700; font-size: 0.95rem; }
+.connector-vendor { font-size: 0.75rem; color: var(--text3); }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.connected { background: var(--green); }
+.status-dot.disconnected { background: var(--red); }
+.status-dot.error { background: var(--amber); }
+.connector-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.8rem; color: var(--text2); margin-top: 0.5rem; }
+.connector-meta span { color: var(--text3); font-size: 0.7rem; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.form-row { margin-bottom: 0.75rem; }
+.form-label { display: block; font-size: 0.8rem; color: var(--text3); margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.form-hint { font-size: 0.75rem; color: var(--text3); margin-top: 0.2rem; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-connected { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-disconnected { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-error { background: rgba(245,158,11,0.15); color: var(--amber); }
+.events-list { max-height: 200px; overflow-y: auto; }
+.event-row { padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; display: flex; justify-content: space-between; }
+.test-result { padding: 0.75rem; border-radius: 6px; font-size: 0.85rem; margin-top: 0.5rem; }
+.test-success { background: rgba(34,197,94,0.1); border: 1px solid var(--green); color: var(--green); }
+.test-fail { background: rgba(239,68,68,0.1); border: 1px solid var(--red); color: var(--red); }
+.health-bar { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+.health-fill { height: 100%; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // --- State ---
+  var showAddModal = false;
+  var selectedConnector = null;
+  var testResult = null;
+  var connectors = [];
+
+  // --- Demo Data ---
+  var CONNECTOR_TYPES = [
+    { value: 'lenel-onguard', label: 'Lenel OnGuard', vendor: 'Carrier' },
+    { value: 'genetec', label: 'Genetec Security Center', vendor: 'Genetec' },
+    { value: 'milestone-xprotect', label: 'Milestone XProtect', vendor: 'Milestone' },
+    { value: 'sicunet', label: 'Sicunet', vendor: 'Sicunet' },
+    { value: 'brivo', label: 'Brivo Access', vendor: 'Brivo' },
+    { value: 'verkada', label: 'Verkada', vendor: 'Verkada' },
+    { value: 's2-netbox', label: 'S2 NetBox', vendor: 'S2 Security' },
+    { value: 'assa-abloy', label: 'ASSA ABLOY', vendor: 'ASSA ABLOY' },
+    { value: 'fire-alarm', label: 'Fire Alarm Panel', vendor: 'Notifier/EST' },
+    { value: 'intrusion-panel', label: 'Intrusion Panel', vendor: 'Honeywell/DSC' },
+    { value: 'intercom', label: 'Intercom System', vendor: 'Aiphone/2N' }
+  ];
+
+  function genConnectors() {
+    var list = [
+      { id: 'conn-001', name: 'Main Campus PAC', type: 'lenel-onguard', vendor: 'Carrier', status: 'connected', apiUrl: 'https://pac.campus.local/api', lastSync: new Date(Date.now() - 120000).toISOString(), eventsReceived: 45230, capabilities: ['Door Control','Credential Mgmt','Alarm Monitoring','Lockdown'], health: 98 },
+      { id: 'conn-002', name: 'Parking Cameras', type: 'milestone-xprotect', vendor: 'Milestone', status: 'connected', apiUrl: 'https://vms.campus.local:8080', lastSync: new Date(Date.now() - 300000).toISOString(), eventsReceived: 12840, capabilities: ['Live View','Recording','Analytics','PTZ Control'], health: 95 },
+      { id: 'conn-003', name: 'Cloud Access', type: 'brivo', vendor: 'Brivo', status: 'connected', apiUrl: 'https://api.brivo.com/v1', lastSync: new Date(Date.now() - 60000).toISOString(), eventsReceived: 8920, capabilities: ['Door Control','Credential Mgmt','Mobile Access'], health: 100 },
+      { id: 'conn-004', name: 'Building B Security', type: 'genetec', vendor: 'Genetec', status: 'disconnected', apiUrl: 'https://sec-center-b.local:4590', lastSync: new Date(Date.now() - 7200000).toISOString(), eventsReceived: 31200, capabilities: ['Door Control','Camera Integration','LPR','Intrusion'], health: 0 },
+      { id: 'conn-005', name: 'Fire System', type: 'fire-alarm', vendor: 'Notifier', status: 'error', apiUrl: '192.168.1.50:502', lastSync: new Date(Date.now() - 1800000).toISOString(), eventsReceived: 156, capabilities: ['Alarm Monitoring','Zone Status'], health: 45 }
+    ];
+
+    list.forEach(function(c) {
+      c.eventLog = [];
+      for (var i = 0; i < 10; i++) {
+        c.eventLog.push({
+          time: new Date(Date.now() - Math.floor(Math.random() * 86400000)).toISOString(),
+          type: ['Sync Complete','Event Received','Connection Check','Config Updated','Error: Timeout','Heartbeat'][Math.floor(Math.random() * 6)],
+          detail: ['200 OK','Processed 15 events','Latency 23ms','Auth refreshed','Connection refused','Alive'][Math.floor(Math.random() * 6)]
+        });
+      }
+      c.eventLog.sort(function(a, b) { return new Date(b.time) - new Date(a.time); });
+    });
+    return list;
+  }
+
+  connectors = genConnectors();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/data/connectors?limit=50');
+      if (res && (res.connectors || res.entities)) {
+        var items = res.connectors || res.entities || [];
+        if (items.length > 0) {
+          connectors = items.map(function(c, i) {
+            var d = c.data || c;
+            return {
+              id: d.id || c.id || ('conn-' + i),
+              name: d.name || ('Connector ' + (i + 1)),
+              type: d.type || d.connectorType || 'lenel-onguard',
+              vendor: d.vendor || 'Unknown',
+              status: d.status || 'connected',
+              apiUrl: d.apiUrl || d.url || '',
+              lastSync: d.lastSync || new Date().toISOString(),
+              eventsReceived: d.eventsReceived || 0,
+              capabilities: d.capabilities || [],
+              health: d.health != null ? d.health : 90,
+              eventLog: d.eventLog || []
+            };
+          });
+        }
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function render() {
+    var total = connectors.length;
+    var connected = connectors.filter(function(c) { return c.status === 'connected'; }).length;
+    var disconnected = connectors.filter(function(c) { return c.status === 'disconnected'; }).length;
+    var errors = connectors.filter(function(c) { return c.status === 'error'; }).length;
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Connector Management</div>';
+    html += '<div class="subtitle">Manage PAC system connectors, VMS integrations, and device interfaces.</div></div>';
+    html += '<button class="btn btn-accent" id="btnAdd">+ Add Connector</button></div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Total Connectors</div><div class="stat-value">' + total + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Connected</div><div class="stat-value green">' + connected + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Disconnected</div><div class="stat-value red">' + disconnected + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Errors</div><div class="stat-value amber">' + errors + '</div></div>';
+    html += '</div>';
+
+    // Connector cards
+    html += '<div class="connector-grid">';
+    connectors.forEach(function(c) {
+      var hColor = c.health >= 80 ? 'var(--green)' : c.health >= 40 ? 'var(--amber)' : 'var(--red)';
+      html += '<div class="connector-card" data-id="' + c.id + '">';
+      html += '<div class="connector-header"><div class="connector-icon">' + esc(c.type.split('-')[0].substring(0, 2).toUpperCase()) + '</div>';
+      html += '<div style="flex:1"><div class="connector-name"><span class="status-dot ' + c.status + '"></span>' + esc(c.name) + '</div>';
+      html += '<div class="connector-vendor">' + esc(c.vendor) + ' &mdash; ' + esc(c.type) + '</div></div>';
+      html += '<span class="badge badge-' + c.status + '">' + c.status + '</span></div>';
+      html += '<div class="connector-meta">';
+      html += '<div><span>Last Sync</span><div>' + timeAgo(c.lastSync) + '</div></div>';
+      html += '<div><span>Events</span><div>' + c.eventsReceived.toLocaleString() + '</div></div>';
+      html += '</div>';
+      html += '<div class="health-bar"><div class="health-fill" style="width:' + c.health + '%;background:' + hColor + '"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    document.getElementById('app').innerHTML = html;
+
+    if (showAddModal) renderAddModal();
+    if (selectedConnector) renderDetailModal();
+
+    // Bind
+    document.getElementById('btnAdd').addEventListener('click', function() { showAddModal = true; testResult = null; render(); });
+    document.querySelectorAll('.connector-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        selectedConnector = connectors.find(function(c) { return c.id === card.dataset.id; });
+        render();
+      });
+    });
+  }
+
+  function renderAddModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+
+    var html = '<h3>Add Connector</h3>';
+    html += '<div class="form-row"><label class="form-label">Connector Type</label><select class="form-input" id="mType">';
+    CONNECTOR_TYPES.forEach(function(t) {
+      html += '<option value="' + t.value + '">' + esc(t.label) + ' (' + esc(t.vendor) + ')</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Name</label><input class="form-input" id="mName" placeholder="e.g., Main Campus PAC"></div>';
+    html += '<div class="form-row"><label class="form-label">API URL</label><input class="form-input" id="mUrl" placeholder="https://pac-server.local:4590/api"></div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Username</label><input class="form-input" id="mUser" placeholder="admin"></div>';
+    html += '<div class="form-row"><label class="form-label">Password</label><input class="form-input" id="mPass" type="password" placeholder="••••••••"></div>';
+    html += '</div>';
+    html += '<div class="form-row"><label class="form-label">API Key (optional)</label><input class="form-input" id="mApiKey" placeholder="Bearer token or API key"></div>';
+
+    if (testResult !== null) {
+      html += '<div class="test-result ' + (testResult ? 'test-success' : 'test-fail') + '">' + (testResult ? 'Connection successful! Ready to add.' : 'Connection failed. Check URL and credentials.') + '</div>';
+    }
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    html += '<button class="btn btn-outline" id="mCancel">Cancel</button>';
+    html += '<button class="btn btn-outline" id="mTest">Test Connection</button>';
+    html += '<button class="btn btn-accent" id="mSave">Add Connector</button></div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { showAddModal = false; testResult = null; render(); } });
+    document.getElementById('mCancel').addEventListener('click', function() { showAddModal = false; testResult = null; render(); });
+    document.getElementById('mTest').addEventListener('click', function() {
+      testResult = Math.random() > 0.3;
+      render();
+    });
+    document.getElementById('mSave').addEventListener('click', function() {
+      var typeSel = document.getElementById('mType');
+      var typeObj = CONNECTOR_TYPES.find(function(t) { return t.value === typeSel.value; });
+      connectors.push({
+        id: 'conn-' + Date.now(),
+        name: document.getElementById('mName').value || 'New Connector',
+        type: typeSel.value,
+        vendor: typeObj ? typeObj.vendor : 'Unknown',
+        status: 'connected',
+        apiUrl: document.getElementById('mUrl').value || '',
+        lastSync: new Date().toISOString(),
+        eventsReceived: 0,
+        capabilities: [],
+        health: 100,
+        eventLog: []
+      });
+      showAddModal = false;
+      testResult = null;
+      render();
+    });
+  }
+
+  function renderDetailModal() {
+    var c = selectedConnector;
+    if (!c) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+
+    var hColor = c.health >= 80 ? 'var(--green)' : c.health >= 40 ? 'var(--amber)' : 'var(--red)';
+
+    var html = '<h3><span class="status-dot ' + c.status + '"></span>' + esc(c.name) + '</h3>';
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Type</span><div>' + esc(c.type) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Vendor</span><div>' + esc(c.vendor) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">API URL</span><div style="font-size:0.8rem;word-break:break-all"><code>' + esc(c.apiUrl) + '</code></div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Status</span><div><span class="badge badge-' + c.status + '">' + c.status + '</span></div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Last Sync</span><div>' + timeAgo(c.lastSync) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Events Received</span><div>' + c.eventsReceived.toLocaleString() + '</div></div>';
+    html += '</div>';
+
+    // Health
+    html += '<div class="card"><div style="display:flex;justify-content:space-between;font-size:0.85rem"><span>Health</span><span style="font-weight:700;color:' + hColor + '">' + c.health + '%</span></div>';
+    html += '<div class="health-bar"><div class="health-fill" style="width:' + c.health + '%;background:' + hColor + '"></div></div></div>';
+
+    // Capabilities
+    if (c.capabilities && c.capabilities.length > 0) {
+      html += '<div style="margin-bottom:1rem"><span style="color:var(--text3);font-size:0.75rem">Capabilities</span>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:0.375rem;margin-top:0.25rem">';
+      c.capabilities.forEach(function(cap) {
+        html += '<span style="padding:0.2rem 0.5rem;background:var(--accent-dim);border-radius:4px;font-size:0.75rem;color:var(--accent)">' + esc(cap) + '</span>';
+      });
+      html += '</div></div>';
+    }
+
+    // Event log
+    html += '<div style="font-weight:600;margin-bottom:0.5rem">Event Log</div>';
+    html += '<div class="events-list">';
+    (c.eventLog || []).forEach(function(ev) {
+      html += '<div class="event-row"><span>' + esc(ev.type) + ' <span style="color:var(--text3)">' + esc(ev.detail) + '</span></span><span style="color:var(--text3)">' + timeAgo(ev.time) + '</span></div>';
+    });
+    if (!c.eventLog || c.eventLog.length === 0) {
+      html += '<div style="color:var(--text3);font-size:0.85rem;padding:0.5rem 0">No events logged</div>';
+    }
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    if (c.status === 'disconnected' || c.status === 'error') {
+      html += '<button class="btn btn-sm btn-green" id="mReconnect">Reconnect</button>';
+    }
+    html += '<button class="btn btn-sm btn-danger" id="mRemove">Remove</button>';
+    html += '<button class="btn btn-outline" id="mClose">Close</button></div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { selectedConnector = null; render(); } });
+    document.getElementById('mClose').addEventListener('click', function() { selectedConnector = null; render(); });
+    var reconBtn = document.getElementById('mReconnect');
+    if (reconBtn) reconBtn.addEventListener('click', function() { c.status = 'connected'; c.health = 90; c.lastSync = new Date().toISOString(); selectedConnector = null; render(); });
+    document.getElementById('mRemove').addEventListener('click', function() {
+      connectors = connectors.filter(function(cc) { return cc.id !== c.id; });
+      selectedConnector = null;
+      render();
+    });
+  }
+
+  function timeAgo(ts) {
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

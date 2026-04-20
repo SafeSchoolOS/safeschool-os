@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Trail</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 180px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-critical { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-warning { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-info { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-success { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-system { background: rgba(139,92,246,0.15); color: var(--purple); }
+.form-input { padding: 0.4rem 0.6rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+.action-critical { color: var(--red); font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  var searchText = '';
+  var actionFilter = '';
+  var userFilter = '';
+  var entries = [];
+
+  var ACTION_TYPES = [
+    { key: 'login', label: 'Login', severity: 'info' },
+    { key: 'logout', label: 'Logout', severity: 'info' },
+    { key: 'door_unlock', label: 'Door Unlock', severity: 'info' },
+    { key: 'door_lock', label: 'Door Lock', severity: 'info' },
+    { key: 'credential_create', label: 'Credential Create', severity: 'success' },
+    { key: 'credential_suspend', label: 'Credential Suspend', severity: 'warning' },
+    { key: 'credential_revoke', label: 'Credential Revoke', severity: 'critical' },
+    { key: 'schedule_change', label: 'Schedule Change', severity: 'warning' },
+    { key: 'lockdown', label: 'Lockdown', severity: 'critical' },
+    { key: 'lockdown_release', label: 'Lockdown Release', severity: 'critical' },
+    { key: 'config_change', label: 'Config Change', severity: 'warning' },
+    { key: 'user_create', label: 'User Create', severity: 'success' },
+    { key: 'user_delete', label: 'User Delete', severity: 'critical' },
+    { key: 'badge_print', label: 'Badge Print', severity: 'info' },
+    { key: 'backup_create', label: 'Backup Create', severity: 'system' },
+    { key: 'firmware_update', label: 'Firmware Update', severity: 'system' },
+    { key: 'visitor_checkin', label: 'Visitor Check-in', severity: 'info' },
+    { key: 'visitor_checkout', label: 'Visitor Check-out', severity: 'info' },
+    { key: 'alarm_ack', label: 'Alarm Acknowledge', severity: 'warning' },
+    { key: 'report_generate', label: 'Report Generate', severity: 'info' },
+  ];
+
+  var USERS = [
+    'admin@company.com', 'sarah.connor@company.com', 'john.reese@company.com', 'alice.zhang@company.com',
+    'bob.martinez@company.com', 'carol.white@company.com', 'officer.rodriguez@company.com', 'sgt.thompson@company.com',
+    'system', 'api-service'
+  ];
+
+  var ENTITIES = [
+    'Door: Main Entrance', 'Door: Server Room B2', 'Door: Emergency Exit 4', 'Door: Lab Wing 3',
+    'User: James Smith', 'User: Mary Johnson', 'User: Robert Williams',
+    'Credential: CARD-10234', 'Credential: CARD-10567', 'Credential: MOB-20134',
+    'Schedule: After Hours', 'Schedule: Weekend Access', 'Schedule: Holiday Override',
+    'Zone: Executive Wing', 'Zone: Parking Garage', 'Zone: Server Room',
+    'Camera: NW-07', 'Camera: SE-12', 'Panel: FP-01', 'Controller: DC-08',
+    'Visitor: Jane Doe', 'Visitor: Mark Thompson', 'Report: Access Summary',
+    'Config: LDAP Settings', 'Config: Email Notifications', 'Backup: auto-2026-03-14',
+  ];
+
+  var IPS = ['192.168.1.100', '192.168.1.105', '10.0.0.50', '10.0.0.55', '172.16.0.10', '172.16.0.15', '192.168.1.200', '10.0.0.1', '127.0.0.1', '10.10.10.50'];
+
+  var DETAILS = [
+    'Successful login via SSO', 'Session expired, auto-logout', 'Remote unlock via dashboard', 'Auto-lock schedule triggered',
+    'New HID iCLASS credential provisioned', 'Credential suspended - policy violation', 'Credential revoked - termination',
+    'Weekend schedule updated: 08:00-18:00 to 09:00-17:00', 'Emergency lockdown initiated - all zones',
+    'Lockdown released by authorized personnel', 'LDAP sync interval changed from 30m to 15m',
+    'New operator account created with limited access', 'User account permanently deleted per HR request',
+    'Visitor badge printed - temporary access', 'Automated backup completed successfully',
+    'Controller firmware updated to v3.2.1', 'Walk-in visitor checked in at lobby kiosk',
+    'Visitor checked out - badge returned', 'Fire alarm acknowledged - false alarm confirmed',
+    'Monthly compliance report generated and emailed',
+  ];
+
+  function genEntries() {
+    var items = [];
+    for (var i = 0; i < 100; i++) {
+      var actionType = ACTION_TYPES[i % ACTION_TYPES.length];
+      var minsAgo = i * 14 + Math.floor(Math.random() * 10);
+      var ts = new Date(Date.now() - minsAgo * 60000);
+
+      items.push({
+        id: 'AUD-' + String(90001 + i),
+        timestamp: ts.toISOString(),
+        user: USERS[i % USERS.length],
+        action: actionType.key,
+        actionLabel: actionType.label,
+        severity: actionType.severity,
+        entity: ENTITIES[i % ENTITIES.length],
+        details: DETAILS[i % DETAILS.length],
+        ipAddress: IPS[i % IPS.length],
+      });
+    }
+    return items;
+  }
+
+  entries = genEntries();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/audit/log?limit=200');
+      if (res && (res.entries || res.logs) && (res.entries || res.logs).length > 0) {
+        var items = res.entries || res.logs;
+        entries = items.map(function(e) {
+          var d = e.data || e;
+          var actionType = ACTION_TYPES.find(function(a) { return a.key === (d.action || ''); }) || { key: d.action || 'unknown', label: d.action || 'Unknown', severity: 'info' };
+          return {
+            id: d.id || e.id,
+            timestamp: d.timestamp || d.createdAt || e.createdAt || new Date().toISOString(),
+            user: d.user || d.userId || 'system',
+            action: actionType.key,
+            actionLabel: actionType.label,
+            severity: actionType.severity,
+            entity: d.entity || d.entityType || '',
+            details: d.details || d.description || '',
+            ipAddress: d.ipAddress || d.ip || '-',
+          };
+        });
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function filtered() {
+    return entries.filter(function(e) {
+      if (actionFilter && e.action !== actionFilter) return false;
+      if (userFilter && e.user !== userFilter) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (e.actionLabel.toLowerCase().indexOf(s) < 0 && e.user.toLowerCase().indexOf(s) < 0 && e.entity.toLowerCase().indexOf(s) < 0 && e.details.toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return '-';
+    var d = new Date(ts);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function isToday(ts) {
+    var d = new Date(ts);
+    var now = new Date();
+    return d.toDateString() === now.toDateString();
+  }
+
+  function isThisWeek(ts) {
+    var d = new Date(ts);
+    var now = new Date();
+    var weekAgo = new Date(now.getTime() - 7 * 86400000);
+    return d >= weekAgo;
+  }
+
+  function exportCSV() {
+    var data = filtered();
+    var csv = 'Timestamp,User,Action,Entity,Details,IP Address\n';
+    data.forEach(function(e) {
+      csv += '"' + formatTimestamp(e.timestamp) + '","' + e.user + '","' + e.actionLabel + '","' + e.entity.replace(/"/g, '""') + '","' + e.details.replace(/"/g, '""') + '","' + e.ipAddress + '"\n';
+    });
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'audit-trail-' + new Date().toISOString().split('T')[0] + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function render() {
+    var data = filtered();
+    var totalCount = entries.length;
+    var todayCount = entries.filter(function(e) { return isToday(e.timestamp); }).length;
+    var weekCount = entries.filter(function(e) { return isThisWeek(e.timestamp); }).length;
+    var criticalCount = entries.filter(function(e) { return e.severity === 'critical'; }).length;
+
+    // Unique users for filter
+    var uniqueUsers = [];
+    var seenUsers = {};
+    entries.forEach(function(e) {
+      if (!seenUsers[e.user]) { uniqueUsers.push(e.user); seenUsers[e.user] = true; }
+    });
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Audit Trail</div>';
+    html += '<div class="subtitle">Complete audit log of all security-relevant actions. AuditTrailAdapter interface.</div></div>';
+    html += '<button class="btn btn-accent" id="btnExport">Export CSV</button></div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Total Entries</div><div class="stat-value">' + totalCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Today</div><div class="stat-value blue">' + todayCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">This Week</div><div class="stat-value green">' + weekCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Critical Actions</div><div class="stat-value red">' + criticalCount + '</div></div>';
+    html += '</div>';
+
+    // Filter bar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search actions, users, entities..." value="' + esc(searchText) + '">';
+    html += '<select class="filter" id="actionFilter"><option value="">All Actions</option>';
+    ACTION_TYPES.forEach(function(a) {
+      html += '<option value="' + a.key + '"' + (actionFilter === a.key ? ' selected' : '') + '>' + esc(a.label) + '</option>';
+    });
+    html += '</select>';
+    html += '<select class="filter" id="userFilter"><option value="">All Users</option>';
+    uniqueUsers.forEach(function(u) {
+      html += '<option value="' + esc(u) + '"' + (userFilter === u ? ' selected' : '') + '>' + esc(u) + '</option>';
+    });
+    html += '</select>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + data.length + ' entries</span>';
+    html += '</div>';
+
+    // Table
+    html += '<table><thead><tr>';
+    html += '<th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th>IP Address</th>';
+    html += '</tr></thead><tbody>';
+
+    if (data.length === 0) {
+      html += '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:2rem">No audit entries match your filters</td></tr>';
+    } else {
+      data.forEach(function(e) {
+        var badgeClass = 'badge-' + e.severity;
+        var isCrit = e.severity === 'critical';
+
+        html += '<tr>';
+        html += '<td style="font-size:0.8rem;color:var(--text2);white-space:nowrap">' + formatTimestamp(e.timestamp) + '</td>';
+        html += '<td><div style="font-size:0.85rem' + (e.user === 'system' || e.user === 'api-service' ? ';color:var(--purple)' : '') + '">' + esc(e.user) + '</div></td>';
+        html += '<td><span class="badge ' + badgeClass + '">' + esc(e.actionLabel) + '</span></td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.entity) + '</td>';
+        html += '<td style="font-size:0.8rem;color:' + (isCrit ? 'var(--red)' : 'var(--text2)') + ';max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.details) + '</td>';
+        html += '<td style="font-size:0.75rem;color:var(--text3);font-family:monospace">' + esc(e.ipAddress) + '</td>';
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+
+    document.getElementById('app').innerHTML = html;
+
+    // Bind
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('actionFilter').addEventListener('change', function() { actionFilter = this.value; render(); });
+    document.getElementById('userFilter').addEventListener('change', function() { userFilter = this.value; render(); });
+    document.getElementById('btnExport').addEventListener('click', function() { exportCSV(); });
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

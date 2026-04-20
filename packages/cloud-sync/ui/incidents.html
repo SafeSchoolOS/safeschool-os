@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Incident Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+.tab { padding: 0.6rem 1.25rem; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text2); cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 220px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); }
+tr.clickable { cursor: pointer; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-critical { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-high { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-medium { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-low { background: rgba(107,114,128,0.15); color: #9ca3af; }
+.badge-open { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-inprogress { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-resolved { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-closed { background: rgba(107,114,128,0.15); color: #6b7280; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.form-row { margin-bottom: 0.75rem; }
+.form-label { display: block; font-size: 0.8rem; color: var(--text3); margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+textarea.form-input { min-height: 80px; resize: vertical; font-family: inherit; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.detail-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-top: 1rem; }
+.timeline { position: relative; padding-left: 1.5rem; margin-top: 0.75rem; }
+.timeline::before { content: ''; position: absolute; left: 5px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 1rem; padding-bottom: 0.5rem; }
+.timeline-item::before { content: ''; position: absolute; left: -1.5rem; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--bg3); border: 2px solid var(--accent); }
+.timeline-item .time { font-size: 0.7rem; color: var(--text3); }
+.timeline-item .desc { font-size: 0.85rem; margin-top: 0.15rem; }
+.timeline-item .author { font-size: 0.75rem; color: var(--text2); margin-top: 0.1rem; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  var currentTab = 'open';
+  var searchText = '';
+  var severityFilter = '';
+  var showModal = false;
+  var selectedIncident = null;
+  var incidents = [];
+
+  var ASSIGNEES = ['Officer Rodriguez','Sgt. Thompson','Officer Chen','Lt. Martinez','Officer Davis','Sgt. Wilson','Officer Patel','Chief Roberts'];
+  var CATEGORIES = ['Security Breach','Access Violation','Equipment Failure','Medical Emergency','Fire Alarm','Suspicious Activity','Theft','Vandalism','Workplace Safety','Policy Violation'];
+  var TITLES = [
+    'Unauthorized access attempt at Server Room B2','Tailgating incident at Main Entrance','Fire alarm triggered - Building C 3rd Floor',
+    'Lost access badge reported - Executive Wing','Suspicious package found in Lobby','Camera offline - Parking Garage Level 2',
+    'After-hours access violation - Lab Wing','Door forced open - Emergency Exit 4','Medical emergency - Cafeteria',
+    'Visitor badge not returned - Conference Center','Perimeter fence breach detected - North Gate','Elevator entrapment - Building A',
+    'Unescorted visitor found in restricted area','Power outage affecting door controllers','Water leak near electrical panel - Basement',
+    'Vehicle collision in parking structure','Protest activity near main entrance','Employee altercation - Break Room 2',
+    'Smoke detector malfunction - Floor 5','Loading dock security gate stuck open',
+    'Motion sensor triggered after hours - Vault','Broken window - Ground floor West Wing','IT closet door propped open',
+    'Fire extinguisher discharged - Hallway B','Graffiti discovered on south exterior wall'
+  ];
+
+  function genIncidents() {
+    var items = [];
+    var severities = ['CRITICAL','HIGH','MEDIUM','LOW'];
+    var statuses = ['OPEN','IN_PROGRESS','RESOLVED','CLOSED'];
+
+    for (var i = 0; i < 25; i++) {
+      var sev = i < 3 ? 'CRITICAL' : i < 8 ? 'HIGH' : i < 16 ? 'MEDIUM' : 'LOW';
+      var status;
+      if (i < 5) status = 'OPEN';
+      else if (i < 10) status = 'IN_PROGRESS';
+      else if (i < 20) status = 'RESOLVED';
+      else status = 'CLOSED';
+
+      var hoursAgo = Math.floor(Math.random() * 720) + 1;
+      var created = new Date(Date.now() - hoursAgo * 3600000);
+      var updated = new Date(created.getTime() + Math.floor(Math.random() * hoursAgo / 2) * 3600000);
+
+      var timeline = [
+        { time: created.toISOString(), desc: 'Incident created', author: 'System' },
+        { time: new Date(created.getTime() + 300000).toISOString(), desc: 'Assigned to ' + ASSIGNEES[i % ASSIGNEES.length], author: 'Dispatch' },
+      ];
+      if (status !== 'OPEN') {
+        timeline.push({ time: new Date(created.getTime() + 900000).toISOString(), desc: 'Investigation started. Reviewing camera footage.', author: ASSIGNEES[i % ASSIGNEES.length] });
+        timeline.push({ time: new Date(created.getTime() + 1800000).toISOString(), desc: 'On-site assessment completed. Evidence collected.', author: ASSIGNEES[i % ASSIGNEES.length] });
+      }
+      if (status === 'RESOLVED' || status === 'CLOSED') {
+        timeline.push({ time: new Date(created.getTime() + 3600000).toISOString(), desc: 'Incident resolved. Root cause identified and corrective action taken.', author: ASSIGNEES[i % ASSIGNEES.length] });
+      }
+
+      items.push({
+        id: 'INC-' + String(2025001 + i),
+        title: TITLES[i % TITLES.length],
+        description: 'Detailed description of incident: ' + TITLES[i % TITLES.length] + '. Security team dispatched to investigate.',
+        severity: sev,
+        status: status,
+        category: CATEGORIES[i % CATEGORIES.length],
+        assignedTo: ASSIGNEES[i % ASSIGNEES.length],
+        createdAt: created.toISOString(),
+        updatedAt: updated.toISOString(),
+        location: 'Building ' + String.fromCharCode(65 + (i % 4)) + ', Floor ' + ((i % 5) + 1),
+        timeline: timeline,
+        evidence: status !== 'OPEN' ? ['Camera footage B2-CAM-04', 'Access log export', 'Witness statement'] : [],
+      });
+    }
+    return items;
+  }
+
+  incidents = genIncidents();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/data/incidents?limit=50');
+      if (res && (res.incidents || res.entities) && (res.incidents || res.entities).length > 0) {
+        var items = res.incidents || res.entities;
+        incidents = items.map(function(inc) {
+          var d = inc.data || inc;
+          return {
+            id: d.id || inc.id,
+            title: d.title || 'Untitled Incident',
+            description: d.description || '',
+            severity: d.severity || 'MEDIUM',
+            status: d.status || 'OPEN',
+            category: d.category || 'Security Breach',
+            assignedTo: d.assignedTo || 'Unassigned',
+            createdAt: d.createdAt || inc.createdAt || new Date().toISOString(),
+            updatedAt: d.updatedAt || inc.updatedAt || new Date().toISOString(),
+            location: d.location || '',
+            timeline: d.timeline || [],
+            evidence: d.evidence || [],
+          };
+        });
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function filtered() {
+    return incidents.filter(function(inc) {
+      if (currentTab === 'open' && inc.status !== 'OPEN') return false;
+      if (currentTab === 'inprogress' && inc.status !== 'IN_PROGRESS') return false;
+      if (currentTab === 'resolved' && inc.status !== 'RESOLVED' && inc.status !== 'CLOSED') return false;
+      if (severityFilter && inc.severity !== severityFilter) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (inc.id.toLowerCase().indexOf(s) < 0 && inc.title.toLowerCase().indexOf(s) < 0 && inc.assignedTo.toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return '-';
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  function formatDate(ts) {
+    if (!ts) return '-';
+    var d = new Date(ts);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function render() {
+    var data = filtered();
+    var openCount = incidents.filter(function(i) { return i.status === 'OPEN'; }).length;
+    var criticalCount = incidents.filter(function(i) { return i.severity === 'CRITICAL' && (i.status === 'OPEN' || i.status === 'IN_PROGRESS'); }).length;
+    var inProgressCount = incidents.filter(function(i) { return i.status === 'IN_PROGRESS'; }).length;
+    var resolvedCount = incidents.filter(function(i) { return i.status === 'RESOLVED' || i.status === 'CLOSED'; }).length;
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Incident Management</div>';
+    html += '<div class="subtitle">Track, investigate, and resolve security incidents. IncidentManagementAdapter interface.</div></div>';
+    html += '<button class="btn btn-accent" id="btnNewIncident">+ New Incident</button></div>';
+
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Open Incidents</div><div class="stat-value red">' + openCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Critical</div><div class="stat-value amber">' + criticalCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">In Progress</div><div class="stat-value blue">' + inProgressCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Resolved (30d)</div><div class="stat-value green">' + resolvedCount + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="tabs">';
+    var tabs = [
+      { key: 'open', label: 'Open', count: openCount },
+      { key: 'inprogress', label: 'In Progress', count: inProgressCount },
+      { key: 'resolved', label: 'Resolved', count: resolvedCount },
+      { key: 'all', label: 'All', count: incidents.length }
+    ];
+    tabs.forEach(function(t) {
+      html += '<button class="tab' + (currentTab === t.key ? ' active' : '') + '" data-tab="' + t.key + '">' + t.label + ' (' + t.count + ')</button>';
+    });
+    html += '</div>';
+
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search ID, title, assignee..." value="' + esc(searchText) + '">';
+    html += '<select class="filter" id="sevFilter"><option value="">All Severities</option>';
+    ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (severityFilter === s ? ' selected' : '') + '>' + s + '</option>';
+    });
+    html += '</select>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + data.length + ' results</span>';
+    html += '</div>';
+
+    html += '<table><thead><tr>';
+    html += '<th>ID</th><th>Title</th><th>Severity</th><th>Status</th><th>Category</th><th>Assigned To</th><th>Created</th><th>Updated</th>';
+    html += '</tr></thead><tbody>';
+
+    if (data.length === 0) {
+      html += '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:2rem">No incidents match your filters</td></tr>';
+    } else {
+      data.forEach(function(inc) {
+        var sevClass = 'badge-' + inc.severity.toLowerCase();
+        var statusClass = inc.status === 'OPEN' ? 'badge-open' : inc.status === 'IN_PROGRESS' ? 'badge-inprogress' : inc.status === 'RESOLVED' ? 'badge-resolved' : 'badge-closed';
+        var statusLabel = inc.status === 'IN_PROGRESS' ? 'In Progress' : inc.status.charAt(0) + inc.status.slice(1).toLowerCase();
+
+        html += '<tr class="clickable inc-row" data-id="' + inc.id + '">';
+        html += '<td><code style="font-size:0.8rem;color:var(--accent)">' + esc(inc.id) + '</code></td>';
+        html += '<td><div style="font-weight:600;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(inc.title) + '</div>';
+        html += '<div style="font-size:0.7rem;color:var(--text3)">' + esc(inc.location) + '</div></td>';
+        html += '<td><span class="badge ' + sevClass + '">' + inc.severity + '</span></td>';
+        html += '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + esc(inc.category) + '</td>';
+        html += '<td style="font-size:0.85rem">' + esc(inc.assignedTo) + '</td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + timeAgo(inc.createdAt) + '</td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + timeAgo(inc.updatedAt) + '</td>';
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+
+    // Detail panel
+    if (selectedIncident) {
+      var inc = incidents.find(function(i) { return i.id === selectedIncident; });
+      if (inc) {
+        var sevClass = 'badge-' + inc.severity.toLowerCase();
+        var statusClass = inc.status === 'OPEN' ? 'badge-open' : inc.status === 'IN_PROGRESS' ? 'badge-inprogress' : inc.status === 'RESOLVED' ? 'badge-resolved' : 'badge-closed';
+        html += '<div class="detail-panel" id="detailPanel">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+        html += '<div><div style="font-weight:700;font-size:1rem">' + esc(inc.id) + ' - ' + esc(inc.title) + '</div>';
+        html += '<div style="font-size:0.8rem;color:var(--text2);margin-top:0.25rem">' + esc(inc.location) + ' &middot; ' + esc(inc.category) + '</div></div>';
+        html += '<button class="btn btn-sm btn-outline" id="closeDetail">Close</button></div>';
+
+        html += '<div style="display:flex;gap:0.5rem;margin:0.75rem 0"><span class="badge ' + sevClass + '">' + inc.severity + '</span>';
+        html += '<span class="badge ' + statusClass + '">' + inc.status.replace('_', ' ') + '</span></div>';
+
+        html += '<div style="font-size:0.85rem;color:var(--text2);margin-bottom:1rem">' + esc(inc.description) + '</div>';
+
+        html += '<div style="display:flex;gap:2rem;margin-bottom:1rem;font-size:0.8rem">';
+        html += '<div><span style="color:var(--text3)">Assigned: </span>' + esc(inc.assignedTo) + '</div>';
+        html += '<div><span style="color:var(--text3)">Created: </span>' + formatDate(inc.createdAt) + '</div>';
+        html += '<div><span style="color:var(--text3)">Updated: </span>' + formatDate(inc.updatedAt) + '</div>';
+        html += '</div>';
+
+        if (inc.evidence.length > 0) {
+          html += '<div style="margin-bottom:1rem"><div style="font-weight:600;font-size:0.85rem;margin-bottom:0.5rem">Evidence & Attachments</div>';
+          inc.evidence.forEach(function(ev) {
+            html += '<div style="display:inline-block;padding:0.3rem 0.6rem;background:var(--bg3);border-radius:4px;font-size:0.8rem;margin-right:0.375rem;margin-bottom:0.375rem">' + esc(ev) + '</div>';
+          });
+          html += '</div>';
+        }
+
+        html += '<div style="font-weight:600;font-size:0.85rem;margin-bottom:0.25rem">Timeline</div>';
+        html += '<div class="timeline">';
+        inc.timeline.forEach(function(entry) {
+          html += '<div class="timeline-item">';
+          html += '<div class="time">' + formatDate(entry.time) + '</div>';
+          html += '<div class="desc">' + esc(entry.desc) + '</div>';
+          html += '<div class="author">by ' + esc(entry.author) + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+
+        if (inc.status === 'OPEN' || inc.status === 'IN_PROGRESS') {
+          html += '<div style="margin-top:1rem;display:flex;gap:0.5rem">';
+          if (inc.status === 'OPEN') html += '<button class="btn btn-sm btn-accent inc-status-action" data-id="' + inc.id + '" data-action="IN_PROGRESS">Start Investigation</button>';
+          html += '<button class="btn btn-sm btn-outline inc-status-action" data-id="' + inc.id + '" data-action="RESOLVED" style="border-color:var(--green);color:var(--green)">Resolve</button>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+    }
+
+    document.getElementById('app').innerHTML = html;
+
+    if (showModal) renderModal();
+
+    // Bind
+    document.querySelectorAll('.tab').forEach(function(t) {
+      t.addEventListener('click', function() { currentTab = this.dataset.tab; render(); });
+    });
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('sevFilter').addEventListener('change', function() { severityFilter = this.value; render(); });
+    document.getElementById('btnNewIncident').addEventListener('click', function() { showModal = true; render(); });
+    document.querySelectorAll('.inc-row').forEach(function(row) {
+      row.addEventListener('click', function() { selectedIncident = this.dataset.id; render(); });
+    });
+    var closeBtn = document.getElementById('closeDetail');
+    if (closeBtn) closeBtn.addEventListener('click', function() { selectedIncident = null; render(); });
+    document.querySelectorAll('.inc-status-action').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var inc = incidents.find(function(i) { return i.id === btn.dataset.id; });
+        if (inc) {
+          inc.status = btn.dataset.action;
+          inc.updatedAt = new Date().toISOString();
+          inc.timeline.push({ time: new Date().toISOString(), desc: 'Status changed to ' + btn.dataset.action.replace('_', ' '), author: 'Current User' });
+        }
+        render();
+      });
+    });
+  }
+
+  function renderModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+    var html = '<h3>Create New Incident</h3>';
+
+    html += '<div class="form-row"><label class="form-label">Title</label><input class="form-input" id="mTitle" placeholder="Brief incident description"></div>';
+    html += '<div class="form-row"><label class="form-label">Description</label><textarea class="form-input" id="mDesc" placeholder="Detailed description of the incident..."></textarea></div>';
+
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Severity</label><select class="form-input" id="mSeverity">';
+    ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(function(s) { html += '<option value="' + s + '"' + (s === 'MEDIUM' ? ' selected' : '') + '>' + s + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Category</label><select class="form-input" id="mCategory">';
+    CATEGORIES.forEach(function(c) { html += '<option>' + esc(c) + '</option>'; });
+    html += '</select></div>';
+    html += '</div>';
+
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Assigned To</label><select class="form-input" id="mAssignee">';
+    ASSIGNEES.forEach(function(a) { html += '<option>' + esc(a) + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Location</label><input class="form-input" id="mLocation" placeholder="Building A, Floor 2"></div>';
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    html += '<button class="btn btn-outline" id="mCancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="mSave">Create Incident</button>';
+    html += '</div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { showModal = false; render(); } });
+    document.getElementById('mCancel').addEventListener('click', function() { showModal = false; render(); });
+    document.getElementById('mSave').addEventListener('click', function() {
+      var newInc = {
+        id: 'INC-' + String(2025100 + incidents.length),
+        title: document.getElementById('mTitle').value || 'New Incident',
+        description: document.getElementById('mDesc').value || '',
+        severity: document.getElementById('mSeverity').value,
+        status: 'OPEN',
+        category: document.getElementById('mCategory').value,
+        assignedTo: document.getElementById('mAssignee').value,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        location: document.getElementById('mLocation').value || '',
+        timeline: [{ time: new Date().toISOString(), desc: 'Incident created', author: 'Current User' }],
+        evidence: [],
+      };
+      incidents.unshift(newInc);
+      showModal = false;
+      render();
+    });
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camera Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+body.wall-mode { padding: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 220px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-active { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+.btn-wall { background: var(--bg3); border: 1px solid var(--border); color: var(--text); }
+.btn-wall:hover { border-color: var(--accent); color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); cursor: pointer; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-online { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-offline { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-recording { background: rgba(59,130,246,0.15); color: var(--blue); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.online { background: var(--green); }
+.status-dot.offline { background: var(--red); }
+.cam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+.cam-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color 0.15s; }
+.cam-card:hover { border-color: var(--accent); }
+.cam-feed-wrap { position: relative; width: 100%; height: 200px; background: #000; }
+.cam-feed-wrap canvas { width: 100%; height: 100%; display: block; }
+.cam-info { padding: 0.75rem; }
+.cam-name { font-weight: 600; font-size: 0.9rem; }
+.cam-meta { font-size: 0.75rem; color: var(--text3); margin-top: 0.25rem; }
+.cam-status-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: var(--bg3); border-top: 1px solid var(--border); font-size: 0.7rem; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 780px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.detail-feed { width: 100%; height: 400px; background: #000; border-radius: 8px; margin-bottom: 1rem; position: relative; }
+.detail-feed canvas { width: 100%; height: 100%; border-radius: 8px; }
+.ptz-controls { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 1rem; }
+.ptz-row { display: flex; gap: 4px; }
+.ptz-btn { width: 36px; height: 36px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
+.ptz-btn:hover { border-color: var(--accent); color: var(--accent); }
+.events-list { max-height: 200px; overflow-y: auto; }
+.event-row { padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; display: flex; justify-content: space-between; }
+.timeline { display: flex; gap: 2px; margin-bottom: 1rem; height: 30px; align-items: flex-end; }
+.timeline-bar { flex: 1; background: var(--bg3); border-radius: 2px 2px 0 0; min-height: 3px; transition: background 0.2s; position: relative; }
+.timeline-bar.has-motion { background: var(--accent-dim); }
+.timeline-bar.has-motion:hover { background: var(--accent); }
+
+/* Video wall mode */
+.wall-container { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; z-index: 200; display: grid; gap: 2px; padding: 2px; }
+.wall-container.grid-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.wall-container.grid-3x3 { grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
+.wall-cell { position: relative; background: #111; overflow: hidden; }
+.wall-cell canvas { width: 100%; height: 100%; }
+.wall-exit { position: fixed; top: 10px; right: 10px; z-index: 210; background: rgba(0,0,0,0.7); border: 1px solid #444; color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
+.wall-exit:hover { background: var(--red); border-color: var(--red); }
+
+/* Thumb canvas in list view */
+.thumb-cell { width: 80px; height: 50px; position: relative; }
+.thumb-cell canvas { width: 100%; height: 100%; border-radius: 4px; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // --- State ---
+  var viewMode = 'grid';
+  var searchText = '';
+  var zoneFilter = '';
+  var statusFilter = '';
+  var mfgFilter = '';
+  var selectedCamera = null;
+  var cameras = [];
+  var wallMode = false;
+  var activeFeeds = []; // track feed states for independent animation loops
+
+  // Seeded random for deterministic but varied scenes
+  function seededRandom(seed) {
+    var x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  }
+
+  // ============================================================
+  //  SCENE CONFIGURATIONS — each camera type has unique visuals
+  // ============================================================
+  var SCENE_CONFIGS = [
+    // 0: Lobby Entrance PTZ — warm indoor, counter, people walking
+    { colorTemp: 'warm', brightness: 0.85, drawScene: drawLobbyScene, drawPeople: true, hasPTZ: true,
+      bgR: 42, bgG: 38, bgB: 32, floorY: 0.55, nightVision: false },
+    // 1: Parking Garage L1 — cool concrete, cars, grid lines
+    { colorTemp: 'cool', brightness: 0.65, drawScene: drawParkingScene, drawPeople: true, hasPTZ: false,
+      bgR: 30, bgG: 32, bgB: 36, floorY: 0.5, nightVision: false },
+    // 2: Loading Dock — outdoor, trucks, bright
+    { colorTemp: 'daylight', brightness: 0.9, drawScene: drawLoadingDockScene, drawPeople: true, hasPTZ: false,
+      bgR: 38, bgG: 40, bgB: 44, floorY: 0.55, nightVision: false },
+    // 3: Elevator Lobby F3 — indoor, doors, warm
+    { colorTemp: 'warm', brightness: 0.8, drawScene: drawElevatorScene, drawPeople: true, hasPTZ: false,
+      bgR: 40, bgG: 36, bgB: 32, floorY: 0.52, nightVision: false },
+    // 4: Package Room — indoor, shelves
+    { colorTemp: 'fluorescent', brightness: 0.75, drawScene: drawPackageRoomScene, drawPeople: true, hasPTZ: false,
+      bgR: 36, bgG: 36, bgB: 38, floorY: 0.6, nightVision: false },
+    // 5: Pool Area — outdoor, blue tint, shimmer
+    { colorTemp: 'daylight', brightness: 0.95, drawScene: drawPoolScene, drawPeople: true, hasPTZ: false,
+      bgR: 32, bgG: 38, bgB: 48, floorY: 0.45, nightVision: false },
+    // 6: Main Gate — outdoor, gate bar, cars
+    { colorTemp: 'daylight', brightness: 0.85, drawScene: drawGateScene, drawPeople: true, hasPTZ: true,
+      bgR: 36, bgG: 38, bgB: 40, floorY: 0.5, nightVision: false },
+    // 7: Emergency Exit — offline, but has scene for when online
+    { colorTemp: 'warm', brightness: 0.7, drawScene: drawExitScene, drawPeople: true, hasPTZ: false,
+      bgR: 34, bgG: 30, bgB: 28, floorY: 0.55, nightVision: false },
+    // 8: Server Room — green night vision, blinking LEDs
+    { colorTemp: 'nightvision', brightness: 0.5, drawScene: drawServerRoomScene, drawPeople: false, hasPTZ: false,
+      bgR: 12, bgG: 18, bgB: 12, floorY: 0.6, nightVision: true },
+    // 9: Stairwell B — night vision, person climbing
+    { colorTemp: 'nightvision', brightness: 0.45, drawScene: drawStairwellScene, drawPeople: true, hasPTZ: false,
+      bgR: 10, bgG: 16, bgB: 10, floorY: 0.5, nightVision: true }
+  ];
+
+  // --- Demo Data ---
+  var CAM_NAMES = [
+    'Lobby Entrance PTZ', 'Parking Garage L1', 'Loading Dock', 'Elevator Lobby F3',
+    'Package Room', 'Pool Area', 'Main Gate', 'Emergency Exit', 'Server Room', 'Stairwell B'
+  ];
+  var ZONES = ['Main Lobby','Parking Garage','Loading Dock','Elevator Lobby','Package Room',
+               'Pool Area','Main Gate','Emergency Exit','Server Room','Stairwell B'];
+  var BUILDINGS = ['Building A','Building B','Building C','Main Campus'];
+  var MFGS = ['Axis','Hikvision','Dahua','Verkada','Milestone','Hanwha','Bosch','Avigilon'];
+  var MODELS = {
+    'Axis': ['P3245-V','M3106-L','Q6135-LE','P1448-LE'],
+    'Hikvision': ['DS-2CD2143G2','DS-2CD2183G2','DS-2DE4A425IW'],
+    'Dahua': ['IPC-HDW3841T','IPC-HFW3849T1','SD49425XB'],
+    'Verkada': ['CD62','CB52','CM61'],
+    'Milestone': ['XProtect Pro','XProtect Corp','XProtect Expert'],
+    'Hanwha': ['XNV-8080R','XNO-6080R','PNM-9320VQP'],
+    'Bosch': ['FLEXIDOME 5100i','AUTODOME 7000','DINION 5100i'],
+    'Avigilon': ['H5A-BO','H5A-D','H5M-D']
+  };
+  var RESOLUTIONS = ['1080p','4K','1080p','4K','1080p','1080p','4K','1080p','1080p','4K'];
+  var CAPABILITIES_LIST = ['PTZ','Audio','Analytics','IR Night Vision','WDR'];
+
+  function genCameras() {
+    var cams = [];
+    for (var i = 0; i < 10; i++) {
+      var mfg = MFGS[i % MFGS.length];
+      var models = MODELS[mfg] || ['Standard'];
+      var isOnline = i !== 7;
+      var isRecording = isOnline && i !== 5;
+      var caps = [];
+      if (i === 0 || i === 6) caps.push('PTZ');
+      if (i % 3 === 0) caps.push('Audio');
+      if (i % 2 === 0) caps.push('Analytics');
+      if (i === 8 || i === 9) caps.push('IR Night Vision');
+
+      cams.push({
+        id: 'cam-' + String(i + 1).padStart(3, '0'),
+        name: CAM_NAMES[i],
+        zone: ZONES[i],
+        building: BUILDINGS[i % BUILDINGS.length],
+        status: isOnline ? 'online' : 'offline',
+        recording: isRecording,
+        manufacturer: mfg,
+        model: models[i % models.length],
+        resolution: RESOLUTIONS[i],
+        capabilities: caps,
+        ip: '192.168.1.' + (100 + i),
+        sceneIndex: i,
+        lastEvent: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString(),
+        motionEvents: []
+      });
+    }
+    cams.forEach(function(cam) {
+      var eventTypes = ['Motion Detected','Person Detected','Vehicle Detected','Loitering','Tailgating','Package Left'];
+      for (var j = 0; j < 8; j++) {
+        cam.motionEvents.push({
+          time: new Date(Date.now() - Math.floor(Math.random() * 86400000)).toISOString(),
+          type: eventTypes[Math.floor(Math.random() * eventTypes.length)],
+          zone: cam.zone
+        });
+      }
+      cam.motionEvents.sort(function(a, b) { return new Date(b.time) - new Date(a.time); });
+    });
+    return cams;
+  }
+
+  cameras = genCameras();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/data/cameras?limit=200');
+      if (res && (res.cameras || res.entities)) {
+        var items = res.cameras || res.entities || [];
+        if (items.length > 0) {
+          cameras = items.map(function(c, i) {
+            var d = c.data || c;
+            return {
+              id: d.id || c.id || ('cam-' + i),
+              name: d.name || CAM_NAMES[i % CAM_NAMES.length],
+              zone: d.zone || ZONES[i % ZONES.length],
+              building: d.building || BUILDINGS[i % BUILDINGS.length],
+              status: d.status || 'online',
+              recording: d.recording !== false,
+              manufacturer: d.manufacturer || MFGS[i % MFGS.length],
+              model: d.model || 'Unknown',
+              resolution: d.resolution || '1080p',
+              capabilities: d.capabilities || [],
+              ip: d.ip || '192.168.1.' + (100 + i),
+              sceneIndex: i % SCENE_CONFIGS.length,
+              lastEvent: d.lastEvent || new Date().toISOString(),
+              motionEvents: d.motionEvents || []
+            };
+          });
+        }
+      }
+    } catch(e) {}
+    render();
+  }
+
+  // ============================================================
+  //  PERSON / MOVING OBJECT SYSTEM
+  // ============================================================
+  function createPerson(w, h, sceneIndex) {
+    var fromLeft = Math.random() > 0.5;
+    var isChild = Math.random() < 0.2;
+    var personH = isChild ? (h * 0.12 + Math.random() * h * 0.04) : (h * 0.18 + Math.random() * h * 0.08);
+    var personW = personH * (0.3 + Math.random() * 0.15);
+    var speed = (0.3 + Math.random() * 0.8) * (fromLeft ? 1 : -1);
+    var yBase = h * 0.38 + Math.random() * h * 0.25;
+
+    // Colors for clothing — muted realistic tones
+    var colors = [
+      [45, 45, 55], [60, 55, 50], [35, 40, 55], [50, 40, 35],
+      [70, 65, 60], [40, 50, 45], [55, 45, 50], [30, 35, 45],
+      [65, 60, 55], [45, 50, 60]
+    ];
+    var c = colors[Math.floor(Math.random() * colors.length)];
+    // Skin tone for head
+    var skins = [[60, 45, 35], [70, 55, 42], [50, 38, 28], [75, 60, 48], [55, 42, 32]];
+    var skin = skins[Math.floor(Math.random() * skins.length)];
+
+    var pauseAt = Math.random() < 0.3 ? (Math.random() * w) : -1;
+    var pauseDuration = 40 + Math.floor(Math.random() * 80);
+    var pauseTimer = 0;
+
+    return {
+      x: fromLeft ? -personW : w + personW,
+      y: yBase,
+      w: personW,
+      h: personH,
+      headR: personW * 0.45,
+      speed: speed,
+      color: c,
+      skin: skin,
+      active: true,
+      pauseAt: pauseAt,
+      pauseDuration: pauseDuration,
+      pauseTimer: pauseTimer,
+      legPhase: Math.random() * Math.PI * 2,
+      armPhase: Math.random() * Math.PI * 2,
+      shadow: true
+    };
+  }
+
+  function createCar(w, h) {
+    var fromLeft = Math.random() > 0.5;
+    var carColors = [[50,50,55],[65,20,20],[20,35,60],[55,55,50],[30,30,35],[60,55,45],[25,40,25]];
+    var cc = carColors[Math.floor(Math.random() * carColors.length)];
+    var carW = w * 0.12 + Math.random() * w * 0.06;
+    var carH = carW * 0.5;
+    return {
+      x: fromLeft ? -carW : w + carW,
+      y: h * 0.42 + Math.random() * h * 0.15,
+      w: carW,
+      h: carH,
+      speed: (0.5 + Math.random() * 1.2) * (fromLeft ? 1 : -1),
+      color: cc,
+      active: true,
+      isCar: true,
+      hasHeadlights: Math.random() > 0.4
+    };
+  }
+
+  // ============================================================
+  //  SCENE DRAWING FUNCTIONS
+  // ============================================================
+
+  function drawLobbyScene(ctx, w, h, t, state) {
+    // Floor — perspective tiles
+    var floorTop = h * 0.48;
+    ctx.fillStyle = 'rgba(55,50,45,0.9)';
+    ctx.fillRect(0, floorTop, w, h - floorTop);
+
+    // Perspective floor grid
+    ctx.strokeStyle = 'rgba(80,75,65,0.4)';
+    ctx.lineWidth = 0.5;
+    var vanishX = w * 0.5 + Math.sin(t * 0.0003) * (state.hasPTZ ? w * 0.1 : 0); // PTZ pan
+    var vanishY = h * 0.3;
+    for (var i = 0; i < 12; i++) {
+      var fx = (i / 11) * w;
+      ctx.beginPath();
+      ctx.moveTo(fx, h);
+      ctx.lineTo(vanishX, vanishY);
+      ctx.stroke();
+    }
+    for (var fy = floorTop; fy < h; fy += 18) {
+      ctx.beginPath();
+      ctx.moveTo(0, fy);
+      ctx.lineTo(w, fy);
+      ctx.stroke();
+    }
+
+    // Reception counter
+    ctx.fillStyle = 'rgba(70,60,50,0.7)';
+    ctx.fillRect(w * 0.55, h * 0.38, w * 0.35, h * 0.12);
+    ctx.fillStyle = 'rgba(85,75,60,0.5)';
+    ctx.fillRect(w * 0.55, h * 0.36, w * 0.35, h * 0.03);
+
+    // Back wall
+    ctx.fillStyle = 'rgba(50,45,40,0.6)';
+    ctx.fillRect(0, 0, w, floorTop);
+
+    // Glass doors (left side)
+    ctx.strokeStyle = 'rgba(120,140,160,0.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(w * 0.05, h * 0.08, w * 0.12, h * 0.4);
+    ctx.strokeRect(w * 0.18, h * 0.08, w * 0.12, h * 0.4);
+    // Door handles
+    ctx.fillStyle = 'rgba(180,170,150,0.3)';
+    ctx.fillRect(w * 0.155, h * 0.25, 3, h * 0.08);
+    ctx.fillRect(w * 0.185, h * 0.25, 3, h * 0.08);
+
+    // Potted plants
+    ctx.fillStyle = 'rgba(30,55,25,0.4)';
+    ctx.beginPath(); ctx.arc(w * 0.35, h * 0.44, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(50,40,30,0.4)';
+    ctx.fillRect(w * 0.34, h * 0.46, 10, 8);
+
+    // Ceiling lights
+    for (var lx = 0.15; lx < 0.95; lx += 0.25) {
+      ctx.fillStyle = 'rgba(255,245,220,' + (0.06 + Math.sin(t * 0.005 + lx * 10) * 0.015) + ')';
+      ctx.fillRect(w * (lx - 0.04), 2, w * 0.08, 4);
+      // Light cone
+      ctx.fillStyle = 'rgba(255,245,220,0.02)';
+      ctx.beginPath();
+      ctx.moveTo(w * (lx - 0.04), 6);
+      ctx.lineTo(w * (lx - 0.12), h * 0.48);
+      ctx.lineTo(w * (lx + 0.12), h * 0.48);
+      ctx.lineTo(w * (lx + 0.04), 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawParkingScene(ctx, w, h, t, state) {
+    // Concrete floor
+    ctx.fillStyle = 'rgba(42,42,46,0.95)';
+    ctx.fillRect(0, h * 0.35, w, h * 0.65);
+
+    // Ceiling
+    ctx.fillStyle = 'rgba(35,35,38,0.9)';
+    ctx.fillRect(0, 0, w, h * 0.18);
+
+    // Ceiling pipes
+    ctx.strokeStyle = 'rgba(55,55,60,0.4)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, h * 0.08); ctx.lineTo(w, h * 0.08); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, h * 0.14); ctx.lineTo(w, h * 0.14); ctx.stroke();
+
+    // Parking lines (yellow)
+    ctx.strokeStyle = 'rgba(200,180,50,0.25)';
+    ctx.lineWidth = 2;
+    for (var px = 0; px < 6; px++) {
+      var lx = w * (0.08 + px * 0.17);
+      ctx.beginPath(); ctx.moveTo(lx, h * 0.5); ctx.lineTo(lx, h * 0.95); ctx.stroke();
+    }
+    // Horizontal parking line
+    ctx.beginPath(); ctx.moveTo(w * 0.08, h * 0.5); ctx.lineTo(w * 0.93, h * 0.5); ctx.stroke();
+
+    // Parked cars (static rectangles with some color)
+    var parkedCars = state._parkedCars;
+    if (!parkedCars) {
+      parkedCars = [];
+      for (var ci = 0; ci < 5; ci++) {
+        if (Math.random() > 0.35) {
+          var carColors = [[45,45,50],[60,25,20],[22,35,55],[50,48,42],[28,28,32]];
+          parkedCars.push({
+            slot: ci,
+            color: carColors[Math.floor(Math.random() * carColors.length)],
+            present: true
+          });
+        } else {
+          parkedCars.push({ slot: ci, present: false });
+        }
+      }
+      state._parkedCars = parkedCars;
+    }
+
+    parkedCars.forEach(function(pc) {
+      if (!pc.present) return;
+      var cx = w * (0.1 + pc.slot * 0.17);
+      var cy = h * 0.58;
+      var cw = w * 0.13;
+      var ch = h * 0.28;
+      // Car body
+      ctx.fillStyle = 'rgba(' + pc.color[0] * 2.5 + ',' + pc.color[1] * 2.5 + ',' + pc.color[2] * 2.5 + ',0.5)';
+      ctx.fillRect(cx, cy, cw, ch);
+      // Roof
+      ctx.fillStyle = 'rgba(' + (pc.color[0] * 2) + ',' + (pc.color[1] * 2) + ',' + (pc.color[2] * 2) + ',0.3)';
+      ctx.fillRect(cx + cw * 0.15, cy - ch * 0.25, cw * 0.7, ch * 0.3);
+      // Windshield
+      ctx.fillStyle = 'rgba(80,90,100,0.2)';
+      ctx.fillRect(cx + cw * 0.2, cy - ch * 0.2, cw * 0.6, ch * 0.15);
+    });
+
+    // Columns
+    ctx.fillStyle = 'rgba(55,55,60,0.5)';
+    ctx.fillRect(w * 0.02, h * 0.15, 14, h * 0.8);
+    ctx.fillRect(w * 0.48, h * 0.15, 14, h * 0.8);
+    ctx.fillRect(w * 0.95, h * 0.15, 14, h * 0.8);
+
+    // Fluorescent lights on ceiling
+    for (var fl = 0.2; fl < 0.9; fl += 0.3) {
+      var flicker = 0.08 + Math.sin(t * 0.008 + fl * 20) * 0.02 + (Math.random() < 0.02 ? 0.04 : 0);
+      ctx.fillStyle = 'rgba(220,230,255,' + flicker + ')';
+      ctx.fillRect(w * (fl - 0.06), h * 0.04, w * 0.12, 3);
+    }
+
+    // Level sign
+    ctx.fillStyle = 'rgba(0,100,0,0.25)';
+    ctx.fillRect(w * 0.85, h * 0.2, w * 0.1, h * 0.05);
+    ctx.fillStyle = 'rgba(200,255,200,0.3)';
+    ctx.font = '8px monospace';
+    ctx.fillText('L1', w * 0.88, h * 0.24);
+  }
+
+  function drawLoadingDockScene(ctx, w, h, t, state) {
+    // Sky
+    ctx.fillStyle = 'rgba(55,65,80,0.7)';
+    ctx.fillRect(0, 0, w, h * 0.3);
+
+    // Dock platform
+    ctx.fillStyle = 'rgba(50,48,44,0.9)';
+    ctx.fillRect(0, h * 0.45, w, h * 0.55);
+
+    // Dock edge
+    ctx.fillStyle = 'rgba(60,55,48,0.8)';
+    ctx.fillRect(0, h * 0.43, w, h * 0.04);
+
+    // Bay doors
+    for (var bay = 0; bay < 3; bay++) {
+      var bx = w * (0.08 + bay * 0.32);
+      var bw = w * 0.24;
+      // Door frame
+      ctx.strokeStyle = 'rgba(80,75,65,0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, h * 0.08, bw, h * 0.37);
+      // Corrugated door
+      ctx.fillStyle = 'rgba(55,55,58,0.6)';
+      ctx.fillRect(bx + 2, h * 0.1, bw - 4, h * 0.34);
+      // Horizontal lines (corrugation)
+      ctx.strokeStyle = 'rgba(45,45,48,0.4)';
+      ctx.lineWidth = 0.5;
+      for (var cl = h * 0.12; cl < h * 0.43; cl += 4) {
+        ctx.beginPath(); ctx.moveTo(bx + 4, cl); ctx.lineTo(bx + bw - 4, cl); ctx.stroke();
+      }
+    }
+
+    // Truck at bay 1 (periodic)
+    var truckCycle = (t * 0.0001) % 1;
+    if (truckCycle > 0.3 && truckCycle < 0.8) {
+      var truckAlpha = truckCycle < 0.35 ? (truckCycle - 0.3) * 20 : (truckCycle > 0.75 ? (0.8 - truckCycle) * 20 : 1);
+      ctx.globalAlpha = truckAlpha * 0.7;
+      // Truck body
+      ctx.fillStyle = 'rgb(75,75,80)';
+      ctx.fillRect(w * 0.05, h * 0.1, w * 0.28, h * 0.35);
+      // Truck trailer side
+      ctx.fillStyle = 'rgb(85,85,90)';
+      ctx.fillRect(w * 0.02, h * 0.08, w * 0.03, h * 0.38);
+      ctx.globalAlpha = 1;
+    }
+
+    // Pallets on dock
+    ctx.fillStyle = 'rgba(70,55,35,0.35)';
+    ctx.fillRect(w * 0.42, h * 0.52, w * 0.08, h * 0.06);
+    ctx.fillRect(w * 0.55, h * 0.55, w * 0.06, h * 0.05);
+    ctx.fillRect(w * 0.75, h * 0.5, w * 0.1, h * 0.07);
+
+    // Boxes on pallets
+    ctx.fillStyle = 'rgba(100,80,50,0.3)';
+    ctx.fillRect(w * 0.43, h * 0.44, w * 0.06, h * 0.08);
+    ctx.fillRect(w * 0.76, h * 0.42, w * 0.08, h * 0.08);
+
+    // Safety bollards
+    ctx.fillStyle = 'rgba(200,180,0,0.25)';
+    ctx.fillRect(w * 0.35, h * 0.55, 4, h * 0.12);
+    ctx.fillRect(w * 0.65, h * 0.55, 4, h * 0.12);
+  }
+
+  function drawElevatorScene(ctx, w, h, t, state) {
+    // Hallway floor
+    ctx.fillStyle = 'rgba(48,44,40,0.9)';
+    ctx.fillRect(0, h * 0.5, w, h * 0.5);
+
+    // Floor tiles — checkerboard
+    ctx.fillStyle = 'rgba(55,50,45,0.5)';
+    for (var tx = 0; tx < w; tx += 28) {
+      for (var ty = h * 0.5; ty < h; ty += 28) {
+        if ((Math.floor(tx / 28) + Math.floor(ty / 28)) % 2 === 0) {
+          ctx.fillRect(tx, ty, 28, 28);
+        }
+      }
+    }
+
+    // Walls
+    ctx.fillStyle = 'rgba(52,48,44,0.8)';
+    ctx.fillRect(0, 0, w, h * 0.5);
+
+    // Elevator doors (2 elevators)
+    var doorCycle = (Math.sin(t * 0.0008) + 1) / 2; // 0..1 cycle
+    for (var ei = 0; ei < 2; ei++) {
+      var ex = w * (0.2 + ei * 0.4);
+      var ew = w * 0.2;
+
+      // Door frame
+      ctx.strokeStyle = 'rgba(90,85,75,0.5)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(ex, h * 0.08, ew, h * 0.42);
+
+      // Doors — one elevator opens/closes
+      if (ei === 0) {
+        var doorOpen = doorCycle < 0.3 ? 0 : (doorCycle < 0.4 ? (doorCycle - 0.3) * 10 : (doorCycle < 0.7 ? 1 : (doorCycle < 0.8 ? (0.8 - doorCycle) * 10 : 0)));
+        var gap = doorOpen * ew * 0.45;
+        ctx.fillStyle = 'rgba(70,70,75,0.7)';
+        ctx.fillRect(ex + 2, h * 0.1, ew / 2 - gap - 2, h * 0.38);
+        ctx.fillRect(ex + ew / 2 + gap, h * 0.1, ew / 2 - gap - 2, h * 0.38);
+        // Interior when open
+        if (doorOpen > 0.3) {
+          ctx.fillStyle = 'rgba(40,40,42,0.8)';
+          ctx.fillRect(ex + ew / 2 - gap, h * 0.1, gap * 2, h * 0.38);
+        }
+      } else {
+        // Closed elevator
+        ctx.fillStyle = 'rgba(70,70,75,0.7)';
+        ctx.fillRect(ex + 2, h * 0.1, ew / 2 - 3, h * 0.38);
+        ctx.fillRect(ex + ew / 2 + 1, h * 0.1, ew / 2 - 3, h * 0.38);
+      }
+
+      // Floor indicator above door
+      ctx.fillStyle = 'rgba(200,50,50,0.4)';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(ei === 0 ? '3' : 'L', ex + ew / 2 - 3, h * 0.06);
+      // Up/down arrows
+      ctx.fillStyle = 'rgba(100,255,100,0.25)';
+      if (ei === 0) ctx.fillText(doorCycle < 0.5 ? '\u25B2' : '\u25BC', ex + ew / 2 + 8, h * 0.06);
+    }
+
+    // Hallway lights
+    for (var hl = 0.15; hl < 0.95; hl += 0.35) {
+      var flk = 0.04 + Math.sin(t * 0.006 + hl * 15) * 0.01;
+      ctx.fillStyle = 'rgba(255,245,220,' + flk + ')';
+      ctx.fillRect(w * (hl - 0.03), 1, w * 0.06, 3);
+    }
+  }
+
+  function drawPackageRoomScene(ctx, w, h, t, state) {
+    // Floor
+    ctx.fillStyle = 'rgba(44,42,40,0.9)';
+    ctx.fillRect(0, h * 0.55, w, h * 0.45);
+
+    // Back wall
+    ctx.fillStyle = 'rgba(48,46,44,0.85)';
+    ctx.fillRect(0, 0, w, h * 0.55);
+
+    // Shelving units
+    for (var shelf = 0; shelf < 3; shelf++) {
+      var sx = w * (0.05 + shelf * 0.32);
+      var sw = w * 0.26;
+
+      // Shelf uprights
+      ctx.fillStyle = 'rgba(60,60,65,0.5)';
+      ctx.fillRect(sx, h * 0.05, 3, h * 0.5);
+      ctx.fillRect(sx + sw, h * 0.05, 3, h * 0.5);
+
+      // Shelf levels
+      ctx.fillStyle = 'rgba(65,65,70,0.4)';
+      for (var sl = 0; sl < 4; sl++) {
+        var sy = h * (0.1 + sl * 0.12);
+        ctx.fillRect(sx, sy, sw, 2);
+
+        // Packages on shelves
+        var pkgCount = 2 + Math.floor(seededRandom(shelf * 100 + sl * 10) * 4);
+        for (var pk = 0; pk < pkgCount; pk++) {
+          var pkx = sx + 5 + pk * (sw / pkgCount);
+          var pkw = sw / pkgCount * 0.7;
+          var pkh = h * 0.06 + seededRandom(shelf * 50 + sl * 7 + pk) * h * 0.04;
+          var brown = 40 + seededRandom(shelf * 30 + sl * 5 + pk * 3) * 40;
+          ctx.fillStyle = 'rgba(' + (brown + 40) + ',' + (brown + 20) + ',' + brown + ',0.35)';
+          ctx.fillRect(pkx, sy - pkh, pkw, pkh);
+        }
+      }
+    }
+
+    // Floor marking
+    ctx.strokeStyle = 'rgba(200,200,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(w * 0.1, h * 0.6, w * 0.8, h * 0.3);
+    ctx.setLineDash([]);
+
+    // Overhead light
+    ctx.fillStyle = 'rgba(255,255,240,' + (0.06 + Math.sin(t * 0.007) * 0.015) + ')';
+    ctx.fillRect(w * 0.3, 0, w * 0.4, 3);
+  }
+
+  function drawPoolScene(ctx, w, h, t, state) {
+    // Sky/ceiling area
+    ctx.fillStyle = 'rgba(50,60,75,0.7)';
+    ctx.fillRect(0, 0, w, h * 0.2);
+
+    // Pool deck
+    ctx.fillStyle = 'rgba(55,52,48,0.85)';
+    ctx.fillRect(0, h * 0.2, w, h * 0.8);
+
+    // Pool water — animated shimmer
+    var poolX = w * 0.1, poolY = h * 0.3, poolW = w * 0.8, poolH = h * 0.45;
+    ctx.fillStyle = 'rgba(25,55,85,0.7)';
+    ctx.fillRect(poolX, poolY, poolW, poolH);
+
+    // Water ripple effect
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    for (var ry = 0; ry < poolH; ry += 6) {
+      var waveOffset = Math.sin(t * 0.003 + ry * 0.08) * 3;
+      var lightness = 30 + Math.sin(t * 0.002 + ry * 0.12) * 15;
+      ctx.fillStyle = 'rgba(' + (lightness + 40) + ',' + (lightness + 80) + ',' + (lightness + 130) + ',0.3)';
+      ctx.fillRect(poolX + waveOffset, poolY + ry, poolW, 2);
+    }
+    // Caustic light patterns
+    for (var ci = 0; ci < 8; ci++) {
+      var cx = poolX + (Math.sin(t * 0.001 + ci * 1.5) + 1) / 2 * poolW;
+      var cy = poolY + (Math.cos(t * 0.0012 + ci * 2.1) + 1) / 2 * poolH;
+      ctx.fillStyle = 'rgba(100,180,255,0.08)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 15 + Math.sin(t * 0.004 + ci) * 5, 8 + Math.cos(t * 0.003 + ci) * 3, t * 0.001 + ci, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Pool edge/coping
+    ctx.strokeStyle = 'rgba(75,72,65,0.5)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(poolX - 2, poolY - 2, poolW + 4, poolH + 4);
+
+    // Lane lines
+    ctx.strokeStyle = 'rgba(200,200,200,0.1)';
+    ctx.lineWidth = 1;
+    for (var lane = 1; lane < 4; lane++) {
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(poolX + lane * poolW / 4, poolY + 3);
+      ctx.lineTo(poolX + lane * poolW / 4, poolY + poolH - 3);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Lounge chairs
+    ctx.fillStyle = 'rgba(65,60,55,0.3)';
+    ctx.fillRect(w * 0.15, h * 0.82, w * 0.08, h * 0.04);
+    ctx.fillRect(w * 0.35, h * 0.82, w * 0.08, h * 0.04);
+    ctx.fillRect(w * 0.55, h * 0.82, w * 0.08, h * 0.04);
+    ctx.fillRect(w * 0.75, h * 0.82, w * 0.08, h * 0.04);
+  }
+
+  function drawGateScene(ctx, w, h, t, state) {
+    // Sky
+    ctx.fillStyle = 'rgba(50,55,65,0.6)';
+    ctx.fillRect(0, 0, w, h * 0.35);
+
+    // Road surface
+    ctx.fillStyle = 'rgba(38,38,40,0.9)';
+    ctx.fillRect(0, h * 0.45, w, h * 0.55);
+
+    // Road lane markings
+    ctx.strokeStyle = 'rgba(200,200,200,0.15)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([12, 8]);
+    ctx.beginPath(); ctx.moveTo(0, h * 0.65); ctx.lineTo(w, h * 0.65); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Road edges
+    ctx.fillStyle = 'rgba(200,200,200,0.08)';
+    ctx.fillRect(0, h * 0.44, w, 3);
+    ctx.fillRect(0, h * 0.93, w, 3);
+
+    // Guard booth
+    ctx.fillStyle = 'rgba(55,50,45,0.7)';
+    ctx.fillRect(w * 0.4, h * 0.15, w * 0.12, h * 0.3);
+    // Window
+    ctx.fillStyle = 'rgba(80,100,120,0.3)';
+    ctx.fillRect(w * 0.42, h * 0.2, w * 0.08, h * 0.1);
+
+    // Gate arm — raising/lowering animation
+    var gateCycle = (Math.sin(t * 0.0005) + 1) / 2;
+    var gateAngle = gateCycle < 0.3 ? 0 : (gateCycle < 0.4 ? (gateCycle - 0.3) * 10 * -Math.PI / 2.5 :
+      (gateCycle < 0.7 ? -Math.PI / 2.5 : (gateCycle < 0.8 ? -(0.8 - gateCycle) * 10 * Math.PI / 2.5 : 0)));
+
+    ctx.save();
+    ctx.translate(w * 0.52, h * 0.38);
+    ctx.rotate(gateAngle);
+    // Gate arm
+    ctx.fillStyle = 'rgba(200,50,50,0.6)';
+    ctx.fillRect(0, -3, w * 0.4, 6);
+    // Reflective stripes
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    for (var gs = 0; gs < 8; gs++) {
+      ctx.fillRect(10 + gs * w * 0.048, -3, w * 0.02, 6);
+    }
+    ctx.restore();
+
+    // Gate post
+    ctx.fillStyle = 'rgba(60,60,65,0.6)';
+    ctx.fillRect(w * 0.505, h * 0.28, 8, h * 0.2);
+
+    // Spike strip housing
+    ctx.fillStyle = 'rgba(50,50,55,0.4)';
+    ctx.fillRect(w * 0.45, h * 0.58, w * 0.2, 4);
+
+    // Bollards
+    ctx.fillStyle = 'rgba(180,170,0,0.2)';
+    ctx.fillRect(w * 0.38, h * 0.52, 5, h * 0.1);
+    ctx.fillRect(w * 0.62, h * 0.52, 5, h * 0.1);
+  }
+
+  function drawExitScene(ctx, w, h, t, state) {
+    // Hallway
+    ctx.fillStyle = 'rgba(45,40,36,0.85)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Floor
+    ctx.fillStyle = 'rgba(40,38,34,0.9)';
+    ctx.fillRect(0, h * 0.55, w, h * 0.45);
+
+    // Exit door
+    ctx.fillStyle = 'rgba(55,55,58,0.7)';
+    ctx.fillRect(w * 0.35, h * 0.1, w * 0.3, h * 0.45);
+    // Push bar
+    ctx.fillStyle = 'rgba(80,80,85,0.5)';
+    ctx.fillRect(w * 0.38, h * 0.35, w * 0.24, 4);
+
+    // EXIT sign — illuminated red
+    var exitPulse = 0.3 + Math.sin(t * 0.003) * 0.05;
+    ctx.fillStyle = 'rgba(220,30,30,' + exitPulse + ')';
+    ctx.fillRect(w * 0.38, h * 0.02, w * 0.24, h * 0.07);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('EXIT', w * 0.5, h * 0.072);
+    ctx.textAlign = 'left';
+
+    // Walls
+    ctx.strokeStyle = 'rgba(60,55,50,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h * 0.55); ctx.lineTo(w, h * 0.55); ctx.stroke();
+
+    // Fire extinguisher on wall
+    ctx.fillStyle = 'rgba(180,30,30,0.25)';
+    ctx.fillRect(w * 0.78, h * 0.25, 6, h * 0.12);
+    ctx.fillStyle = 'rgba(120,120,120,0.2)';
+    ctx.fillRect(w * 0.785, h * 0.22, 3, h * 0.04);
+  }
+
+  function drawServerRoomScene(ctx, w, h, t, state) {
+    // Dark room with green night vision tint
+    ctx.fillStyle = 'rgba(8,14,8,0.95)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Raised floor grid
+    ctx.strokeStyle = 'rgba(20,40,20,0.3)';
+    ctx.lineWidth = 0.5;
+    for (var fx = 0; fx < w; fx += 30) {
+      ctx.beginPath(); ctx.moveTo(fx, h * 0.6); ctx.lineTo(fx, h); ctx.stroke();
+    }
+    for (var fy = h * 0.6; fy < h; fy += 30) {
+      ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(w, fy); ctx.stroke();
+    }
+
+    // Server racks
+    for (var rack = 0; rack < 5; rack++) {
+      var rx = w * (0.06 + rack * 0.19);
+      var rw = w * 0.14;
+
+      // Rack body
+      ctx.fillStyle = 'rgba(15,25,15,0.8)';
+      ctx.fillRect(rx, h * 0.05, rw, h * 0.55);
+      // Rack outline
+      ctx.strokeStyle = 'rgba(25,45,25,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rx, h * 0.05, rw, h * 0.55);
+
+      // Server units in rack
+      for (var unit = 0; unit < 12; unit++) {
+        var uy = h * 0.07 + unit * h * 0.044;
+        ctx.fillStyle = 'rgba(12,20,12,0.9)';
+        ctx.fillRect(rx + 2, uy, rw - 4, h * 0.038);
+
+        // LED indicators — blinking
+        for (var led = 0; led < 3; led++) {
+          var ledOn = Math.sin(t * (0.005 + rack * 0.002 + unit * 0.003 + led * 0.007)) > 0;
+          var ledColor = led === 0 ? (ledOn ? 'rgba(0,255,0,0.7)' : 'rgba(0,80,0,0.3)') :
+                         (led === 1 ? (ledOn ? 'rgba(0,200,255,0.5)' : 'rgba(0,60,80,0.2)') :
+                         (Math.random() < 0.01 ? 'rgba(255,100,0,0.7)' : (ledOn ? 'rgba(0,255,0,0.4)' : 'rgba(0,50,0,0.2)')));
+          ctx.fillStyle = ledColor;
+          ctx.fillRect(rx + 4 + led * 6, uy + 2, 3, 2);
+        }
+
+        // Activity LED (right side) — rapid blink for data transfer
+        var actLed = Math.sin(t * (0.02 + rack * 0.01 + unit * 0.015)) > 0.3;
+        ctx.fillStyle = actLed ? 'rgba(0,255,100,0.5)' : 'rgba(0,40,0,0.15)';
+        ctx.fillRect(rx + rw - 8, uy + 2, 3, 2);
+      }
+    }
+
+    // Hot/cold aisle indicator
+    ctx.fillStyle = 'rgba(0,100,255,0.04)';
+    ctx.fillRect(w * 0.15, h * 0.6, w * 0.2, h * 0.35);
+    ctx.fillStyle = 'rgba(255,50,0,0.03)';
+    ctx.fillRect(w * 0.55, h * 0.6, w * 0.2, h * 0.35);
+
+    // Overhead cable trays
+    ctx.fillStyle = 'rgba(20,30,20,0.5)';
+    ctx.fillRect(0, h * 0.01, w, 4);
+  }
+
+  function drawStairwellScene(ctx, w, h, t, state) {
+    // Night vision green tint
+    ctx.fillStyle = 'rgba(8,14,8,0.95)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Stair steps — perspective from above
+    ctx.strokeStyle = 'rgba(30,55,30,0.5)';
+    ctx.lineWidth = 1;
+    for (var step = 0; step < 14; step++) {
+      var sy = h * (0.08 + step * 0.065);
+      var indent = step * 3;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.15 + indent, sy);
+      ctx.lineTo(w * 0.85 - indent, sy);
+      ctx.stroke();
+      // Step face (vertical part)
+      ctx.fillStyle = 'rgba(18,30,18,0.6)';
+      ctx.fillRect(w * 0.15 + indent, sy, w * 0.7 - indent * 2, h * 0.03);
+    }
+
+    // Handrails
+    ctx.strokeStyle = 'rgba(40,65,40,0.4)';
+    ctx.lineWidth = 2;
+    // Left rail
+    ctx.beginPath();
+    ctx.moveTo(w * 0.13, h * 0.05);
+    ctx.lineTo(w * 0.13 + 14 * 3, h * 0.08 + 14 * h * 0.065);
+    ctx.stroke();
+    // Right rail
+    ctx.beginPath();
+    ctx.moveTo(w * 0.87, h * 0.05);
+    ctx.lineTo(w * 0.87 - 14 * 3, h * 0.08 + 14 * h * 0.065);
+    ctx.stroke();
+
+    // Landing area at bottom
+    ctx.fillStyle = 'rgba(15,24,15,0.7)';
+    ctx.fillRect(w * 0.1, h * 0.85, w * 0.8, h * 0.12);
+
+    // Floor number on wall
+    ctx.fillStyle = 'rgba(0,120,0,0.2)';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('B', w * 0.06, h * 0.5);
+
+    // Emergency light
+    var emLight = 0.15 + Math.sin(t * 0.004) * 0.05;
+    ctx.fillStyle = 'rgba(0,255,0,' + emLight + ')';
+    ctx.fillRect(w * 0.48, h * 0.02, w * 0.04, 3);
+  }
+
+  // ============================================================
+  //  DRAW A PERSON (articulated figure)
+  // ============================================================
+  function drawPerson(ctx, p, t, nightVision) {
+    var x = p.x, y = p.y, pw = p.w, ph = p.h;
+    var isMoving = Math.abs(p.speed) > 0.01 && p.pauseTimer <= 0;
+    var legSwing = isMoving ? Math.sin(t * 0.008 + p.legPhase) * pw * 0.3 : 0;
+    var armSwing = isMoving ? Math.sin(t * 0.008 + p.armPhase) * pw * 0.2 : 0;
+
+    var r, g, b, sr, sg, sb;
+    if (nightVision) {
+      // Green tint for night vision
+      r = p.color[0] * 0.3 + 10; g = p.color[1] * 0.6 + 30; b = p.color[2] * 0.2 + 5;
+      sr = p.skin[0] * 0.3 + 15; sg = p.skin[1] * 0.6 + 35; sb = p.skin[2] * 0.2 + 8;
+    } else {
+      r = p.color[0]; g = p.color[1]; b = p.color[2];
+      sr = p.skin[0]; sg = p.skin[1]; sb = p.skin[2];
+    }
+
+    // Shadow on ground
+    if (p.shadow && !nightVision) {
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + ph, pw * 0.6, pw * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Legs
+    ctx.fillStyle = 'rgba(' + (r * 0.7 | 0) + ',' + (g * 0.7 | 0) + ',' + (b * 0.7 | 0) + ',0.8)';
+    ctx.fillRect(x - pw * 0.2 + legSwing, y + ph * 0.55, pw * 0.25, ph * 0.45);
+    ctx.fillRect(x + pw * 0.05 - legSwing, y + ph * 0.55, pw * 0.25, ph * 0.45);
+
+    // Torso
+    ctx.fillStyle = 'rgba(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ',0.85)';
+    ctx.fillRect(x - pw * 0.3, y + ph * 0.2, pw * 0.7, ph * 0.38);
+
+    // Arms
+    ctx.fillStyle = 'rgba(' + (r * 0.9 | 0) + ',' + (g * 0.9 | 0) + ',' + (b * 0.9 | 0) + ',0.7)';
+    ctx.fillRect(x - pw * 0.4 + armSwing, y + ph * 0.22, pw * 0.15, ph * 0.3);
+    ctx.fillRect(x + pw * 0.35 - armSwing, y + ph * 0.22, pw * 0.15, ph * 0.3);
+
+    // Head
+    ctx.fillStyle = 'rgba(' + (sr | 0) + ',' + (sg | 0) + ',' + (sb | 0) + ',0.9)';
+    ctx.beginPath();
+    ctx.arc(x + pw * 0.05, y + ph * 0.12, p.headR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hair (dark cap on head)
+    ctx.fillStyle = 'rgba(' + (r * 0.4 | 0) + ',' + (g * 0.4 | 0) + ',' + (b * 0.4 | 0) + ',0.6)';
+    ctx.beginPath();
+    ctx.arc(x + pw * 0.05, y + ph * 0.09, p.headR * 0.9, Math.PI, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ============================================================
+  //  DRAW A CAR
+  // ============================================================
+  function drawCarShape(ctx, car, t) {
+    var x = car.x, y = car.y, cw = car.w, ch = car.h;
+    var r = car.color[0], g = car.color[1], b = car.color[2];
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(x + cw * 0.5, y + ch + 2, cw * 0.45, ch * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Car body
+    ctx.fillStyle = 'rgba(' + (r * 3 | 0) + ',' + (g * 3 | 0) + ',' + (b * 3 | 0) + ',0.6)';
+    ctx.fillRect(x, y + ch * 0.3, cw, ch * 0.7);
+
+    // Roof/cabin
+    ctx.fillStyle = 'rgba(' + (r * 2.5 | 0) + ',' + (g * 2.5 | 0) + ',' + (b * 2.5 | 0) + ',0.5)';
+    ctx.fillRect(x + cw * 0.2, y, cw * 0.55, ch * 0.4);
+
+    // Windshield
+    ctx.fillStyle = 'rgba(60,80,100,0.3)';
+    ctx.fillRect(x + cw * 0.22, y + ch * 0.05, cw * 0.2, ch * 0.3);
+    ctx.fillRect(x + cw * 0.5, y + ch * 0.05, cw * 0.22, ch * 0.3);
+
+    // Wheels
+    ctx.fillStyle = 'rgba(20,20,20,0.6)';
+    ctx.beginPath(); ctx.arc(x + cw * 0.2, y + ch, cw * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + cw * 0.8, y + ch, cw * 0.06, 0, Math.PI * 2); ctx.fill();
+
+    // Headlights/taillights
+    if (car.hasHeadlights) {
+      var facing = car.speed > 0 ? 1 : -1;
+      if (facing > 0) {
+        ctx.fillStyle = 'rgba(255,240,200,0.4)';
+        ctx.fillRect(x + cw - 2, y + ch * 0.4, 3, ch * 0.15);
+        ctx.fillStyle = 'rgba(255,40,40,0.4)';
+        ctx.fillRect(x - 1, y + ch * 0.4, 3, ch * 0.15);
+      } else {
+        ctx.fillStyle = 'rgba(255,240,200,0.4)';
+        ctx.fillRect(x - 1, y + ch * 0.4, 3, ch * 0.15);
+        ctx.fillStyle = 'rgba(255,40,40,0.4)';
+        ctx.fillRect(x + cw - 2, y + ch * 0.4, 3, ch * 0.15);
+      }
+    }
+  }
+
+  // ============================================================
+  //  CAMERA FEED STATE AND RENDERER
+  // ============================================================
+
+  function initCameraFeed(canvas, cam, isLarge) {
+    var w = canvas.width = isLarge ? 780 : 384;
+    var h = canvas.height = isLarge ? 440 : 216;
+    var ctx = canvas.getContext('2d');
+    var scene = SCENE_CONFIGS[cam.sceneIndex % SCENE_CONFIGS.length];
+    var isOffline = cam.status === 'offline';
+
+    var feedState = {
+      canvas: canvas,
+      ctx: ctx,
+      cam: cam,
+      scene: scene,
+      w: w,
+      h: h,
+      isOffline: isOffline,
+      isLarge: isLarge,
+      frameCount: 0,
+      startTime: performance.now() + Math.random() * 10000, // offset so cameras don't sync
+      people: [],
+      cars: [],
+      motionBoxes: [],
+      lastPersonSpawn: 0,
+      lastCarSpawn: 0,
+      personSpawnInterval: 5000 + Math.random() * 10000,
+      carSpawnInterval: 8000 + Math.random() * 12000,
+      glitchUntil: 0,
+      bitrate: (1.8 + Math.random() * 2.5).toFixed(1),
+      _animId: null
+    };
+
+    // Pre-spawn some initial people
+    if (scene.drawPeople && !isOffline) {
+      var initCount = 1 + Math.floor(Math.random() * 3);
+      for (var ip = 0; ip < initCount; ip++) {
+        var p = createPerson(w, h, cam.sceneIndex);
+        p.x = w * 0.15 + Math.random() * w * 0.6;
+        feedState.people.push(p);
+      }
+    }
+
+    // Start independent animation loop
+    function feedLoop() {
+      if (!feedState.canvas.isConnected) return; // canvas removed from DOM
+      renderCameraFrame(feedState);
+      feedState._animId = requestAnimationFrame(feedLoop);
+    }
+    feedState._animId = requestAnimationFrame(feedLoop);
+    activeFeeds.push(feedState);
+    return feedState;
+  }
+
+  function renderCameraFrame(state) {
+    var ctx = state.ctx;
+    var w = state.w;
+    var h = state.h;
+    var scene = state.scene;
+    var cam = state.cam;
+    var t = performance.now() - state.startTime;
+    state.frameCount++;
+
+    // ---- OFFLINE: static noise ----
+    if (state.isOffline) {
+      ctx.fillStyle = '#080808';
+      ctx.fillRect(0, 0, w, h);
+      // Realistic static noise — sparse for performance
+      var imgData = ctx.createImageData(w >> 1, h >> 1);
+      var d = imgData.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var v = Math.random() * 50 | 0;
+        d[i] = v; d[i+1] = v; d[i+2] = v; d[i+3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      ctx.drawImage(state.canvas, 0, 0, w >> 1, h >> 1, 0, 0, w, h);
+
+      // Horizontal line glitch
+      for (var gl = 0; gl < 3; gl++) {
+        var gy = Math.random() * h;
+        ctx.fillStyle = 'rgba(255,255,255,' + (Math.random() * 0.15) + ')';
+        ctx.fillRect(0, gy, w, 1);
+      }
+
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold ' + (state.isLarge ? '22px' : '13px') + ' monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('NO SIGNAL', w / 2, h / 2 - 8);
+      ctx.font = (state.isLarge ? '12px' : '9px') + ' monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText(cam.name + ' - ' + cam.ip, w / 2, h / 2 + 12);
+      ctx.textAlign = 'left';
+      return;
+    }
+
+    // ---- GLITCH: occasional interference ----
+    if (t > state.glitchUntil && Math.random() < 0.0005) {
+      state.glitchUntil = t + 50 + Math.random() * 100;
+    }
+    if (t < state.glitchUntil) {
+      // Full static glitch frame
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, w, h);
+      var gd = ctx.createImageData(w >> 2, h >> 2);
+      var gdd = gd.data;
+      for (var gi = 0; gi < gdd.length; gi += 4) {
+        var gv = Math.random() * 80 | 0;
+        gdd[gi] = gv; gdd[gi+1] = gv; gdd[gi+2] = gv; gdd[gi+3] = 255;
+      }
+      ctx.putImageData(gd, 0, 0);
+      ctx.drawImage(state.canvas, 0, 0, w >> 2, h >> 2, 0, 0, w, h);
+      return;
+    }
+
+    // ---- Draw base background ----
+    var br = scene.brightness;
+    // Fluorescent flicker
+    var flicker = 1.0 + Math.sin(t * 0.005) * 0.01;
+    if (Math.random() < 0.003) flicker += 0.03; // occasional bright flash
+    br *= flicker;
+
+    ctx.fillStyle = 'rgb(' + (scene.bgR * br | 0) + ',' + (scene.bgG * br | 0) + ',' + (scene.bgB * br | 0) + ')';
+    ctx.fillRect(0, 0, w, h);
+
+    // ---- Draw scene-specific content ----
+    ctx.save();
+    scene.drawScene(ctx, w, h, t, state);
+    ctx.restore();
+
+    // ---- Spawn & update people ----
+    if (scene.drawPeople) {
+      if (t - state.lastPersonSpawn > state.personSpawnInterval && state.people.length < 5) {
+        state.people.push(createPerson(w, h, cam.sceneIndex));
+        state.lastPersonSpawn = t;
+        state.personSpawnInterval = 5000 + Math.random() * 10000;
+      }
+
+      // For gate/parking: also spawn cars
+      if (cam.sceneIndex === 1 || cam.sceneIndex === 6) {
+        if (t - state.lastCarSpawn > state.carSpawnInterval && state.cars.length < 2) {
+          state.cars.push(createCar(w, h));
+          state.lastCarSpawn = t;
+          state.carSpawnInterval = 8000 + Math.random() * 15000;
+        }
+      }
+    }
+
+    // Update and draw cars
+    state.cars = state.cars.filter(function(car) {
+      car.x += car.speed;
+      if ((car.speed > 0 && car.x > w + car.w) || (car.speed < 0 && car.x < -car.w * 2)) return false;
+      drawCarShape(ctx, car, t);
+      return true;
+    });
+
+    // Update and draw people
+    state.people = state.people.filter(function(p) {
+      // Pause logic
+      if (p.pauseAt >= 0 && p.pauseTimer <= 0) {
+        if ((p.speed > 0 && p.x >= p.pauseAt) || (p.speed < 0 && p.x <= p.pauseAt)) {
+          p.pauseTimer = p.pauseDuration;
+          p.pauseAt = -1; // only pause once
+        }
+      }
+      if (p.pauseTimer > 0) {
+        p.pauseTimer--;
+      } else {
+        p.x += p.speed;
+      }
+
+      // Remove if off screen
+      if ((p.speed > 0 && p.x > w + p.w * 2) || (p.speed < 0 && p.x < -p.w * 2)) return false;
+
+      drawPerson(ctx, p, t, scene.nightVision);
+      return true;
+    });
+
+    // ---- Motion detection bounding boxes (follow people) ----
+    state.motionBoxes = [];
+    state.people.forEach(function(p) {
+      if (Math.abs(p.speed) > 0.01 && p.pauseTimer <= 0) {
+        state.motionBoxes.push({
+          x: p.x - p.w * 0.6,
+          y: p.y - p.headR * 2,
+          w: p.w * 2,
+          h: p.h + p.headR * 2 + 4
+        });
+      }
+    });
+    state.cars.forEach(function(c) {
+      state.motionBoxes.push({
+        x: c.x - 2,
+        y: c.y - 4,
+        w: c.w + 4,
+        h: c.h + 8
+      });
+    });
+
+    // Draw motion boxes
+    ctx.lineWidth = 1.5;
+    state.motionBoxes.forEach(function(mb) {
+      ctx.strokeStyle = 'rgba(0,255,80,0.45)';
+      ctx.strokeRect(mb.x, mb.y, mb.w, mb.h);
+      // Corner brackets
+      var cornerLen = Math.min(mb.w, mb.h) * 0.2;
+      ctx.strokeStyle = 'rgba(0,255,80,0.7)';
+      ctx.lineWidth = 2;
+      // Top-left
+      ctx.beginPath(); ctx.moveTo(mb.x, mb.y + cornerLen); ctx.lineTo(mb.x, mb.y); ctx.lineTo(mb.x + cornerLen, mb.y); ctx.stroke();
+      // Top-right
+      ctx.beginPath(); ctx.moveTo(mb.x + mb.w - cornerLen, mb.y); ctx.lineTo(mb.x + mb.w, mb.y); ctx.lineTo(mb.x + mb.w, mb.y + cornerLen); ctx.stroke();
+      // Bottom-left
+      ctx.beginPath(); ctx.moveTo(mb.x, mb.y + mb.h - cornerLen); ctx.lineTo(mb.x, mb.y + mb.h); ctx.lineTo(mb.x + cornerLen, mb.y + mb.h); ctx.stroke();
+      // Bottom-right
+      ctx.beginPath(); ctx.moveTo(mb.x + mb.w - cornerLen, mb.y + mb.h); ctx.lineTo(mb.x + mb.w, mb.y + mb.h); ctx.lineTo(mb.x + mb.w, mb.y + mb.h - cornerLen); ctx.stroke();
+      ctx.lineWidth = 1.5;
+    });
+
+    // ---- Noise overlay (subtle, every 3rd frame for perf) ----
+    if (state.frameCount % 3 === 0) {
+      var nw = w >> 3, nh = h >> 3;
+      var nCvs = document.createElement('canvas');
+      nCvs.width = nw; nCvs.height = nh;
+      var nCtx = nCvs.getContext('2d');
+      var nImg = nCtx.createImageData(nw, nh);
+      var nd = nImg.data;
+      for (var ni = 0; ni < nd.length; ni += 4) {
+        var nv = (Math.random() * 20 - 10) | 0;
+        nd[ni] = 128 + nv;
+        nd[ni+1] = 128 + nv;
+        nd[ni+2] = 128 + nv;
+        nd[ni+3] = scene.nightVision ? 20 : 12;
+      }
+      nCtx.putImageData(nImg, 0, 0);
+      ctx.drawImage(nCvs, 0, 0, w, h);
+    }
+
+    // ---- Scanlines ----
+    ctx.fillStyle = 'rgba(0,0,0,' + (scene.nightVision ? '0.06' : '0.025') + ')';
+    var scanOff = (state.frameCount * 0.5) % 4;
+    for (var sl = scanOff; sl < h; sl += 4) {
+      ctx.fillRect(0, sl, w, 1);
+    }
+
+    // ---- Horizontal line artifact (occasional) ----
+    if (Math.random() < 0.02) {
+      var artifactY = Math.random() * h;
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillRect(0, artifactY, w, 1 + Math.random() * 2);
+    }
+
+    // ---- Night vision vignette ----
+    if (scene.nightVision) {
+      var grad = ctx.createRadialGradient(w / 2, h / 2, w * 0.25, w / 2, h / 2, w * 0.6);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // ============================================================
+    //  OVERLAY HUD
+    // ============================================================
+    var fontSize = state.isLarge ? 12 : 9;
+    var pad = state.isLarge ? 10 : 6;
+    ctx.font = fontSize + 'px monospace';
+
+    // Camera name banner (top-left)
+    var nameText = cam.name.toUpperCase();
+    var nameW = ctx.measureText(nameText).width + pad * 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, nameW + pad, fontSize + pad * 2 + 2);
+    ctx.fillStyle = scene.nightVision ? 'rgba(0,255,0,0.9)' : '#fff';
+    ctx.fillText(nameText, pad, fontSize + pad);
+
+    // Resolution + bitrate badge (top-right)
+    var resText = cam.resolution + '  ' + state.bitrate + ' Mbps';
+    var resW = ctx.measureText(resText).width + pad * 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(w - resW - pad, 0, resW + pad, fontSize + pad * 2 + 2);
+    ctx.fillStyle = cam.resolution === '4K' ? '#fbbf24' : (scene.nightVision ? 'rgba(0,200,0,0.7)' : '#94a3b8');
+    ctx.fillText(resText, w - resW, fontSize + pad);
+
+    // LIVE indicator with pulsing dot (below name)
+    var liveY = fontSize + pad * 2 + 6;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, liveY, 55, fontSize + pad + 2);
+    var pulse = (Math.sin(t * 0.004) + 1) / 2;
+    ctx.fillStyle = 'rgba(239,68,68,' + (0.4 + pulse * 0.6) + ')';
+    ctx.beginPath();
+    ctx.arc(pad + 4, liveY + (fontSize + pad) / 2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = scene.nightVision ? 'rgba(0,255,0,0.9)' : '#fff';
+    ctx.fillText('LIVE', pad + 12, liveY + fontSize + 1);
+
+    // Timestamp with milliseconds (bottom-left)
+    var now = new Date();
+    var ts = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0') + '.' +
+      String(now.getMilliseconds()).padStart(3, '0');
+    var tsW = ctx.measureText(ts).width + pad * 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, h - fontSize - pad * 2 - 2, tsW + pad, fontSize + pad * 2 + 2);
+    ctx.fillStyle = scene.nightVision ? 'rgba(0,255,0,0.8)' : 'rgba(255,255,255,0.85)';
+    ctx.fillText(ts, pad, h - pad - 2);
+
+    // Frame counter (bottom-left, above timestamp)
+    var fcText = 'F:' + String(state.frameCount % 100000).padStart(5, '0');
+    var fcY = h - fontSize * 2 - pad * 3 - 6;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    var fcW = ctx.measureText(fcText).width + pad * 2;
+    ctx.fillRect(0, fcY, fcW + pad, fontSize + pad + 2);
+    ctx.fillStyle = scene.nightVision ? 'rgba(0,200,0,0.5)' : 'rgba(255,255,255,0.4)';
+    ctx.fillText(fcText, pad, fcY + fontSize + 2);
+
+    // REC indicator (bottom-right)
+    if (cam.recording) {
+      var recText = 'REC';
+      ctx.font = 'bold ' + fontSize + 'px monospace';
+      var recW = ctx.measureText(recText).width + pad * 2 + 14;
+      var recH = fontSize + pad + 4;
+      ctx.fillStyle = 'rgba(200,30,30,0.8)';
+      ctx.fillRect(w - recW - pad, h - recH - pad, recW + pad, recH + pad);
+      // Blinking dot
+      if (Math.floor(t / 700) % 2 === 0) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(w - recW - pad + pad + 4, h - pad - recH / 2 + 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.fillText(recText, w - recW - pad + pad + 12, h - pad - 2);
+      ctx.font = fontSize + 'px monospace';
+    }
+
+    // Night vision label
+    if (scene.nightVision) {
+      var nvText = 'IR NIGHT VISION';
+      var nvW = ctx.measureText(nvText).width + pad * 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(w - nvW - pad, liveY, nvW + pad, fontSize + pad + 2);
+      ctx.fillStyle = 'rgba(0,255,0,0.6)';
+      ctx.fillText(nvText, w - nvW, liveY + fontSize + 1);
+    }
+
+    // Motion count (mid-right)
+    if (state.motionBoxes.length > 0) {
+      var motText = state.motionBoxes.length + ' MOTION';
+      var motW = ctx.measureText(motText).width + pad * 2;
+      var motY = liveY + fontSize + pad + 6;
+      ctx.fillStyle = 'rgba(0,80,0,0.6)';
+      ctx.fillRect(0, motY, motW + pad, fontSize + pad + 2);
+      ctx.fillStyle = 'rgba(0,255,80,0.8)';
+      ctx.fillText(motText, pad, motY + fontSize + 1);
+    }
+  }
+
+  function stopAllFeeds() {
+    activeFeeds.forEach(function(feed) {
+      if (feed._animId) cancelAnimationFrame(feed._animId);
+    });
+    activeFeeds = [];
+  }
+
+  function filtered() {
+    return cameras.filter(function(c) {
+      if (statusFilter && c.status !== statusFilter) return false;
+      if (zoneFilter && c.zone !== zoneFilter) return false;
+      if (mfgFilter && c.manufacturer !== mfgFilter) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (c.name.toLowerCase().indexOf(s) < 0 && c.zone.toLowerCase().indexOf(s) < 0 && c.manufacturer.toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    stopAllFeeds();
+    if (wallMode) { renderWall(); return; }
+    document.body.classList.remove('wall-mode');
+
+    var data = filtered();
+    var total = cameras.length;
+    var online = cameras.filter(function(c) { return c.status === 'online'; }).length;
+    var offline = cameras.filter(function(c) { return c.status === 'offline'; }).length;
+    var recording = cameras.filter(function(c) { return c.recording; }).length;
+
+    var uniqueZones = []; cameras.forEach(function(c) { if (uniqueZones.indexOf(c.zone) < 0) uniqueZones.push(c.zone); });
+    var uniqueMfgs = []; cameras.forEach(function(c) { if (uniqueMfgs.indexOf(c.manufacturer) < 0) uniqueMfgs.push(c.manufacturer); });
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Camera Management</div>';
+    html += '<div class="subtitle">Monitor and manage all connected cameras across your sites.</div></div>';
+    html += '<button class="btn btn-wall" id="btnWall" title="Video Wall Mode">&#9638; Video Wall</button>';
+    html += '</div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Total Cameras</div><div class="stat-value">' + total + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Online</div><div class="stat-value green">' + online + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Offline</div><div class="stat-value red">' + offline + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Recording</div><div class="stat-value blue">' + recording + '</div></div>';
+    html += '</div>';
+
+    // Toolbar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search cameras..." value="' + esc(searchText) + '">';
+    html += '<select class="filter" id="zoneFilter"><option value="">All Zones</option>';
+    uniqueZones.forEach(function(z) { html += '<option value="' + esc(z) + '"' + (zoneFilter === z ? ' selected' : '') + '>' + esc(z) + '</option>'; });
+    html += '</select>';
+    html += '<select class="filter" id="statusFilter"><option value="">All Status</option><option value="online"' + (statusFilter === 'online' ? ' selected' : '') + '>Online</option><option value="offline"' + (statusFilter === 'offline' ? ' selected' : '') + '>Offline</option></select>';
+    html += '<select class="filter" id="mfgFilter"><option value="">All Manufacturers</option>';
+    uniqueMfgs.forEach(function(m) { html += '<option value="' + esc(m) + '"' + (mfgFilter === m ? ' selected' : '') + '>' + esc(m) + '</option>'; });
+    html += '</select>';
+    html += '<span style="margin-left:auto"></span>';
+    html += '<button class="btn btn-sm ' + (viewMode === 'grid' ? 'btn-active' : 'btn-outline') + '" id="btnGrid">Grid</button>';
+    html += '<button class="btn btn-sm ' + (viewMode === 'list' ? 'btn-active' : 'btn-outline') + '" id="btnList">List</button>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:0.5rem">' + data.length + ' cameras</span>';
+    html += '</div>';
+
+    if (viewMode === 'grid') {
+      html += '<div class="cam-grid">';
+      data.forEach(function(c) {
+        html += '<div class="cam-card" data-id="' + c.id + '">';
+        html += '<div class="cam-feed-wrap"><canvas data-cam-id="' + c.id + '"></canvas></div>';
+        html += '<div class="cam-info"><div class="cam-name"><span class="status-dot ' + c.status + '"></span>' + esc(c.name) + '</div>';
+        html += '<div class="cam-meta">' + esc(c.zone) + ' &middot; ' + esc(c.manufacturer) + ' ' + esc(c.model) + '</div></div>';
+        html += '<div class="cam-status-bar">';
+        html += '<span class="badge badge-' + c.status + '">' + c.status + '</span>';
+        if (c.recording) html += '<span class="badge badge-recording">Recording</span>';
+        html += '<span style="margin-left:auto;color:var(--text3)">' + esc(c.resolution) + '</span>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<table><thead><tr>';
+      html += '<th style="width:80px">Feed</th><th>Name</th><th>Zone</th><th>Status</th><th>Manufacturer</th><th>Model</th><th>Resolution</th><th>Capabilities</th>';
+      html += '</tr></thead><tbody>';
+      if (data.length === 0) {
+        html += '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:2rem">No cameras match your filters</td></tr>';
+      } else {
+        data.forEach(function(c) {
+          html += '<tr data-id="' + c.id + '">';
+          html += '<td><div class="thumb-cell"><canvas data-cam-id="' + c.id + '" data-thumb="1"></canvas></div></td>';
+          html += '<td><strong>' + esc(c.name) + '</strong></td>';
+          html += '<td>' + esc(c.zone) + '</td>';
+          html += '<td><span class="badge badge-' + c.status + '">' + c.status + '</span></td>';
+          html += '<td>' + esc(c.manufacturer) + '</td>';
+          html += '<td style="color:var(--text2)">' + esc(c.model) + '</td>';
+          html += '<td>' + esc(c.resolution) + '</td>';
+          html += '<td style="font-size:0.75rem;color:var(--text2)">' + esc(c.capabilities.join(', ')) + '</td>';
+          html += '</tr>';
+        });
+      }
+      html += '</tbody></table>';
+    }
+
+    document.getElementById('app').innerHTML = html;
+
+    // Initialize canvases with independent animation loops
+    document.querySelectorAll('canvas[data-cam-id]').forEach(function(cvs) {
+      var camId = cvs.getAttribute('data-cam-id');
+      var cam = cameras.find(function(c) { return c.id === camId; });
+      if (cam) {
+        initCameraFeed(cvs, cam, false);
+      }
+    });
+
+    if (selectedCamera) renderDetail();
+
+    // Bind events
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('zoneFilter').addEventListener('change', function() { zoneFilter = this.value; render(); });
+    document.getElementById('statusFilter').addEventListener('change', function() { statusFilter = this.value; render(); });
+    document.getElementById('mfgFilter').addEventListener('change', function() { mfgFilter = this.value; render(); });
+    document.getElementById('btnGrid').addEventListener('click', function() { viewMode = 'grid'; render(); });
+    document.getElementById('btnList').addEventListener('click', function() { viewMode = 'list'; render(); });
+    document.getElementById('btnWall').addEventListener('click', function() { wallMode = true; render(); });
+
+    document.querySelectorAll('.cam-card, tbody tr[data-id]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        selectedCamera = cameras.find(function(c) { return c.id === el.dataset.id; });
+        render();
+      });
+    });
+  }
+
+  function renderDetail() {
+    var c = selectedCamera;
+    if (!c) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+
+    var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">';
+    html += '<h3 style="margin:0"><span class="status-dot ' + c.status + '"></span>' + esc(c.name) + '</h3>';
+    html += '<span class="badge badge-' + c.status + '" style="font-size:0.8rem">' + c.status.toUpperCase() + '</span>';
+    html += '</div>';
+
+    html += '<div class="detail-feed"><canvas id="detailCanvas"></canvas></div>';
+
+    // Controls row
+    html += '<div style="display:flex;align-items:start;gap:1.5rem;margin-bottom:1rem">';
+
+    if (c.capabilities.indexOf('PTZ') >= 0) {
+      html += '<div class="ptz-controls"><div style="font-size:0.75rem;color:var(--text3);margin-bottom:4px">PTZ Controls</div>';
+      html += '<div class="ptz-row"><button class="ptz-btn" title="Tilt Up">&#9650;</button></div>';
+      html += '<div class="ptz-row"><button class="ptz-btn" title="Pan Left">&#9664;</button><button class="ptz-btn" style="font-size:0.55rem" title="Home Position">HOME</button><button class="ptz-btn" title="Pan Right">&#9654;</button></div>';
+      html += '<div class="ptz-row"><button class="ptz-btn" title="Tilt Down">&#9660;</button></div>';
+      html += '<div class="ptz-row" style="margin-top:4px"><button class="ptz-btn" style="font-size:0.65rem" title="Zoom Out">Z&minus;</button><button class="ptz-btn" style="font-size:0.65rem" title="Zoom In">Z+</button></div>';
+      html += '</div>';
+    }
+
+    html += '<div style="display:flex;gap:0.5rem;flex-wrap:wrap">';
+    html += '<button class="btn btn-outline btn-sm" id="btnSnapshot" title="Capture Snapshot">&#128247; Snapshot</button>';
+    html += '<button class="btn btn-sm ' + (c.recording ? 'btn-accent' : 'btn-outline') + '" id="btnRecToggle">' + (c.recording ? '&#9724; Stop Rec' : '&#9679; Start Rec') + '</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Info grid
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:1rem">';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Zone</span><div>' + esc(c.zone) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Building</span><div>' + esc(c.building) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">IP Address</span><div><code style="background:var(--bg);padding:2px 6px;border-radius:3px;font-size:0.8rem">' + esc(c.ip) + '</code></div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Manufacturer</span><div>' + esc(c.manufacturer) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Model</span><div>' + esc(c.model) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Resolution</span><div>' + esc(c.resolution) + '</div></div>';
+    html += '<div style="grid-column:span 3"><span style="color:var(--text3);font-size:0.75rem">Capabilities</span><div style="display:flex;gap:0.4rem;margin-top:0.25rem;flex-wrap:wrap">';
+    (c.capabilities.length > 0 ? c.capabilities : ['Standard']).forEach(function(cap) {
+      html += '<span class="badge" style="background:var(--accent-dim);color:var(--accent)">' + esc(cap) + '</span>';
+    });
+    html += '</div></div>';
+    html += '</div>';
+
+    // Motion timeline (24h)
+    html += '<div style="font-weight:600;margin-bottom:0.5rem;font-size:0.85rem">Motion Timeline (24h)</div>';
+    html += '<div class="timeline">';
+    var motionHours = {};
+    (c.motionEvents || []).forEach(function(ev) {
+      var h = new Date(ev.time).getHours();
+      motionHours[h] = (motionHours[h] || 0) + 1;
+    });
+    for (var hr = 0; hr < 24; hr++) {
+      var count = motionHours[hr] || 0;
+      var barH = count > 0 ? Math.min(100, 20 + count * 25) : 10;
+      html += '<div class="timeline-bar' + (count > 0 ? ' has-motion' : '') + '" style="height:' + barH + '%" title="' + String(hr).padStart(2, '0') + ':00 - ' + count + ' events"></div>';
+    }
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--text3);margin-bottom:1rem"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>';
+
+    // Recent events
+    html += '<div style="font-weight:600;margin-bottom:0.5rem;font-size:0.85rem">Recent Events</div>';
+    html += '<div class="events-list">';
+    (c.motionEvents || []).forEach(function(ev) {
+      var icon = '&#9679;';
+      if (ev.type.indexOf('Person') >= 0) icon = '&#128100;';
+      else if (ev.type.indexOf('Vehicle') >= 0) icon = '&#128663;';
+      else if (ev.type.indexOf('Package') >= 0) icon = '&#128230;';
+      else if (ev.type.indexOf('Tailgating') >= 0) icon = '&#9888;';
+      html += '<div class="event-row"><span>' + icon + ' ' + esc(ev.type) + '</span><span style="color:var(--text3)">' + timeAgo(ev.time) + '</span></div>';
+    });
+    if (!c.motionEvents || c.motionEvents.length === 0) {
+      html += '<div style="color:var(--text3);font-size:0.85rem;padding:0.5rem 0">No recent events</div>';
+    }
+    html += '</div>';
+
+    html += '<div style="display:flex;justify-content:flex-end;margin-top:1rem"><button class="btn btn-outline" id="mClose">Close</button></div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    // Init detail canvas
+    var detailCvs = document.getElementById('detailCanvas');
+    if (detailCvs) {
+      initCameraFeed(detailCvs, c, true);
+    }
+
+    // Snapshot button
+    var snapBtn = document.getElementById('btnSnapshot');
+    if (snapBtn) {
+      snapBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (detailCvs) {
+          var link = document.createElement('a');
+          link.download = c.name.replace(/\s+/g, '_') + '_snapshot_' + Date.now() + '.png';
+          link.href = detailCvs.toDataURL('image/png');
+          link.click();
+        }
+      });
+    }
+
+    // Recording toggle
+    var recBtn = document.getElementById('btnRecToggle');
+    if (recBtn) {
+      recBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        c.recording = !c.recording;
+        selectedCamera = c;
+        render();
+      });
+    }
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { selectedCamera = null; render(); } });
+    document.getElementById('mClose').addEventListener('click', function() { selectedCamera = null; render(); });
+  }
+
+  // ===== VIDEO WALL MODE =====
+  function renderWall() {
+    document.body.classList.add('wall-mode');
+    var onlineCams = cameras.filter(function(c) { return c.status === 'online'; });
+    var gridClass = onlineCams.length <= 4 ? 'grid-2x2' : 'grid-3x3';
+    var maxCams = onlineCams.length <= 4 ? 4 : 9;
+    var wallCams = onlineCams.slice(0, maxCams);
+
+    var html = '<div class="wall-container ' + gridClass + '" id="wallContainer">';
+    wallCams.forEach(function(c) {
+      html += '<div class="wall-cell"><canvas data-cam-id="' + c.id + '" data-wall="1"></canvas></div>';
+    });
+    html += '</div>';
+    html += '<button class="wall-exit" id="wallExit">&#10005; Exit Wall</button>';
+
+    document.getElementById('app').innerHTML = html;
+
+    // Init wall canvases
+    document.querySelectorAll('canvas[data-wall]').forEach(function(cvs) {
+      var camId = cvs.getAttribute('data-cam-id');
+      var cam = cameras.find(function(c) { return c.id === camId; });
+      if (cam) {
+        initCameraFeed(cvs, cam, true);
+      }
+    });
+
+    document.getElementById('wallExit').addEventListener('click', function() {
+      wallMode = false;
+      render();
+    });
+
+    // ESC to exit wall
+    function escHandler(e) {
+      if (e.key === 'Escape') {
+        wallMode = false;
+        render();
+        document.removeEventListener('keydown', escHandler);
+      }
+    }
+    document.addEventListener('keydown', escHandler);
+  }
+
+  function timeAgo(ts) {
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

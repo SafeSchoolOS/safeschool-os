@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Building Directory</title>
+<style>
+:root {
+  --bg: #0f0f23; --bg2: #1a1d2e; --bg3: #242840;
+  --border: #2e3348; --text: #e4e6f0; --text2: #8b8fa3;
+  --accent: #00ff88; --accent-hover: #33ffaa; --accent-dim: rgba(0,255,136,0.15);
+  --success: #22c55e; --danger: #ef4444; --warning: #f59e0b;
+  --radius: 12px; --radius-lg: 20px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
+}
+.clock { position: fixed; top: 1.25rem; right: 1.5rem; font-size: 1.4rem; font-weight: 600; color: var(--text2); z-index: 100; }
+.help-bar { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 0.75rem; font-size: 0.85rem; color: var(--text2); background: rgba(15,15,35,0.8); z-index: 100; }
+
+.ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.2); transform: scale(0); animation: ripple-anim 0.5s ease-out; pointer-events: none; }
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+@keyframes fade-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes pulse-ring { 0%,100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.3); } 50% { box-shadow: 0 0 0 20px rgba(0,255,136,0); } }
+
+/* Layout */
+.directory-layout { display: flex; flex-direction: column; height: 100vh; }
+
+/* Header */
+.dir-header {
+  padding: 1.25rem 1.5rem 0.75rem;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dir-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.dir-brand { font-size: 1.1rem; font-weight: 700; color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; }
+.dir-title { font-size: 1.3rem; font-weight: 700; }
+
+.search-box {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: var(--bg3); border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+}
+.search-box svg { width: 22px; height: 22px; color: var(--text2); flex-shrink: 0; }
+.search-box input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 1.1rem;
+}
+.search-box input::placeholder { color: var(--text2); }
+.search-box:focus-within { border-color: var(--accent); }
+
+/* Alpha nav */
+.alpha-nav {
+  display: flex; flex-direction: column; align-items: center;
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+  z-index: 50; padding: 0.25rem;
+}
+.alpha-letter {
+  width: 28px; height: 22px; display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: var(--text2); cursor: pointer;
+}
+.alpha-letter:active { color: var(--accent); }
+
+/* Directory list */
+.dir-list {
+  flex: 1; overflow-y: auto; padding: 0.5rem 1.5rem 4rem 1.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+.dir-list::-webkit-scrollbar { width: 4px; }
+.dir-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.letter-header {
+  font-size: 0.8rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 0.75rem 0 0.25rem; border-bottom: 1px solid var(--border);
+  margin-bottom: 0.25rem;
+}
+
+.dir-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 0; border-bottom: 1px solid rgba(46,51,72,0.5);
+}
+.dir-entry-info { flex: 1; min-width: 0; }
+.dir-entry-name { font-weight: 600; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dir-entry-details { font-size: 0.85rem; color: var(--text2); margin-top: 0.1rem; }
+.dir-entry-actions { display: flex; gap: 0.5rem; flex-shrink: 0; margin-left: 0.75rem; }
+
+.dir-btn {
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 600;
+  border: 2px solid var(--border); border-radius: var(--radius);
+  background: var(--bg2); color: var(--text); cursor: pointer;
+  min-height: 44px; position: relative; overflow: hidden;
+  transition: all 0.15s;
+}
+.dir-btn:active { transform: scale(0.97); }
+.dir-btn-call { border-color: var(--accent); color: var(--accent); }
+.dir-btn-call:active { background: var(--accent-dim); }
+.dir-btn-entry { border-color: var(--warning); color: var(--warning); }
+.dir-btn-entry:active { background: rgba(245,158,11,0.15); }
+.dir-btn svg { width: 16px; height: 16px; }
+
+/* Idle overlay */
+.idle-overlay {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 200; transition: opacity 0.4s ease;
+}
+.idle-overlay.hidden { opacity: 0; pointer-events: none; }
+
+/* Confirmation toast */
+.toast {
+  position: fixed; bottom: 4rem; left: 50%; transform: translateX(-50%);
+  background: var(--bg2); border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 1rem 2rem; font-size: 1rem; font-weight: 600; color: var(--accent);
+  z-index: 300; opacity: 0; transition: opacity 0.3s;
+}
+.toast.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="idle-overlay" id="idleOverlay" onclick="wakeUp()">
+  <div style="width:120px;height:120px;border-radius:50%;background:var(--accent-dim);border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;margin-bottom:2rem;animation:pulse-ring 2.5s ease-in-out infinite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:56px;height:56px;color:var(--accent)"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+  </div>
+  <h1 style="font-size:2.2rem;font-weight:700;margin-bottom:0.5rem" id="idleTitle">Building <span style="color:var(--accent)">Directory</span></h1>
+  <p style="font-size:1.1rem;color:var(--text2);margin-bottom:2rem">Touch to search tenants &amp; departments</p>
+  <div style="font-size:1rem;color:var(--accent);animation:fade-pulse 2s ease-in-out infinite">Tap anywhere to begin</div>
+  <div style="position:absolute;top:1.25rem;right:1.5rem;font-size:1.4rem;font-weight:600;color:var(--text2)" id="idleClock"></div>
+</div>
+
+<div class="directory-layout">
+  <div class="dir-header">
+    <div class="dir-header-top">
+      <div class="dir-brand" id="logo">Building Directory</div>
+      <div class="clock" id="clock" style="position:static"></div>
+    </div>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Search by name, department, or unit..." oninput="filterDirectory()">
+    </div>
+  </div>
+
+  <div class="alpha-nav" id="alphaNav"></div>
+  <div class="dir-list" id="dirList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const product = params.get('product') || '';
+if (product === 'safeschool') {
+  document.documentElement.style.setProperty('--accent', '#f59e0b');
+  document.documentElement.style.setProperty('--accent-dim', 'rgba(245,158,11,0.15)');
+}
+const buildingName = params.get('building') || 'Building';
+document.getElementById('idleTitle').innerHTML = buildingName + ' <span style="color:var(--accent)">Directory</span>';
+document.getElementById('logo').textContent = buildingName + ' Directory';
+
+const entries = [
+  { name: 'Acme Corp', unit: '101', floor: '1', dept: 'Technology' },
+  { name: 'Allied Health Partners', unit: '205', floor: '2', dept: 'Healthcare' },
+  { name: 'Anderson Law Group', unit: '310', floor: '3', dept: 'Legal' },
+  { name: 'Baker Financial', unit: '102', floor: '1', dept: 'Finance' },
+  { name: 'Beacon Consulting', unit: '206', floor: '2', dept: 'Consulting' },
+  { name: 'Blue Ridge Marketing', unit: '311', floor: '3', dept: 'Marketing' },
+  { name: 'Bright Ideas Design', unit: '103', floor: '1', dept: 'Design' },
+  { name: 'Cascade Engineering', unit: '207', floor: '2', dept: 'Engineering' },
+  { name: 'Cedar Point Ventures', unit: '312', floor: '3', dept: 'Investment' },
+  { name: 'ClearView Analytics', unit: '104', floor: '1', dept: 'Analytics' },
+  { name: 'Compass Realty', unit: '208', floor: '2', dept: 'Real Estate' },
+  { name: 'CoreLogic Systems', unit: '313', floor: '3', dept: 'Technology' },
+  { name: 'Delta Architecture', unit: '105', floor: '1', dept: 'Architecture' },
+  { name: 'Dynamic Solutions', unit: '209', floor: '2', dept: 'Consulting' },
+  { name: 'Eagle Eye Security', unit: '314', floor: '3', dept: 'Security' },
+  { name: 'Elevate HR', unit: '106', floor: '1', dept: 'Human Resources' },
+  { name: 'Emerald Insurance', unit: '210', floor: '2', dept: 'Insurance' },
+  { name: 'Falcon Logistics', unit: '315', floor: '3', dept: 'Logistics' },
+  { name: 'First Light Media', unit: '107', floor: '1', dept: 'Media' },
+  { name: 'Frontier Labs', unit: '211', floor: '2', dept: 'Research' },
+  { name: 'Granite Construction', unit: '316', floor: '3', dept: 'Construction' },
+  { name: 'GreenPath Energy', unit: '108', floor: '1', dept: 'Energy' },
+  { name: 'Harbor Tech', unit: '212', floor: '2', dept: 'Technology' },
+  { name: 'Horizon Planning', unit: '317', floor: '3', dept: 'Urban Planning' },
+  { name: 'Infinity Wealth', unit: '109', floor: '1', dept: 'Finance' },
+  { name: 'Ironwood Development', unit: '213', floor: '2', dept: 'Real Estate' },
+  { name: 'Jupiter Creative', unit: '318', floor: '3', dept: 'Advertising' },
+  { name: 'Keystone Accounting', unit: '110', floor: '1', dept: 'Accounting' },
+  { name: 'Lakeview Medical', unit: '214', floor: '2', dept: 'Healthcare' },
+  { name: 'Liberty Tax Services', unit: '319', floor: '3', dept: 'Tax' },
+  { name: 'Magnolia Wellness', unit: '111', floor: '1', dept: 'Health & Wellness' },
+  { name: 'Meridian Partners', unit: '215', floor: '2', dept: 'Consulting' },
+  { name: 'Northstar Advisors', unit: '320', floor: '3', dept: 'Advisory' },
+  { name: 'Nova Biotech', unit: '112', floor: '1', dept: 'Biotechnology' },
+  { name: 'Oakmont Properties', unit: '216', floor: '2', dept: 'Property Mgmt' },
+  { name: 'Orion Digital', unit: '321', floor: '3', dept: 'Digital Services' },
+  { name: 'Pacific Dental', unit: '113', floor: '1', dept: 'Dental' },
+  { name: 'Pinnacle Sports', unit: '217', floor: '2', dept: 'Sports Mgmt' },
+  { name: 'Quantum Research', unit: '322', floor: '3', dept: 'Research' },
+  { name: 'Redwood Capital', unit: '114', floor: '1', dept: 'Investment' },
+  { name: 'Riverstone Legal', unit: '218', floor: '2', dept: 'Legal' },
+  { name: 'Sierra Telecom', unit: '323', floor: '3', dept: 'Telecom' },
+  { name: 'Silverline Architects', unit: '115', floor: '1', dept: 'Architecture' },
+  { name: 'Summit Group', unit: '219', floor: '2', dept: 'Consulting' },
+  { name: 'TerraFirm Environmental', unit: '324', floor: '3', dept: 'Environmental' },
+  { name: 'Titanium Fitness', unit: '116', floor: '1', dept: 'Fitness' },
+  { name: 'United Logistics', unit: '220', floor: '2', dept: 'Logistics' },
+  { name: 'Vertex Software', unit: '325', floor: '3', dept: 'Software' },
+  { name: 'Westside Dental Group', unit: '117', floor: '1', dept: 'Dental' },
+  { name: 'Zenith Coworking', unit: '221', floor: '2', dept: 'Coworking' },
+];
+
+let inactivityTimer = null;
+let isIdle = true;
+
+function resetInactivity() {
+  clearTimeout(inactivityTimer);
+  if (!isIdle) inactivityTimer = setTimeout(goIdle, 60000);
+}
+document.addEventListener('touchstart', resetInactivity);
+document.addEventListener('click', resetInactivity);
+
+let fsReq = false;
+document.addEventListener('touchstart', () => {
+  if (!fsReq && document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(()=>{}); fsReq = true; }
+}, { once: true });
+
+function goIdle() {
+  isIdle = true;
+  document.getElementById('idleOverlay').classList.remove('hidden');
+  document.getElementById('searchInput').value = '';
+  filterDirectory();
+}
+
+function wakeUp() {
+  isIdle = false;
+  document.getElementById('idleOverlay').classList.add('hidden');
+  resetInactivity();
+}
+
+function renderDirectory(list) {
+  const container = document.getElementById('dirList');
+  const grouped = {};
+  list.forEach(e => {
+    const letter = e.name[0].toUpperCase();
+    if (!grouped[letter]) grouped[letter] = [];
+    grouped[letter].push(e);
+  });
+  let html = '';
+  Object.keys(grouped).sort().forEach(letter => {
+    html += `<div class="letter-header" id="letter-${letter}">${letter}</div>`;
+    grouped[letter].forEach(e => {
+      html += `<div class="dir-entry">
+        <div class="dir-entry-info">
+          <div class="dir-entry-name">${e.name}</div>
+          <div class="dir-entry-details">Unit ${e.unit} &middot; Floor ${e.floor} &middot; ${e.dept}</div>
+        </div>
+        <div class="dir-entry-actions">
+          <button class="dir-btn dir-btn-call" onclick="doCall('${e.name}', '${e.unit}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Call
+          </button>
+          <button class="dir-btn dir-btn-entry" onclick="doEntry('${e.name}', '${e.unit}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Entry
+          </button>
+        </div>
+      </div>`;
+    });
+  });
+  container.innerHTML = html;
+}
+
+function buildAlphaNav() {
+  const letters = [...new Set(entries.map(e => e.name[0].toUpperCase()))].sort();
+  document.getElementById('alphaNav').innerHTML = letters.map(l =>
+    `<div class="alpha-letter" onclick="scrollToLetter('${l}')">${l}</div>`
+  ).join('');
+}
+
+function scrollToLetter(l) {
+  const el = document.getElementById('letter-' + l);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function filterDirectory() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = q ? entries.filter(e =>
+    e.name.toLowerCase().includes(q) ||
+    e.dept.toLowerCase().includes(q) ||
+    e.unit.includes(q)
+  ) : entries;
+  renderDirectory(filtered);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 3000);
+}
+
+function doCall(name, unit) { showToast('Calling ' + name + ' (Unit ' + unit + ')...'); }
+function doEntry(name, unit) { showToast('Entry request sent to ' + name); }
+
+function updateClock() {
+  const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('clock').textContent = t;
+  document.getElementById('idleClock').textContent = t;
+}
+updateClock(); setInterval(updateClock, 10000);
+
+renderDirectory(entries);
+buildAlphaNav();
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.dir-btn');
+  if (!btn) return;
+  const r = document.createElement('span'); r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.width = r.style.height = size + 'px';
+  r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  btn.appendChild(r); setTimeout(() => r.remove(), 500);
+});
+</script>
+</body>
+</html>

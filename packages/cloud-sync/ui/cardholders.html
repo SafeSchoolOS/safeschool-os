@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cardholder Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 220px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-green { background: transparent; border: 1px solid var(--green); color: var(--green); }
+.btn-green:hover { background: rgba(34,197,94,0.1); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); cursor: pointer; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-active { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-suspended { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-expired { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-revoked { background: rgba(107,114,128,0.15); color: #6b7280; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.form-row { margin-bottom: 0.75rem; }
+.form-label { display: block; font-size: 0.8rem; color: var(--text3); margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+.zone-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.375rem; }
+.zone-chip { padding: 0.2rem 0.5rem; background: var(--bg3); border-radius: 4px; font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); }
+.zone-chip.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; color: var(--accent); flex-shrink: 0; }
+.events-list { max-height: 180px; overflow-y: auto; }
+.event-row { padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // --- State ---
+  var searchText = '';
+  var roleFilter = '';
+  var deptFilter = '';
+  var statusFilter = '';
+  var showAddModal = false;
+  var selectedHolder = null;
+  var cardholders = [];
+
+  // --- Demo Data ---
+  var FIRST = ['James','Mary','Robert','Patricia','John','Jennifer','Michael','Linda','David','Elizabeth','William','Barbara','Richard','Susan','Thomas','Sarah','Chris','Karen','Daniel','Nancy','Matt','Emily','Andrew','Lisa','Kevin','Amanda','Brian','Donna','Steven','Michelle','Jason','Carol','Ryan','Rebecca','Eric','Laura','Nick','Amy','Josh','Angela','Alex','Sophia','Marcus','Olivia','Derek','Mia'];
+  var LAST = ['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Wilson','Anderson','Thomas','Taylor','Moore','Jackson','Martin','Lee','Thompson','White','Harris','Clark','Lewis','Walker','Young','Allen','King','Wright','Scott','Torres'];
+  var ROLES = ['Staff','Administrator','Manager','Security','Maintenance','Executive','Contractor','Student','Visitor'];
+  var DEPTS = ['Operations','IT','HR','Finance','Security','Maintenance','Marketing','Engineering','Legal','Executive'];
+  var ZONES = ['Main Lobby','Parking Garage','Loading Dock','Server Room','Rooftop','Conference Wing','Executive Floor','Cafeteria','Fitness Center','Mail Room'];
+  var STATUSES = ['ACTIVE','ACTIVE','ACTIVE','ACTIVE','ACTIVE','ACTIVE','ACTIVE','SUSPENDED','EXPIRED','REVOKED'];
+
+  function genCardholders() {
+    var list = [];
+    for (var i = 0; i < 200; i++) {
+      var fn = FIRST[i % FIRST.length];
+      var ln = LAST[Math.floor(i / FIRST.length) % LAST.length];
+      var status = STATUSES[i % STATUSES.length];
+      var zoneList = [ZONES[0]];
+      if (i % 2 === 0) zoneList.push(ZONES[1]);
+      if (i % 3 === 0) zoneList.push(ZONES[3]);
+      if (i % 5 === 0) zoneList.push(ZONES[4], ZONES[5]);
+      var recentEvents = [];
+      for (var j = 0; j < 5; j++) {
+        recentEvents.push({
+          time: new Date(Date.now() - Math.floor(Math.random() * 7 * 86400000)).toISOString(),
+          type: ['Access Granted','Access Denied','Door Forced'][Math.floor(Math.random() * 3)],
+          door: ZONES[Math.floor(Math.random() * ZONES.length)] + ' Door'
+        });
+      }
+      recentEvents.sort(function(a, b) { return new Date(b.time) - new Date(a.time); });
+
+      list.push({
+        id: 'ch-' + String(i + 1).padStart(5, '0'),
+        firstName: fn,
+        lastName: ln,
+        name: fn + ' ' + ln,
+        role: ROLES[i % ROLES.length],
+        department: DEPTS[i % DEPTS.length],
+        badgeNumber: String(10000 + Math.floor(Math.random() * 90000)),
+        email: fn.toLowerCase() + '.' + ln.toLowerCase() + '@company.com',
+        phone: '(555) ' + String(100 + Math.floor(Math.random() * 900)) + '-' + String(1000 + Math.floor(Math.random() * 9000)),
+        status: status,
+        zones: zoneList,
+        lastAccess: new Date(Date.now() - Math.floor(Math.random() * 7 * 86400000)).toISOString(),
+        createdAt: new Date(Date.now() - Math.floor(Math.random() * 365 * 86400000)).toISOString(),
+        credentials: [
+          { type: 'Physical Card', number: String(10000 + Math.floor(Math.random() * 90000)), format: 'HID iCLASS', status: status },
+          i % 3 === 0 ? { type: 'Mobile', number: 'MOB-' + String(1000 + i), format: 'BLE', status: 'ACTIVE' } : null
+        ].filter(Boolean),
+        recentEvents: recentEvents
+      });
+    }
+    return list;
+  }
+
+  cardholders = genCardholders();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/data/cardholders?limit=100');
+      if (res && (res.cardholders || res.entities)) {
+        var items = res.cardholders || res.entities || [];
+        if (items.length > 0) {
+          cardholders = items.map(function(c, i) {
+            var d = c.data || c;
+            return {
+              id: d.id || c.id || ('ch-' + i),
+              firstName: d.firstName || (d.name || '').split(' ')[0] || 'Unknown',
+              lastName: d.lastName || (d.name || '').split(' ').slice(1).join(' ') || '',
+              name: d.name || ((d.firstName || '') + ' ' + (d.lastName || '')).trim() || 'Unknown',
+              role: d.role || 'Staff',
+              department: d.department || 'Operations',
+              badgeNumber: d.badgeNumber || String(10000 + Math.floor(Math.random() * 90000)),
+              email: d.email || '',
+              phone: d.phone || '',
+              status: d.status || 'ACTIVE',
+              zones: d.zones || [ZONES[0]],
+              lastAccess: d.lastAccess || new Date().toISOString(),
+              createdAt: d.createdAt || new Date().toISOString(),
+              credentials: d.credentials || [],
+              recentEvents: d.recentEvents || []
+            };
+          });
+        }
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function filtered() {
+    return cardholders.filter(function(c) {
+      if (statusFilter && c.status !== statusFilter) return false;
+      if (roleFilter && c.role !== roleFilter) return false;
+      if (deptFilter && c.department !== deptFilter) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (c.name.toLowerCase().indexOf(s) < 0 && c.badgeNumber.indexOf(s) < 0 && c.email.toLowerCase().indexOf(s) < 0 && c.department.toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    var data = filtered();
+    var active = cardholders.filter(function(c) { return c.status === 'ACTIVE'; }).length;
+    var suspended = cardholders.filter(function(c) { return c.status === 'SUSPENDED'; }).length;
+    var expired = cardholders.filter(function(c) { return c.status === 'EXPIRED'; }).length;
+
+    var uniqueRoles = []; cardholders.forEach(function(c) { if (uniqueRoles.indexOf(c.role) < 0) uniqueRoles.push(c.role); });
+    var uniqueDepts = []; cardholders.forEach(function(c) { if (uniqueDepts.indexOf(c.department) < 0) uniqueDepts.push(c.department); });
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Cardholder Management</div>';
+    html += '<div class="subtitle">Manage personnel, credentials, and access zone assignments.</div></div>';
+    html += '<button class="btn btn-accent" id="btnAdd">+ Add Cardholder</button></div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Total Cardholders</div><div class="stat-value">' + cardholders.length + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Active</div><div class="stat-value green">' + active + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Suspended</div><div class="stat-value amber">' + suspended + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Expired</div><div class="stat-value red">' + expired + '</div></div>';
+    html += '</div>';
+
+    // Toolbar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search name, badge #, email, dept..." value="' + esc(searchText) + '">';
+    html += '<select class="filter" id="roleFilter"><option value="">All Roles</option>';
+    uniqueRoles.forEach(function(r) { html += '<option value="' + esc(r) + '"' + (roleFilter === r ? ' selected' : '') + '>' + esc(r) + '</option>'; });
+    html += '</select>';
+    html += '<select class="filter" id="deptFilter"><option value="">All Departments</option>';
+    uniqueDepts.forEach(function(d) { html += '<option value="' + esc(d) + '"' + (deptFilter === d ? ' selected' : '') + '>' + esc(d) + '</option>'; });
+    html += '</select>';
+    html += '<select class="filter" id="statusFilter"><option value="">All Status</option>';
+    ['ACTIVE','SUSPENDED','EXPIRED','REVOKED'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (statusFilter === s ? ' selected' : '') + '>' + s + '</option>';
+    });
+    html += '</select>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + data.length + ' results</span>';
+    html += '</div>';
+
+    // Table
+    html += '<table><thead><tr>';
+    html += '<th>Name</th><th>Role</th><th>Department</th><th>Badge #</th><th>Email</th><th>Status</th><th>Zones</th><th>Last Access</th>';
+    html += '</tr></thead><tbody>';
+
+    if (data.length === 0) {
+      html += '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:2rem">No cardholders match your filters</td></tr>';
+    } else {
+      data.slice(0, 100).forEach(function(c) {
+        var statusBadge = c.status === 'ACTIVE' ? 'badge-active' : c.status === 'SUSPENDED' ? 'badge-suspended' : c.status === 'EXPIRED' ? 'badge-expired' : 'badge-revoked';
+        var zoneStr = (c.zones || []).slice(0, 2).join(', ');
+        if ((c.zones || []).length > 2) zoneStr += ' +' + ((c.zones || []).length - 2);
+        html += '<tr class="ch-row" data-id="' + c.id + '">';
+        html += '<td><div style="display:flex;align-items:center;gap:0.5rem"><div class="avatar">' + esc(c.firstName[0] + c.lastName[0]) + '</div><div><div style="font-weight:600">' + esc(c.name) + '</div><div style="font-size:0.75rem;color:var(--text3)">' + esc(c.id) + '</div></div></div></td>';
+        html += '<td>' + esc(c.role) + '</td>';
+        html += '<td>' + esc(c.department) + '</td>';
+        html += '<td><code style="font-size:0.8rem">' + esc(c.badgeNumber) + '</code></td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + esc(c.email) + '</td>';
+        html += '<td><span class="badge ' + statusBadge + '">' + c.status + '</span></td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + esc(zoneStr) + '</td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + timeAgo(c.lastAccess) + '</td>';
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+
+    document.getElementById('app').innerHTML = html;
+
+    if (showAddModal) renderAddModal();
+    if (selectedHolder) renderDetailModal();
+
+    // Bind
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('roleFilter').addEventListener('change', function() { roleFilter = this.value; render(); });
+    document.getElementById('deptFilter').addEventListener('change', function() { deptFilter = this.value; render(); });
+    document.getElementById('statusFilter').addEventListener('change', function() { statusFilter = this.value; render(); });
+    document.getElementById('btnAdd').addEventListener('click', function() { showAddModal = true; render(); });
+    document.querySelectorAll('.ch-row').forEach(function(row) {
+      row.addEventListener('click', function() {
+        selectedHolder = cardholders.find(function(c) { return c.id === row.dataset.id; });
+        render();
+      });
+    });
+  }
+
+  function renderAddModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+
+    var html = '<h3>Add Cardholder</h3>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">First Name</label><input class="form-input" id="mFN" placeholder="Jane"></div>';
+    html += '<div class="form-row"><label class="form-label">Last Name</label><input class="form-input" id="mLN" placeholder="Smith"></div>';
+    html += '</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Role</label><select class="form-input" id="mRole">';
+    ROLES.forEach(function(r) { html += '<option>' + esc(r) + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Department</label><select class="form-input" id="mDept">';
+    DEPTS.forEach(function(d) { html += '<option>' + esc(d) + '</option>'; });
+    html += '</select></div>';
+    html += '</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Email</label><input class="form-input" id="mEmail" placeholder="jane.smith@company.com" type="email"></div>';
+    html += '<div class="form-row"><label class="form-label">Phone</label><input class="form-input" id="mPhone" placeholder="(555) 123-4567"></div>';
+    html += '</div>';
+    html += '<div class="form-row"><label class="form-label">Badge Number</label><input class="form-input" id="mBadge" placeholder="Auto-generated"></div>';
+
+    html += '<div class="form-row"><label class="form-label">Access Zones</label>';
+    html += '<div class="zone-chips" id="mZones">';
+    ZONES.forEach(function(z) { html += '<span class="zone-chip" data-zone="' + esc(z) + '">' + esc(z) + '</span>'; });
+    html += '</div></div>';
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    html += '<button class="btn btn-outline" id="mCancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="mSave">Add Cardholder</button></div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    var selectedZones = new Set([ZONES[0]]);
+    document.querySelectorAll('#mZones .zone-chip').forEach(function(chip) {
+      if (selectedZones.has(chip.dataset.zone)) chip.classList.add('selected');
+      chip.addEventListener('click', function() {
+        if (selectedZones.has(this.dataset.zone)) { selectedZones.delete(this.dataset.zone); this.classList.remove('selected'); }
+        else { selectedZones.add(this.dataset.zone); this.classList.add('selected'); }
+      });
+    });
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { showAddModal = false; render(); } });
+    document.getElementById('mCancel').addEventListener('click', function() { showAddModal = false; render(); });
+    document.getElementById('mSave').addEventListener('click', function() {
+      var fn = document.getElementById('mFN').value || 'New';
+      var ln = document.getElementById('mLN').value || 'Cardholder';
+      cardholders.unshift({
+        id: 'ch-' + Date.now(),
+        firstName: fn, lastName: ln, name: fn + ' ' + ln,
+        role: document.getElementById('mRole').value,
+        department: document.getElementById('mDept').value,
+        badgeNumber: document.getElementById('mBadge').value || String(10000 + Math.floor(Math.random() * 90000)),
+        email: document.getElementById('mEmail').value || '',
+        phone: document.getElementById('mPhone').value || '',
+        status: 'ACTIVE',
+        zones: Array.from(selectedZones),
+        lastAccess: null,
+        createdAt: new Date().toISOString(),
+        credentials: [],
+        recentEvents: []
+      });
+      showAddModal = false;
+      render();
+    });
+  }
+
+  function renderDetailModal() {
+    var c = selectedHolder;
+    if (!c) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+
+    var statusBadge = c.status === 'ACTIVE' ? 'badge-active' : c.status === 'SUSPENDED' ? 'badge-suspended' : c.status === 'EXPIRED' ? 'badge-expired' : 'badge-revoked';
+
+    var html = '<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">';
+    html += '<div class="avatar" style="width:64px;height:64px;font-size:1.4rem">' + esc(c.firstName[0] + c.lastName[0]) + '</div>';
+    html += '<div><h3 style="margin-bottom:0.25rem">' + esc(c.name) + '</h3>';
+    html += '<span class="badge ' + statusBadge + '">' + c.status + '</span>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:0.5rem">' + esc(c.id) + '</span></div></div>';
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Role</span><div>' + esc(c.role) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Department</span><div>' + esc(c.department) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Email</span><div style="font-size:0.85rem">' + esc(c.email) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Phone</span><div>' + esc(c.phone) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Badge #</span><div><code>' + esc(c.badgeNumber) + '</code></div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Last Access</span><div style="font-size:0.85rem">' + (c.lastAccess ? timeAgo(c.lastAccess) : 'Never') + '</div></div>';
+    html += '</div>';
+
+    // Credentials
+    html += '<div style="font-weight:600;margin-bottom:0.5rem">Credentials</div>';
+    if (c.credentials.length === 0) {
+      html += '<div class="card" style="color:var(--text3);font-size:0.85rem">No credentials assigned</div>';
+    } else {
+      c.credentials.forEach(function(cr) {
+        html += '<div class="card" style="padding:0.6rem;display:flex;justify-content:space-between;align-items:center">';
+        html += '<div><strong>' + esc(cr.type) + '</strong> <span style="color:var(--text3);font-size:0.8rem">' + esc(cr.format) + '</span><div style="font-size:0.75rem;color:var(--text3)">#' + esc(cr.number) + '</div></div>';
+        var crBadge = cr.status === 'ACTIVE' ? 'badge-active' : 'badge-suspended';
+        html += '<span class="badge ' + crBadge + '">' + esc(cr.status) + '</span></div>';
+      });
+    }
+
+    // Zones
+    html += '<div style="font-weight:600;margin:0.75rem 0 0.5rem">Zone Assignments</div>';
+    html += '<div class="zone-chips">';
+    (c.zones || []).forEach(function(z) { html += '<span class="zone-chip selected">' + esc(z) + '</span>'; });
+    html += '</div>';
+
+    // Recent Events
+    html += '<div style="font-weight:600;margin:0.75rem 0 0.5rem">Recent Access Events</div>';
+    html += '<div class="events-list">';
+    (c.recentEvents || []).forEach(function(ev) {
+      html += '<div class="event-row"><span>' + esc(ev.type) + ' &mdash; ' + esc(ev.door) + '</span><span style="color:var(--text3)">' + timeAgo(ev.time) + '</span></div>';
+    });
+    if (!c.recentEvents || c.recentEvents.length === 0) {
+      html += '<div style="color:var(--text3);font-size:0.85rem;padding:0.5rem 0">No recent events</div>';
+    }
+    html += '</div>';
+
+    // Actions
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    if (c.status === 'ACTIVE') {
+      html += '<button class="btn btn-sm btn-danger" id="mSuspend">Suspend</button>';
+    } else if (c.status === 'SUSPENDED') {
+      html += '<button class="btn btn-sm btn-green" id="mActivate">Activate</button>';
+    }
+    if (c.status !== 'REVOKED') {
+      html += '<button class="btn btn-sm btn-danger" id="mRevoke">Revoke</button>';
+    }
+    html += '<button class="btn btn-outline" id="mClose">Close</button></div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { selectedHolder = null; render(); } });
+    document.getElementById('mClose').addEventListener('click', function() { selectedHolder = null; render(); });
+    var suspBtn = document.getElementById('mSuspend');
+    if (suspBtn) suspBtn.addEventListener('click', function() { c.status = 'SUSPENDED'; selectedHolder = null; render(); });
+    var actBtn = document.getElementById('mActivate');
+    if (actBtn) actBtn.addEventListener('click', function() { c.status = 'ACTIVE'; selectedHolder = null; render(); });
+    var revBtn = document.getElementById('mRevoke');
+    if (revBtn) revBtn.addEventListener('click', function() { c.status = 'REVOKED'; selectedHolder = null; render(); });
+  }
+
+  function timeAgo(ts) {
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

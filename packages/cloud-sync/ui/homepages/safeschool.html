@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeSchoolOS - School Safety & Security Platform</title>
+    <meta name="description" content="Comprehensive school safety platform with emergency lockdown, visitor management, access control, and threat assessment. Free and open source.">
+    <meta name="keywords" content="school safety, SafeSchool, emergency lockdown, visitor management, Alyssa's Law, access control, school security, open source">
+    <meta name="author" content="SafeSchoolOS">
+    <link rel="canonical" href="https://safeschoolos.org/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://safeschoolos.org/">
+    <meta property="og:title" content="SafeSchoolOS - School Safety & Security Platform">
+    <meta property="og:description" content="Free, open-source school safety platform. Emergency lockdown, visitor management, threat assessment, and compliance — all in one system.">
+    <meta property="og:site_name" content="SafeSchoolOS">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SafeSchoolOS - School Safety & Security Platform">
+    <meta name="twitter:description" content="Free, open-source school safety platform with emergency lockdown, visitor management, and compliance tools.">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "SafeSchoolOS",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": "Web, Linux",
+        "description": "Free, open-source school safety platform with emergency lockdown, visitor management, access control, threat assessment, and Alyssa's Law compliance.",
+        "url": "https://safeschoolos.org",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "category": "School Safety Software"
+        }
+    }
+    </script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --bg-hover: #1a4780;
+            --border-color: #2a3f5f;
+            --text-primary: #F9FAFB;
+            --text-secondary: #9CA3AF;
+            --text-muted: #6B7280;
+            --accent: #f59e0b;
+            --accent-hover: #d97706;
+            --color-green: #22C55E;
+            --color-red: #EF4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .navbar {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 2rem;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .navbar-brand:hover { text-decoration: none; }
+        .navbar-brand .brand-accent { color: var(--accent); }
+        .navbar-brand .bus-icon { font-size: 1.4rem; }
+
+        .navbar-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            list-style: none;
+        }
+        .navbar-links a {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .navbar-links a:hover { color: var(--text-primary); text-decoration: none; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            gap: 0.5rem;
+        }
+        .btn:hover { text-decoration: none; }
+        .btn-primary { background-color: var(--accent); color: #1a1a2e; font-weight: 700; }
+        .btn-primary:hover { background-color: var(--accent-hover); }
+        .btn-outline { background: transparent; border-color: var(--border-color); color: var(--text-secondary); }
+        .btn-outline:hover { background-color: var(--bg-tertiary); color: var(--text-primary); }
+        .btn-lg { padding: 0.75rem 2rem; font-size: 1rem; }
+        .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+
+        .badge-free {
+            display: inline-block;
+            background: var(--color-green);
+            color: #000;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+            max-width: 850px;
+            margin: 0 auto;
+        }
+        .hero h1 { font-size: 3rem; font-weight: 800; line-height: 1.2; margin-bottom: 1.5rem; }
+        .hero h1 .accent { color: var(--accent); }
+        .hero p { font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 2rem; max-width: 650px; margin-left: auto; margin-right: auto; }
+        .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+        .features-section { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+        .features-section h2 { text-align: center; font-size: 2rem; margin-bottom: 0.5rem; }
+        .features-section .subtitle { text-align: center; color: var(--text-secondary); margin-bottom: 3rem; font-size: 1rem; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+        .feature-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            transition: border-color 0.2s;
+        }
+        .feature-card:hover { border-color: var(--accent); }
+        .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
+        .feature-card h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+        .feature-card p { color: var(--text-secondary); font-size: 0.9rem; }
+
+        .compliance-section {
+            padding: 4rem 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .compliance-section h2 { text-align: center; font-size: 2rem; margin-bottom: 0.5rem; }
+        .compliance-section .subtitle { text-align: center; color: var(--text-secondary); margin-bottom: 2rem; }
+        .compliance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+        .compliance-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .compliance-card h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+        .compliance-card p { font-size: 0.8rem; color: var(--text-secondary); }
+
+        .cta-section {
+            text-align: center;
+            padding: 4rem 2rem;
+            background-color: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .footer {
+            background-color: var(--bg-primary);
+            border-top: 1px solid var(--border-color);
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            .navbar { padding: 0 1rem; }
+            .navbar-links { gap: 0.75rem; }
+            .hero { padding: 3rem 1rem 2rem; }
+            .hero h1 { font-size: 2rem; }
+            .hero-actions { flex-direction: column; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">
+            <span class="bus-icon">&#x1F6A8;</span>
+            Safe<span class="brand-accent">School</span>OS
+            <span class="badge-free">FREE</span>
+        </a>
+        <ul class="navbar-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#compliance">Compliance</a></li>
+            <li><a href="/demo">Demo</a></li>
+            <li><a href="/login">Login</a></li>
+            <li><a href="/login" class="btn btn-primary btn-sm">Get Started</a></li>
+        </ul>
+    </nav>
+
+    <section class="hero">
+        <h1>Keep Every <span class="accent">School</span> Safe</h1>
+        <p>Free, open-source school safety platform. Emergency lockdown, visitor management, access control, threat assessment, and compliance — all in one system.</p>
+        <div class="hero-actions">
+            <a href="/login" class="btn btn-primary btn-lg">Get Started Free</a>
+            <a href="/demo" class="btn btn-outline btn-lg">Try the Demo</a>
+            <a href="#features" class="btn btn-outline btn-lg">Learn More</a>
+        </div>
+    </section>
+
+    <section class="features-section" id="features">
+        <h2>Everything Schools Need</h2>
+        <p class="subtitle">Built by educators and security professionals. No per-seat fees. No vendor lock-in.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F6A8;</div>
+                <h3>Emergency Lockdown</h3>
+                <p>One-button lockdown with Alyssa's Law compliance. Sub-5-second SLA, edge-first dispatch, and full audit trail for every drill and live event.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F6B6;</div>
+                <h3>Visitor Management</h3>
+                <p>Kiosk check-in, watchlist screening, badge printing, host notifications, and overstay detection. Know who's in your building at all times.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F512;</div>
+                <h3>Access Control</h3>
+                <p>Door monitoring, card reader integration, anti-tailgating detection, and zone-based occupancy. Works with Sicunet, Lenel, AMAG, Genetec, and more.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F4CA;</div>
+                <h3>Analytics & Insights</h3>
+                <p>Behavioral drift detection, anomaly alerts, space utilization, and workforce analytics — all from your existing access control data.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F4CB;</div>
+                <h3>Threat Assessment</h3>
+                <p>Structured threat assessment tools, anonymous tip line, case management, and evidence tracking. Proactive safety at every level.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F6E1;</div>
+                <h3>Incident Response</h3>
+                <p>SOPs, incident lifecycle, responder portal, after-action reports, and dispatch coordination. Prepared for any scenario.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F3EB;</div>
+                <h3>School Operations</h3>
+                <p>Attendance tracking, hall pass management, transportation, reunification planning, and parent portal — built for K-12.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x1F4F1;</div>
+                <h3>First Responder Portal</h3>
+                <p>Secure portal for law enforcement with floor plans, live door control, camera feeds, and pre-incident data packages.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x2601;</div>
+                <h3>Cloud + Edge Hybrid</h3>
+                <p>Runs on a Mini PC at your school with cloud sync. Works offline during emergencies. Fleet management for districts from one dashboard.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="compliance-section" id="compliance">
+        <h2>Compliance Built In</h2>
+        <p class="subtitle">Meet federal and state safety mandates out of the box</p>
+        <div class="compliance-grid">
+            <div class="compliance-card">
+                <h4>Alyssa's Law</h4>
+                <p>Silent panic alarm with 5-second SLA and full audit trail</p>
+            </div>
+            <div class="compliance-card">
+                <h4>FERPA</h4>
+                <p>Student data privacy controls and access logging</p>
+            </div>
+            <div class="compliance-card">
+                <h4>CJIS</h4>
+                <p>Law enforcement data sharing compliance</p>
+            </div>
+            <div class="compliance-card">
+                <h4>State Mandates</h4>
+                <p>Drill tracking, visitor logs, and safety reports</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <h2 style="margin-bottom: 1rem;">Free for Every School</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem; max-width: 500px; margin-left: auto; margin-right: auto;">SafeSchoolOS is free and open source. Deploy on a Mini PC, run in the cloud, or both. No license fees, no per-seat charges.</p>
+        <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+            <a href="/login" class="btn btn-primary btn-lg">Get Started Free</a>
+            <a href="/demo" class="btn btn-outline btn-lg">Try the Demo</a>
+        </div>
+    </section>
+
+    <footer class="footer">
+        &copy; 2026 SafeSchoolOS. Free and open source school safety platform.
+    </footer>
+</body>
+</html>

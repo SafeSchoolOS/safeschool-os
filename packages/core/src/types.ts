@@ -2,7 +2,7 @@
  * Shared types for SafeSchoolOS (EdgeRuntime open-source core)
  */
 
-export type OperatingMode = 'EDGE' | 'STANDALONE' | 'CLOUD';
+export type OperatingMode = 'EDGE' | 'STANDALONE' | 'CLOUD' | 'MIRROR';
 
 export type LicenseTier = 'trial' | 'starter' | 'pro' | 'enterprise';
 

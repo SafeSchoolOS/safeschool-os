@@ -51,6 +51,8 @@ export interface SyncEngineConfig {
   enablePeerSync?: boolean;
   /** Port this device listens on for peer sync requests (sent in heartbeat) */
   peerSyncPort?: number;
+  /** Activation key(s) — sent in heartbeat so cloud can auto-resolve account/org */
+  activationKey?: string;
 }
 
 export class SyncEngine {
@@ -77,6 +79,7 @@ export class SyncEngine {
   private peerManager: PeerManager | null = null;
   private readonly orgId?: string;
   private readonly peerSyncPort?: number;
+  private readonly activationKey?: string;
   readonly userAccountStore: UserAccountStore;
 
   private upgrading = false;
@@ -85,6 +88,8 @@ export class SyncEngine {
   private currentVersion: string | undefined;
   private appliedConfigVersion: number | undefined;
   private configCallbacks: Array<(config: DeviceConfigPayload) => void> = [];
+  private _installedAdapters: Record<string, string> = {};
+  private _adapterUpdateResults: import('./sync-client.js').AdapterUpdateResult[] = [];
 
   constructor(config: SyncEngineConfig) {
     this.siteId = config.siteId;
@@ -120,6 +125,7 @@ export class SyncEngine {
 
     this.orgId = config.orgId;
     this.peerSyncPort = config.peerSyncPort;
+    this.activationKey = config.activationKey;
 
     // Init peer manager for P2P sync between edge devices
     if (config.enablePeerSync && config.operatingMode !== 'CLOUD') {
@@ -273,6 +279,16 @@ export class SyncEngine {
     this.configCallbacks.push(callback);
   }
 
+  /** Set installed adapter versions (reported in heartbeat for update checking) */
+  setInstalledAdapters(adapters: Record<string, string>): void {
+    this._installedAdapters = adapters;
+  }
+
+  /** Set adapter update results (reported in heartbeat for cloud acknowledgment) */
+  setAdapterUpdateResults(results: import('./sync-client.js').AdapterUpdateResult[]): void {
+    this._adapterUpdateResults = results;
+  }
+
   /**
    * Get the currently applied config version (reported back to cloud in heartbeat).
    */
@@ -342,15 +358,14 @@ export class SyncEngine {
     try {
       this.setStatus('syncing');
 
-      await this.syncToCloud();
-      await this.syncFromCloud();
-
+      // Send heartbeat BEFORE sync — cloud requires device registration before accepting push/pull
       const stats = this.offlineQueue.getStats();
       const heartbeatReq: HeartbeatRequest = {
         siteId: this.siteId,
         mode,
         pendingChanges: stats.pending + this.localChanges.length,
         orgId: this.orgId,
+        activationKey: this.activationKey,
         version: await this.getVersion(),
         hostname: (await import('node:os')).hostname(),
         nodeVersion: process.version,
@@ -358,7 +373,14 @@ export class SyncEngine {
         ...(this.upgradeStatus && { upgradeStatus: this.upgradeStatus }),
         ...(this.upgradeError && { upgradeError: this.upgradeError }),
         ...(this.appliedConfigVersion && { configVersion: this.appliedConfigVersion }),
+        ...(Object.keys(this._installedAdapters).length > 0 && { installedAdapters: this._installedAdapters }),
+        ...(this._adapterUpdateResults.length > 0 && { adapterUpdateResults: this._adapterUpdateResults }),
       };
+
+      // Clear update results after reporting (one-shot)
+      if (this._adapterUpdateResults.length > 0) {
+        this._adapterUpdateResults = [];
+      }
 
       try {
         const osModule = await import('node:os');
@@ -397,8 +419,51 @@ export class SyncEngine {
             }
           }
         }
+
+        // Handle unclaim: device removed from site — clear config, restart to enter pairing mode
+        if (heartbeatResp.unclaimed) {
+          log.warn('Device unclaimed by cloud — clearing config and restarting');
+          try {
+            const fs = await import('node:fs');
+            const path = await import('node:path');
+            const installDir = process.env.INSTALL_DIR ?? '/opt/edgeruntime';
+            const markerPath = path.join(installDir, '.env-configured');
+            // Remove the configured marker so setup wizard runs on restart
+            if (fs.existsSync(markerPath)) {
+              fs.unlinkSync(markerPath);
+            }
+            // Clear activation key from .env
+            const envPath = path.join(installDir, '.env');
+            if (fs.existsSync(envPath)) {
+              let content = fs.readFileSync(envPath, 'utf-8');
+              content = content.replace(/^EDGERUNTIME_ACTIVATION_KEY=.*$/m, 'EDGERUNTIME_ACTIVATION_KEY=');
+              fs.writeFileSync(envPath, content, 'utf-8');
+            }
+          } catch (err) {
+            log.error({ err }, 'Failed to clear config for unclaim');
+          }
+          // Exit process — systemd will restart, setup wizard will run, new pairing code shown
+          process.exit(0);
+        }
       } catch (err) {
         log.warn({ err }, 'Heartbeat failed');
+      }
+
+      // Now sync data (after heartbeat ensures device is registered)
+      await this.syncToCloud();
+      await this.syncFromCloud();
+
+      // Send heartbeat to secondary backends (sync router) so they register this device
+      if (this.syncRouter) {
+        const primaryUrl = this.syncClient.getBaseUrl();
+        for (const [url, client] of this.syncRouter.getAllClients()) {
+          if (url === primaryUrl) continue; // already sent above
+          try {
+            await client.heartbeat(heartbeatReq);
+          } catch {
+            // Secondary heartbeat failures are non-critical
+          }
+        }
       }
 
       this.lastSyncAt = new Date();

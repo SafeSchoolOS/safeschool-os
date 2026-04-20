@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Settings</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+.tab { padding: 0.6rem 1.25rem; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text2); cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-green { background: transparent; border: 1px solid var(--green); color: var(--green); }
+.btn-green:hover { background: rgba(34,197,94,0.1); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+.card-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.75rem; }
+.form-row { margin-bottom: 0.75rem; }
+.form-label { display: block; font-size: 0.8rem; color: var(--text3); margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.form-hint { font-size: 0.75rem; color: var(--text3); margin-top: 0.2rem; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+.toggle-label { font-size: 0.85rem; }
+.toggle-desc { font-size: 0.75rem; color: var(--text3); }
+.toggle { position: relative; width: 40px; height: 22px; cursor: pointer; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider { position: absolute; inset: 0; background: var(--bg3); border-radius: 11px; transition: 0.2s; }
+.toggle .slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: var(--text3); border-radius: 50%; transition: 0.2s; }
+.toggle input:checked + .slider { background: var(--accent); }
+.toggle input:checked + .slider::before { transform: translateX(18px); background: #fff; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-connected { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-disconnected { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-pending { background: rgba(245,158,11,0.15); color: var(--amber); }
+.integration-row { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; border-bottom: 1px solid var(--border); }
+.integration-info { display: flex; align-items: center; gap: 0.75rem; }
+.integration-icon { width: 36px; height: 36px; background: var(--bg3); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; color: var(--accent); }
+.backup-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--green); color: #fff; padding: 0.75rem 1.25rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; z-index: 200; animation: fadeInOut 2s forwards; }
+@keyframes fadeInOut { 0% { opacity: 0; transform: translateY(10px); } 15% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // --- State ---
+  var currentTab = 'general';
+  var settings = {
+    siteName: 'Main Campus',
+    timezone: 'America/New_York',
+    dateFormat: 'MM/DD/YYYY',
+    language: 'en',
+    sessionTimeout: 30,
+    passwordMinLength: 8,
+    requireUppercase: true,
+    requireNumbers: true,
+    requireSpecial: true,
+    twoFactorEnabled: false,
+    ipWhitelist: '',
+    emailHost: 'smtp.company.com',
+    emailPort: 587,
+    emailUser: 'notifications@company.com',
+    emailFrom: 'EdgeRuntime <noreply@company.com>',
+    emailTls: true,
+    smsProvider: 'twilio',
+    twilioSid: 'AC********************************',
+    twilioToken: '********************************',
+    twilioFrom: '+15551234567',
+    webhookUrls: 'https://hooks.slack.com/services/T00/B00/xxxx',
+    autoBackupEnabled: true,
+    autoBackupSchedule: 'daily',
+    autoBackupRetention: 30
+  };
+  var integrations = [
+    { id: 'twilio', name: 'Twilio', desc: 'SMS & Voice notifications', status: 'connected', icon: 'TW' },
+    { id: 'yardi', name: 'Yardi Voyager', desc: 'Property management sync', status: 'connected', icon: 'YA' },
+    { id: 'sicunet', name: 'Sicunet', desc: 'Access control integration', status: 'connected', icon: 'SI' },
+    { id: 'lenel', name: 'Lenel OnGuard', desc: 'PAC system connector', status: 'disconnected', icon: 'LN' },
+    { id: 'genetec', name: 'Genetec Security Center', desc: 'VMS & access control', status: 'disconnected', icon: 'GN' },
+    { id: 'brivo', name: 'Brivo', desc: 'Cloud access control', status: 'pending', icon: 'BR' },
+    { id: 'verkada', name: 'Verkada', desc: 'Camera & access platform', status: 'connected', icon: 'VK' },
+    { id: 'milestone', name: 'Milestone XProtect', desc: 'Video management system', status: 'disconnected', icon: 'MS' }
+  ];
+  var backups = [
+    { id: 'b1', name: 'auto-backup-2026-03-15.json', date: '2026-03-15 02:00:00', size: '4.2 MB', type: 'auto' },
+    { id: 'b2', name: 'auto-backup-2026-03-14.json', date: '2026-03-14 02:00:00', size: '4.1 MB', type: 'auto' },
+    { id: 'b3', name: 'manual-backup-2026-03-12.json', date: '2026-03-12 14:30:00', size: '4.0 MB', type: 'manual' },
+    { id: 'b4', name: 'auto-backup-2026-03-13.json', date: '2026-03-13 02:00:00', size: '4.1 MB', type: 'auto' },
+    { id: 'b5', name: 'auto-backup-2026-03-12.json', date: '2026-03-12 02:00:00', size: '3.9 MB', type: 'auto' }
+  ];
+
+  async function loadData() {
+    render();
+  }
+
+  function showToast(msg) {
+    var existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 2200);
+  }
+
+  function render() {
+    var html = '';
+    html += '<div class="header"><div><div class="title">System Settings</div>';
+    html += '<div class="subtitle">Configure system-wide settings, security policies, and integrations.</div></div></div>';
+
+    // Tabs
+    html += '<div class="tabs">';
+    ['general','security','notifications','integrations','backup'].forEach(function(t) {
+      var label = t.charAt(0).toUpperCase() + t.slice(1);
+      html += '<button class="tab' + (currentTab === t ? ' active' : '') + '" data-tab="' + t + '">' + label + '</button>';
+    });
+    html += '</div>';
+
+    if (currentTab === 'general') html += renderGeneral();
+    else if (currentTab === 'security') html += renderSecurity();
+    else if (currentTab === 'notifications') html += renderNotifications();
+    else if (currentTab === 'integrations') html += renderIntegrations();
+    else if (currentTab === 'backup') html += renderBackup();
+
+    document.getElementById('app').innerHTML = html;
+
+    // Bind tabs
+    document.querySelectorAll('.tab').forEach(function(t) {
+      t.addEventListener('click', function() { currentTab = this.dataset.tab; render(); });
+    });
+
+    // Bind save buttons
+    document.querySelectorAll('.btn-save').forEach(function(btn) {
+      btn.addEventListener('click', function() { showToast('Settings saved successfully'); });
+    });
+
+    // Bind toggles
+    document.querySelectorAll('.toggle input').forEach(function(inp) {
+      inp.addEventListener('change', function() {
+        var key = this.dataset.key;
+        if (key) settings[key] = this.checked;
+      });
+    });
+
+    // Bind backup actions
+    document.querySelectorAll('.backup-action').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var action = this.dataset.action;
+        if (action === 'create') {
+          backups.unshift({
+            id: 'b-' + Date.now(),
+            name: 'manual-backup-' + new Date().toISOString().split('T')[0] + '.json',
+            date: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            size: '4.2 MB',
+            type: 'manual'
+          });
+          showToast('Backup created successfully');
+          render();
+        } else if (action === 'restore') {
+          showToast('Backup restored successfully');
+        }
+      });
+    });
+  }
+
+  function renderGeneral() {
+    var html = '<div class="card"><div class="card-title">General Settings</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Site Name</label><input class="form-input" value="' + esc(settings.siteName) + '"></div>';
+    html += '<div class="form-row"><label class="form-label">Language</label><select class="form-input"><option value="en"' + (settings.language === 'en' ? ' selected' : '') + '>English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option></select></div>';
+    html += '</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Timezone</label><select class="form-input">';
+    ['America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Phoenix','UTC','Europe/London','Europe/Paris','Asia/Tokyo'].forEach(function(tz) {
+      html += '<option value="' + tz + '"' + (settings.timezone === tz ? ' selected' : '') + '>' + tz + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Date Format</label><select class="form-input">';
+    ['MM/DD/YYYY','DD/MM/YYYY','YYYY-MM-DD'].forEach(function(f) {
+      html += '<option value="' + f + '"' + (settings.dateFormat === f ? ' selected' : '') + '>' + f + '</option>';
+    });
+    html += '</select></div>';
+    html += '</div>';
+    html += '<div style="margin-top:1rem;text-align:right"><button class="btn btn-accent btn-save">Save Changes</button></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderSecurity() {
+    var html = '<div class="card"><div class="card-title">Session Settings</div>';
+    html += '<div class="form-row"><label class="form-label">Session Timeout (minutes)</label><input class="form-input" type="number" value="' + settings.sessionTimeout + '" style="max-width:200px"><div class="form-hint">User sessions expire after this period of inactivity.</div></div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="card-title">Password Policy</div>';
+    html += '<div class="form-row"><label class="form-label">Minimum Password Length</label><input class="form-input" type="number" value="' + settings.passwordMinLength + '" style="max-width:200px"></div>';
+    html += '<div class="toggle-row"><div><div class="toggle-label">Require uppercase letters</div></div><label class="toggle"><input type="checkbox"' + (settings.requireUppercase ? ' checked' : '') + ' data-key="requireUppercase"><span class="slider"></span></label></div>';
+    html += '<div class="toggle-row"><div><div class="toggle-label">Require numbers</div></div><label class="toggle"><input type="checkbox"' + (settings.requireNumbers ? ' checked' : '') + ' data-key="requireNumbers"><span class="slider"></span></label></div>';
+    html += '<div class="toggle-row"><div><div class="toggle-label">Require special characters</div></div><label class="toggle"><input type="checkbox"' + (settings.requireSpecial ? ' checked' : '') + ' data-key="requireSpecial"><span class="slider"></span></label></div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="card-title">Two-Factor Authentication</div>';
+    html += '<div class="toggle-row"><div><div class="toggle-label">Enable 2FA for all users</div><div class="toggle-desc">Require TOTP-based two-factor authentication on login.</div></div><label class="toggle"><input type="checkbox"' + (settings.twoFactorEnabled ? ' checked' : '') + ' data-key="twoFactorEnabled"><span class="slider"></span></label></div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="card-title">IP Whitelist</div>';
+    html += '<div class="form-row"><label class="form-label">Allowed IP Addresses / CIDR Ranges</label><textarea class="form-input" rows="3" placeholder="192.168.1.0/24&#10;10.0.0.0/8" style="resize:vertical">' + esc(settings.ipWhitelist) + '</textarea><div class="form-hint">One entry per line. Leave empty to allow all.</div></div>';
+    html += '</div>';
+
+    html += '<div style="text-align:right"><button class="btn btn-accent btn-save">Save Security Settings</button></div>';
+    return html;
+  }
+
+  function renderNotifications() {
+    var html = '<div class="card"><div class="card-title">Email Settings (SMTP)</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">SMTP Host</label><input class="form-input" value="' + esc(settings.emailHost) + '"></div>';
+    html += '<div class="form-row"><label class="form-label">SMTP Port</label><input class="form-input" type="number" value="' + settings.emailPort + '"></div>';
+    html += '</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Username</label><input class="form-input" value="' + esc(settings.emailUser) + '"></div>';
+    html += '<div class="form-row"><label class="form-label">Password</label><input class="form-input" type="password" value="••••••••"></div>';
+    html += '</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">From Address</label><input class="form-input" value="' + esc(settings.emailFrom) + '"></div>';
+    html += '<div class="form-row" style="display:flex;align-items:flex-end"><div class="toggle-row" style="border:none;padding:0"><div><div class="toggle-label">Use TLS</div></div><label class="toggle"><input type="checkbox"' + (settings.emailTls ? ' checked' : '') + ' data-key="emailTls"><span class="slider"></span></label></div></div>';
+    html += '</div>';
+    html += '<div style="margin-top:0.5rem"><button class="btn btn-sm btn-outline">Send Test Email</button></div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="card-title">SMS Configuration (Twilio)</div>';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Account SID</label><input class="form-input" value="' + esc(settings.twilioSid) + '"></div>';
+    html += '<div class="form-row"><label class="form-label">Auth Token</label><input class="form-input" type="password" value="' + esc(settings.twilioToken) + '"></div>';
+    html += '</div>';
+    html += '<div class="form-row"><label class="form-label">From Number</label><input class="form-input" value="' + esc(settings.twilioFrom) + '" style="max-width:300px"></div>';
+    html += '<div style="margin-top:0.5rem"><button class="btn btn-sm btn-outline">Send Test SMS</button></div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="card-title">Webhook URLs</div>';
+    html += '<div class="form-row"><label class="form-label">Webhook Endpoints</label><textarea class="form-input" rows="3" style="resize:vertical" placeholder="https://hooks.slack.com/services/...">' + esc(settings.webhookUrls) + '</textarea><div class="form-hint">One URL per line. Events will be POSTed as JSON.</div></div>';
+    html += '</div>';
+
+    html += '<div style="text-align:right"><button class="btn btn-accent btn-save">Save Notification Settings</button></div>';
+    return html;
+  }
+
+  function renderIntegrations() {
+    var html = '<div class="card"><div class="card-title">Connected Services</div>';
+    integrations.forEach(function(intg) {
+      var badgeClass = intg.status === 'connected' ? 'badge-connected' : intg.status === 'pending' ? 'badge-pending' : 'badge-disconnected';
+      html += '<div class="integration-row">';
+      html += '<div class="integration-info"><div class="integration-icon">' + esc(intg.icon) + '</div>';
+      html += '<div><div style="font-weight:600;font-size:0.9rem">' + esc(intg.name) + '</div>';
+      html += '<div style="font-size:0.75rem;color:var(--text3)">' + esc(intg.desc) + '</div></div></div>';
+      html += '<div style="display:flex;align-items:center;gap:0.5rem">';
+      html += '<span class="badge ' + badgeClass + '">' + intg.status + '</span>';
+      if (intg.status === 'connected') {
+        html += '<button class="btn btn-sm btn-outline">Configure</button>';
+        html += '<button class="btn btn-sm btn-danger">Disconnect</button>';
+      } else {
+        html += '<button class="btn btn-sm btn-accent">Connect</button>';
+      }
+      html += '</div></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderBackup() {
+    var html = '<div class="card"><div class="card-title">Backup & Restore</div>';
+    html += '<div style="display:flex;gap:0.75rem;margin-bottom:1rem">';
+    html += '<button class="btn btn-accent backup-action" data-action="create">Create Backup Now</button>';
+    html += '</div>';
+
+    html += '<div class="toggle-row"><div><div class="toggle-label">Auto Backup</div><div class="toggle-desc">Automatically create backups on a schedule.</div></div><label class="toggle"><input type="checkbox"' + (settings.autoBackupEnabled ? ' checked' : '') + ' data-key="autoBackupEnabled"><span class="slider"></span></label></div>';
+
+    html += '<div class="form-grid" style="margin-top:0.75rem">';
+    html += '<div class="form-row"><label class="form-label">Schedule</label><select class="form-input"><option value="hourly">Hourly</option><option value="daily"' + (settings.autoBackupSchedule === 'daily' ? ' selected' : '') + '>Daily</option><option value="weekly">Weekly</option></select></div>';
+    html += '<div class="form-row"><label class="form-label">Retention (days)</label><input class="form-input" type="number" value="' + settings.autoBackupRetention + '"></div>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="card-title">Available Backups</div>';
+    backups.forEach(function(b) {
+      html += '<div class="backup-row">';
+      html += '<div><div style="font-weight:600">' + esc(b.name) + '</div><div style="font-size:0.75rem;color:var(--text3)">' + esc(b.date) + ' &middot; ' + esc(b.size) + ' &middot; ' + esc(b.type) + '</div></div>';
+      html += '<div style="display:flex;gap:0.5rem"><button class="btn btn-sm btn-outline backup-action" data-action="restore">Restore</button><button class="btn btn-sm btn-outline">Download</button></div>';
+      html += '</div>';
+    });
+    if (backups.length === 0) {
+      html += '<div style="color:var(--text3);padding:1rem;text-align:center">No backups available</div>';
+    }
+    html += '</div>';
+
+    html += '<div style="text-align:right"><button class="btn btn-accent btn-save">Save Backup Settings</button></div>';
+    return html;
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

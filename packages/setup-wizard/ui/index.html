@@ -17,6 +17,7 @@
       --border: #333;
       --error: #ef5350;
       --success: #66bb6a;
+      --warning: #ffa726;
       --radius: 8px;
     }
 
@@ -56,6 +57,38 @@
       font-size: 14px;
     }
 
+    /* Step indicator */
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+
+    .step-dot.active { background: var(--accent); }
+    .step-dot.done { background: var(--success); }
+
+    .step-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+
+    /* Step panels */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
     .form-group {
       margin-bottom: 20px;
     }
@@ -70,7 +103,7 @@
       letter-spacing: 0.5px;
     }
 
-    input[type="text"] {
+    input[type="text"], input[type="password"] {
       width: 100%;
       padding: 12px 14px;
       background: var(--surface-alt);
@@ -78,22 +111,17 @@
       border-radius: var(--radius);
       color: var(--text);
       font-size: 15px;
-      font-family: 'Consolas', 'Monaco', monospace;
+      font-family: inherit;
       outline: none;
       transition: border-color 0.2s;
     }
 
-    input[type="text"]:focus {
+    input[type="text"]:focus, input[type="password"]:focus {
       border-color: var(--accent);
     }
 
-    input[type="text"].error {
-      border-color: var(--error);
-    }
-
-    input[type="text"].valid {
-      border-color: var(--success);
-    }
+    input[type="text"].error { border-color: var(--error); }
+    input[type="text"].valid { border-color: var(--success); }
 
     .input-row {
       display: flex;
@@ -130,6 +158,130 @@
     .btn-primary:hover { opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .btn-row .btn { flex: 1; text-align: center; }
+
+    .btn-secondary {
+      background: var(--surface-alt);
+      border-color: var(--border);
+      color: var(--text);
+      font-weight: 500;
+      padding: 14px;
+      font-size: 16px;
+    }
+
+    /* WiFi network list */
+    .wifi-list {
+      max-height: 280px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+    }
+
+    .wifi-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .wifi-item:last-child { border-bottom: none; }
+    .wifi-item:hover { background: var(--surface-alt); }
+    .wifi-item.selected { background: var(--surface-alt); border-left: 3px solid var(--accent); }
+
+    .wifi-icon {
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .wifi-info { flex: 1; min-width: 0; }
+
+    .wifi-ssid {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .wifi-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .wifi-signal {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .wifi-signal .bar {
+      width: 4px;
+      background: var(--border);
+      border-radius: 1px;
+    }
+
+    .wifi-signal .bar.active { background: var(--success); }
+
+    .wifi-password-row {
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    .wifi-password-row.show { display: block; }
+
+    .wifi-scanning {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-dim);
+    }
+
+    .wifi-scanning .spinner {
+      margin: 0 auto 16px;
+    }
+
+    .wifi-empty {
+      text-align: center;
+      padding: 30px 20px;
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    .network-status {
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      display: none;
+    }
+
+    .network-status.show { display: block; }
+
+    .network-status.connected {
+      background: rgba(102,187,106,0.1);
+      border: 1px solid rgba(102,187,106,0.3);
+      color: var(--success);
+    }
+
+    .network-status.disconnected {
+      background: rgba(255,167,38,0.1);
+      border: 1px solid rgba(255,167,38,0.3);
+      color: var(--warning);
+    }
+
     .validation-badge {
       margin-top: 8px;
       padding: 10px 14px;
@@ -163,7 +315,7 @@
       display: block;
       margin-top: 6px;
       font-size: 12px;
-      color: #ffa726;
+      color: var(--warning);
     }
 
     .divider {
@@ -219,9 +371,40 @@
 
     .field-error.show { display: block; }
 
+    .wifi-saved-badge {
+      margin-top: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      background: rgba(102,187,106,0.1);
+      border: 1px solid rgba(102,187,106,0.3);
+      color: var(--success);
+      display: none;
+    }
+
+    .wifi-saved-badge.show { display: block; }
+
+    /* Pairing code boxes */
+    .pairing-box {
+      width: 52px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      background: var(--surface-alt);
+      border: 2px solid var(--accent);
+      border-radius: var(--radius);
+      color: var(--text);
+      letter-spacing: 2px;
+    }
+
     @media (max-width: 560px) {
       .wizard { padding: 24px 20px; }
       .wizard-header h1 { font-size: 20px; }
+      .pairing-box { width: 44px; height: 54px; font-size: 22px; }
     }
   </style>
 </head>
@@ -229,41 +412,130 @@
   <div class="wizard" id="wizard">
     <div class="wizard-header">
       <h1 id="title">Appliance Setup</h1>
-      <p>Enter your activation key and site details to get started.</p>
+      <p id="subtitle">Connect to your network and configure your gateway.</p>
     </div>
 
-    <form id="setupForm" autocomplete="off">
-      <div class="form-group">
-        <label for="activationKey">Activation Key</label>
-        <input type="text" id="activationKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" spellcheck="false" autocomplete="off">
-        <div class="validation-badge" id="keyBadge"></div>
+    <div class="steps">
+      <div class="step-dot active" id="dot0"></div>
+      <div class="step-dot" id="dot1"></div>
+    </div>
+
+    <!-- ═══ Step 1: WiFi Network ═══ -->
+    <div class="step-panel active" id="step0">
+      <div class="step-label">Step 1 — Network</div>
+
+      <div class="network-status" id="netStatus"></div>
+
+      <div id="wifiScanning" class="wifi-scanning">
+        <div class="spinner"></div>
+        <div>Scanning for WiFi networks...</div>
+      </div>
+
+      <div id="wifiResults" style="display:none">
+        <div class="wifi-list" id="wifiList"></div>
+
+        <div class="wifi-password-row" id="wifiPasswordRow">
+          <label for="wifiPassword">WiFi Password</label>
+          <input type="password" id="wifiPassword" placeholder="Enter network password">
+        </div>
+
+        <div class="wifi-saved-badge" id="wifiSavedBadge"></div>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="wifiRescanBtn">Rescan</button>
+          <button type="button" class="btn btn-secondary" id="wifiSkipBtn">Skip (Ethernet)</button>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="wifiConnectBtn" disabled>Connect &amp; Continue</button>
+      </div>
+
+      <div id="wifiEmpty" class="wifi-empty" style="display:none">
+        <p>No WiFi adapter detected. If using Ethernet, click Continue.</p>
+        <button type="button" class="btn btn-primary" id="wifiEthernetBtn" style="margin-top:16px">Continue with Ethernet</button>
+      </div>
+    </div>
+
+    <!-- ═══ Step 2: Pairing Code + Configuration ═══ -->
+    <div class="step-panel" id="step1">
+      <div class="step-label">Step 2 — Pair Device</div>
+
+      <!-- Pairing Code Display -->
+      <div id="pairingSection" style="text-align:center">
+        <div id="pairingLoading" style="padding:30px 0">
+          <div class="spinner"></div>
+          <div style="color:var(--text-dim);font-size:14px;margin-top:8px">Requesting pairing code...</div>
+        </div>
+
+        <div id="pairingCodeDisplay" style="display:none">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Enter this code in your cloud dashboard</div>
+          <div id="pairingCodeBoxes" style="display:flex;justify-content:center;gap:8px;margin-bottom:16px"></div>
+          <div id="pairingTimer" style="font-size:13px;color:var(--text-dim);margin-bottom:12px"></div>
+          <div id="pairingCloudUrl" style="font-size:12px;color:var(--text-dim);margin-bottom:16px"></div>
+          <div id="pairingStatus" style="font-size:13px;color:var(--text-dim)"></div>
+        </div>
+
+        <div id="pairingExpired" style="display:none;padding:20px 0">
+          <div style="color:var(--warning);font-size:15px;font-weight:600;margin-bottom:8px">Code Expired</div>
+          <div style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Restart the device to get a new pairing code.</div>
+        </div>
+
+        <div id="pairingSuccess" style="display:none;padding:20px 0">
+          <div style="color:var(--success);font-size:24px;margin-bottom:8px">&#x2713;</div>
+          <div style="color:var(--success);font-size:15px;font-weight:600;margin-bottom:8px">Device Paired!</div>
+          <div id="pairingSuccessDetail" style="color:var(--text-dim);font-size:13px"></div>
+        </div>
+
+        <div id="pairingError" style="display:none;padding:20px 0">
+          <div style="color:var(--error);font-size:14px;margin-bottom:12px" id="pairingErrorMsg"></div>
+          <div style="color:var(--text-dim);font-size:12px">Use the manual entry below to configure offline.</div>
+        </div>
       </div>
 
       <hr class="divider">
 
-      <div class="form-group">
-        <label for="siteName">Site Name</label>
-        <input type="text" id="siteName" placeholder="e.g. Main Office">
-        <div class="field-error" id="siteNameError">Site name is required</div>
-      </div>
+      <!-- Collapsible Manual Entry (for offline / air-gapped deployments) -->
+      <details id="manualEntrySection" style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--text-dim);user-select:none;padding:8px 0">Advanced: Enter activation key manually</summary>
+        <div style="margin-top:16px">
+          <form id="setupForm" autocomplete="off">
+            <div class="form-group">
+              <label for="activationKey">Activation Key</label>
+              <input type="text" id="activationKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" spellcheck="false" autocomplete="off">
+              <div class="validation-badge" id="keyBadge"></div>
+            </div>
 
-      <div class="form-group">
-        <label for="orgName">Organization Name</label>
-        <input type="text" id="orgName" placeholder="e.g. Acme Corp">
-        <div class="field-error" id="orgNameError">Organization name is required</div>
-      </div>
+            <hr class="divider">
 
-      <div class="form-group">
-        <label for="siteId">Site ID</label>
-        <div class="input-row">
-          <input type="text" id="siteId" placeholder="UUID" spellcheck="false">
-          <button type="button" class="btn" id="genUuidBtn">Generate</button>
+            <div class="form-group">
+              <label for="siteName">Site Name</label>
+              <input type="text" id="siteName" placeholder="e.g. Main Office">
+              <div class="field-error" id="siteNameError">Site name is required</div>
+            </div>
+
+            <div class="form-group">
+              <label for="orgName">Organization Name</label>
+              <input type="text" id="orgName" placeholder="e.g. Acme Corp">
+              <div class="field-error" id="orgNameError">Organization name is required</div>
+            </div>
+
+            <div class="form-group">
+              <label for="siteId">Site ID</label>
+              <div class="input-row">
+                <input type="text" id="siteId" placeholder="UUID" spellcheck="false">
+                <button type="button" class="btn" id="genUuidBtn">Generate</button>
+              </div>
+              <div class="field-error" id="siteIdError">Site ID is required</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Save Configuration</button>
+          </form>
         </div>
-        <div class="field-error" id="siteIdError">Site ID is required</div>
-      </div>
+      </details>
 
-      <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Save Configuration</button>
-    </form>
+      <div style="margin-top:12px">
+        <button type="button" class="btn btn-secondary" id="backBtn" style="width:100%">Back</button>
+      </div>
+    </div>
   </div>
 
   <div class="complete-overlay" id="completeOverlay">
@@ -281,8 +553,25 @@
       let keyValid = false;
       let keyProducts = [];
       let debounceTimer = null;
+      let currentStep = 0;
+      let selectedSsid = null;
+      let wifiNetworks = [];
+      let wifiAvailable = true;
 
       const $ = (id) => document.getElementById(id);
+
+      // ── Step navigation ──
+      function goToStep(step) {
+        currentStep = step;
+        document.querySelectorAll('.step-panel').forEach((p, i) => {
+          p.classList.toggle('active', i === step);
+        });
+        document.querySelectorAll('.step-dot').forEach((d, i) => {
+          d.classList.remove('active', 'done');
+          if (i < step) d.classList.add('done');
+          else if (i === step) d.classList.add('active');
+        });
+      }
 
       // Fetch product info on load
       fetch('/api/product-info')
@@ -301,23 +590,317 @@
         .then(data => { $('siteId').value = data.uuid; updateSubmitState(); })
         .catch(() => {});
 
-      // ── Activation Key: auto-dash formatting ──
-      const keyInput = $('activationKey');
+      // ═══ Pairing Code Flow ═══
+
+      var pairingPollTimer = null;
+      var pairingCountdownTimer = null;
+      var pairingCode = null;
+      var pairingExpiresAt = null;
+
+      function startPairing() {
+        $('pairingLoading').style.display = '';
+        $('pairingCodeDisplay').style.display = 'none';
+        $('pairingExpired').style.display = 'none';
+        $('pairingSuccess').style.display = 'none';
+        $('pairingError').style.display = 'none';
+
+        fetch('/api/pairing/code')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            $('pairingLoading').style.display = 'none';
+            if (data.error) {
+              $('pairingError').style.display = '';
+              $('pairingErrorMsg').textContent = data.error;
+              // Open manual entry since pairing isn't available
+              $('manualEntrySection').open = true;
+              return;
+            }
+            pairingCode = data.code;
+            pairingExpiresAt = new Date(data.expiresAt).getTime();
+            showPairingCode(data.code);
+            startPairingCountdown();
+            startPairingPoll();
+          })
+          .catch(function(err) {
+            $('pairingLoading').style.display = 'none';
+            $('pairingError').style.display = '';
+            $('pairingErrorMsg').textContent = 'Could not reach cloud. Use manual entry below.';
+            $('manualEntrySection').open = true;
+          });
+      }
+
+      function showPairingCode(code) {
+        var boxes = $('pairingCodeBoxes');
+        var html = '';
+        for (var i = 0; i < code.length; i++) {
+          html += '<div class="pairing-box">' + esc(code[i]) + '</div>';
+        }
+        boxes.innerHTML = html;
+        $('pairingCodeDisplay').style.display = '';
+
+        // Show cloud URL hint
+        if (productInfo && productInfo.product) {
+          var urlMap = {
+            safeschool: 'safeschoolos.org',
+            safeschool: 'safeschool.io',
+            'safeschool': 'safeschool.com',
+          };
+          var cloudHost = urlMap[productInfo.product] || 'your cloud dashboard';
+          $('pairingCloudUrl').innerHTML = 'Go to <strong>' + esc(cloudHost) + '/dashboard</strong> &rarr; Fleet &rarr; Claim Device';
+        }
+      }
+
+      function startPairingCountdown() {
+        if (pairingCountdownTimer) clearInterval(pairingCountdownTimer);
+        pairingCountdownTimer = setInterval(function() {
+          var remaining = pairingExpiresAt - Date.now();
+          if (remaining <= 0) {
+            clearInterval(pairingCountdownTimer);
+            stopPairingPoll();
+            $('pairingCodeDisplay').style.display = 'none';
+            $('pairingExpired').style.display = '';
+            return;
+          }
+          var mins = Math.floor(remaining / 60000);
+          var secs = Math.floor((remaining % 60000) / 1000);
+          $('pairingTimer').textContent = 'Expires in ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
+        }, 1000);
+      }
+
+      function startPairingPoll() {
+        if (pairingPollTimer) clearInterval(pairingPollTimer);
+        pairingPollTimer = setInterval(pollPairingStatus, 3000);
+      }
+
+      function stopPairingPoll() {
+        if (pairingPollTimer) { clearInterval(pairingPollTimer); pairingPollTimer = null; }
+      }
+
+      function pollPairingStatus() {
+        fetch('/api/pairing/status')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.status === 'claimed') {
+              stopPairingPoll();
+              if (pairingCountdownTimer) clearInterval(pairingCountdownTimer);
+              $('pairingCodeDisplay').style.display = 'none';
+              $('pairingSuccess').style.display = '';
+              var detail = '';
+              if (data.siteName) detail += 'Site: ' + data.siteName;
+              if (data.products) detail += (detail ? ' | ' : '') + 'Products: ' + data.products.join(', ');
+              $('pairingSuccessDetail').textContent = detail;
+              // Show complete overlay after brief delay
+              setTimeout(function() {
+                $('completeOverlay').classList.add('show');
+              }, 1500);
+            } else if (data.status === 'expired') {
+              stopPairingPoll();
+              if (pairingCountdownTimer) clearInterval(pairingCountdownTimer);
+              $('pairingCodeDisplay').style.display = 'none';
+              $('pairingExpired').style.display = '';
+            }
+            // 'pending' — keep polling
+            if (data.status === 'pending') {
+              $('pairingStatus').textContent = 'Waiting for admin to enter code...';
+            }
+          })
+          .catch(function() {
+            // Network error — keep trying
+          });
+      }
+
+      // Start pairing when entering step 2
+      var originalGoToStep = goToStep;
+      goToStep = function(step) {
+        originalGoToStep(step);
+        if (step === 1 && !pairingCode) {
+          startPairing();
+        }
+      };
+
+      // ═══ Step 1: WiFi ═══
+
+      // Check current network status
+      function checkNetworkStatus() {
+        fetch('/api/network/status')
+          .then(r => r.json())
+          .then(data => {
+            var el = $('netStatus');
+            var ips = [];
+            for (var name in data.interfaces) {
+              if (data.interfaces[name].ip) ips.push(name + ': ' + data.interfaces[name].ip);
+            }
+            if (data.internetReachable) {
+              el.className = 'network-status show connected';
+              el.innerHTML = 'Connected to internet' + (ips.length ? ' (' + ips.join(', ') + ')' : '');
+            } else if (ips.length) {
+              el.className = 'network-status show disconnected';
+              el.innerHTML = 'Network detected but no internet (' + ips.join(', ') + ')';
+            }
+          })
+          .catch(() => {});
+      }
+
+      // Scan for WiFi networks
+      function scanWifi() {
+        $('wifiScanning').style.display = '';
+        $('wifiResults').style.display = 'none';
+        $('wifiEmpty').style.display = 'none';
+        selectedSsid = null;
+        $('wifiConnectBtn').disabled = true;
+
+        fetch('/api/wifi/scan')
+          .then(r => r.json())
+          .then(data => {
+            wifiNetworks = data.networks || [];
+            $('wifiScanning').style.display = 'none';
+
+            if (data.error && wifiNetworks.length === 0) {
+              // No WiFi adapter
+              wifiAvailable = false;
+              $('wifiEmpty').style.display = '';
+              return;
+            }
+
+            $('wifiResults').style.display = '';
+            renderWifiList();
+          })
+          .catch(() => {
+            $('wifiScanning').style.display = 'none';
+            wifiAvailable = false;
+            $('wifiEmpty').style.display = '';
+          });
+      }
+
+      function renderWifiList() {
+        var list = $('wifiList');
+        if (wifiNetworks.length === 0) {
+          list.innerHTML = '<div class="wifi-empty">No networks found. Try rescanning.</div>';
+          return;
+        }
+        var html = '';
+        wifiNetworks.forEach(function(net) {
+          var strength = signalToStrength(net.signal);
+          var isSelected = net.ssid === selectedSsid;
+          html += '<div class="wifi-item' + (isSelected ? ' selected' : '') + '" data-ssid="' + esc(net.ssid) + '">';
+          html += '<div class="wifi-icon">' + (net.security !== 'Open' ? '&#x1F512;' : '&#x1F513;') + '</div>';
+          html += '<div class="wifi-info">';
+          html += '<div class="wifi-ssid">' + esc(net.ssid) + '</div>';
+          html += '<div class="wifi-meta">' + esc(net.security) + '</div>';
+          html += '</div>';
+          html += renderSignalBars(strength);
+          html += '</div>';
+        });
+        list.innerHTML = html;
+
+        // Click handlers
+        list.querySelectorAll('.wifi-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            selectedSsid = this.dataset.ssid;
+            renderWifiList();
+            var net = wifiNetworks.find(function(n) { return n.ssid === selectedSsid; });
+            var needsPassword = net && net.security !== 'Open';
+            $('wifiPasswordRow').classList.toggle('show', needsPassword);
+            if (needsPassword) $('wifiPassword').focus();
+            $('wifiConnectBtn').disabled = false;
+            $('wifiSavedBadge').classList.remove('show');
+          });
+        });
+      }
+
+      function signalToStrength(dbm) {
+        if (dbm >= -50) return 4;
+        if (dbm >= -60) return 3;
+        if (dbm >= -70) return 2;
+        return 1;
+      }
+
+      function renderSignalBars(strength) {
+        var html = '<div class="wifi-signal">';
+        for (var i = 1; i <= 4; i++) {
+          html += '<div class="bar' + (i <= strength ? ' active' : '') + '" style="height:' + (i * 4 + 4) + 'px"></div>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = String(s || '');
+        return d.innerHTML;
+      }
+
+      // Connect to WiFi
+      $('wifiConnectBtn').addEventListener('click', function() {
+        if (!selectedSsid) return;
+        var btn = $('wifiConnectBtn');
+        btn.disabled = true;
+        btn.textContent = 'Connecting...';
+
+        var net = wifiNetworks.find(function(n) { return n.ssid === selectedSsid; });
+        var needsPassword = net && net.security !== 'Open';
+        var password = needsPassword ? $('wifiPassword').value : '';
+
+        fetch('/api/wifi/configure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid: selectedSsid, password: password }),
+        })
+          .then(r => r.json())
+          .then(result => {
+            if (result.success) {
+              $('wifiSavedBadge').innerHTML = 'WiFi credentials saved for <strong>' + esc(selectedSsid) + '</strong>. The gateway will connect on next boot.';
+              $('wifiSavedBadge').classList.add('show');
+              btn.textContent = 'Continue';
+              btn.disabled = false;
+              btn.onclick = function() { goToStep(1); };
+            } else {
+              alert('Error: ' + (result.error || 'Failed to save WiFi config'));
+              btn.textContent = 'Connect & Continue';
+              btn.disabled = false;
+            }
+          })
+          .catch(function() {
+            alert('Failed to save WiFi configuration.');
+            btn.textContent = 'Connect & Continue';
+            btn.disabled = false;
+          });
+      });
+
+      // Rescan
+      $('wifiRescanBtn').addEventListener('click', function() {
+        $('wifiSavedBadge').classList.remove('show');
+        scanWifi();
+      });
+
+      // Skip WiFi (Ethernet)
+      $('wifiSkipBtn').addEventListener('click', function() { goToStep(1); });
+      $('wifiEthernetBtn').addEventListener('click', function() { goToStep(1); });
+
+      // Back button
+      $('backBtn').addEventListener('click', function() { goToStep(0); });
+
+      // Start WiFi scan + network check
+      checkNetworkStatus();
+      scanWifi();
+
+      // ═══ Step 2: Activation Key + Config ═══
+
+      var keyInput = $('activationKey');
       keyInput.addEventListener('input', function() {
-        let raw = this.value.replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 16);
-        let formatted = '';
-        for (let i = 0; i < raw.length; i++) {
+        var raw = this.value.replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 16);
+        var formatted = '';
+        for (var i = 0; i < raw.length; i++) {
           if (i > 0 && i % 4 === 0) formatted += '-';
           formatted += raw[i];
         }
         this.value = formatted;
 
-        // Debounced validation
         keyValid = false;
         updateSubmitState();
         clearTimeout(debounceTimer);
         if (raw.length === 16) {
-          debounceTimer = setTimeout(() => validateKey(formatted), 300);
+          debounceTimer = setTimeout(function() { validateKey(formatted); }, 300);
         } else {
           hideBadge();
           keyInput.classList.remove('valid', 'error');
@@ -328,11 +911,11 @@
         fetch('/api/validate-key', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key }),
+          body: JSON.stringify({ key: key }),
         })
           .then(r => r.json())
-          .then(result => {
-            const badge = $('keyBadge');
+          .then(function(result) {
+            var badge = $('keyBadge');
             badge.classList.add('show');
 
             if (result.valid) {
@@ -343,14 +926,13 @@
               badge.classList.add('valid');
               badge.classList.remove('invalid');
 
-              let html = 'Valid key';
-              let details = [];
+              var html = 'Valid key';
+              var details = [];
               if (result.tier) details.push('Tier: ' + result.tier);
               if (result.products) details.push('Products: ' + result.products.join(', '));
               if (result.proxyUrl) details.push('Cloud: ' + result.proxyUrl);
               if (details.length) html += '<span class="detail">' + details.join(' &middot; ') + '</span>';
 
-              // Warn if product mismatch
               if (productInfo && keyProducts.length > 0 && !keyProducts.includes(productInfo.product)) {
                 html += '<span class="warning">Warning: This key does not include ' + productInfo.label + '</span>';
               }
@@ -366,29 +948,29 @@
             }
             updateSubmitState();
           })
-          .catch(() => {
+          .catch(function() {
             keyValid = false;
             updateSubmitState();
           });
       }
 
       function hideBadge() {
-        const badge = $('keyBadge');
+        var badge = $('keyBadge');
         badge.classList.remove('show', 'valid', 'invalid');
         badge.innerHTML = '';
       }
 
-      // ── Generate UUID ──
+      // Generate UUID
       $('genUuidBtn').addEventListener('click', function() {
         fetch('/api/generate-uuid')
           .then(r => r.json())
-          .then(data => { $('siteId').value = data.uuid; updateSubmitState(); })
-          .catch(() => {});
+          .then(function(data) { $('siteId').value = data.uuid; updateSubmitState(); })
+          .catch(function() {});
       });
 
-      // ── Submit state ──
+      // Submit state
       function updateSubmitState() {
-        const canSubmit = keyValid
+        var canSubmit = keyValid
           && $('siteName').value.trim()
           && $('orgName').value.trim()
           && $('siteId').value.trim();
@@ -399,14 +981,13 @@
       $('orgName').addEventListener('input', updateSubmitState);
       $('siteId').addEventListener('input', updateSubmitState);
 
-      // ── Form submit ──
+      // Form submit
       $('setupForm').addEventListener('submit', function(e) {
         e.preventDefault();
 
-        // Validate required fields
-        let hasError = false;
-        ['siteName', 'orgName', 'siteId'].forEach(id => {
-          const empty = !$(id).value.trim();
+        var hasError = false;
+        ['siteName', 'orgName', 'siteId'].forEach(function(id) {
+          var empty = !$(id).value.trim();
           $(id + 'Error').classList.toggle('show', empty);
           if (empty) hasError = true;
         });
@@ -426,7 +1007,7 @@
           }),
         })
           .then(r => r.json())
-          .then(result => {
+          .then(function(result) {
             if (result.success) {
               $('completeOverlay').classList.add('show');
             } else {
@@ -435,7 +1016,7 @@
               $('submitBtn').textContent = 'Save Configuration';
             }
           })
-          .catch(() => {
+          .catch(function() {
             alert('Failed to save configuration. Please try again.');
             $('submitBtn').disabled = false;
             $('submitBtn').textContent = 'Save Configuration';

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Access Events Log</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 180px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+input[type="date"].filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-active { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-granted { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-denied { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-forced { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-held { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-tailgate { background: rgba(139,92,246,0.15); color: var(--purple); }
+.badge-alarm { background: rgba(239,68,68,0.15); color: var(--red); }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
+.page-btn { padding: 0.3rem 0.7rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); cursor: pointer; font-size: 0.8rem; }
+.page-btn:hover { border-color: var(--accent); color: var(--accent); }
+.page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.page-btn:disabled { opacity: 0.4; cursor: default; }
+.refresh-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
+.refresh-indicator.inactive { background: var(--text3); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // --- State ---
+  var searchText = '';
+  var typeFilter = '';
+  var severityFilter = '';
+  var dateFrom = '';
+  var dateTo = '';
+  var currentPage = 0;
+  var pageSize = 50;
+  var autoRefresh = false;
+  var refreshTimer = null;
+  var events = [];
+
+  // --- Demo Data ---
+  var FIRST = ['James','Mary','Robert','Patricia','John','Jennifer','Michael','Linda','David','Elizabeth','William','Barbara','Richard','Susan','Thomas','Sarah','Chris','Karen','Daniel','Nancy','Matt','Emily','Andrew','Lisa'];
+  var LAST = ['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Wilson','Anderson','Thomas','Taylor','Moore','Jackson'];
+  var DOORS = ['Main Lobby Door 1','Parking Garage Gate','Loading Dock','Hallway A Door 2','Stairwell 1','Server Room','Rooftop Access','Front Entrance','Rear Entrance','Cafeteria','Conference Room A','Executive Suite','Mail Room','Break Room','Storage B'];
+  var ZONES = ['Main Lobby','Parking Garage','Loading Dock','Hallway A','Stairwell 1','Server Room','Rooftop','Front Entrance','Rear Entrance','Cafeteria','Conference Wing','Executive Floor'];
+  var BUILDINGS = ['Building A','Building B','Building C','Main Campus'];
+  var EVENT_TYPES = ['granted','granted','granted','granted','granted','granted','denied','denied','forced','held_open','tailgate','alarm'];
+  var SEVERITIES = { 'granted': 'low', 'denied': 'medium', 'forced': 'high', 'held_open': 'medium', 'tailgate': 'high', 'alarm': 'critical' };
+
+  function genEvents() {
+    var list = [];
+    for (var i = 0; i < 100; i++) {
+      var type = EVENT_TYPES[i % EVENT_TYPES.length];
+      var fn = FIRST[i % FIRST.length];
+      var ln = LAST[i % LAST.length];
+      list.push({
+        id: 'evt-' + String(i + 1).padStart(5, '0'),
+        timestamp: new Date(Date.now() - i * 300000 - Math.floor(Math.random() * 60000)).toISOString(),
+        type: type,
+        cardholder: fn + ' ' + ln,
+        door: DOORS[i % DOORS.length],
+        zone: ZONES[i % ZONES.length],
+        building: BUILDINGS[i % BUILDINGS.length],
+        badgeNumber: String(10000 + Math.floor(Math.random() * 90000)),
+        severity: SEVERITIES[type] || 'low'
+      });
+    }
+    list.sort(function(a, b) { return new Date(b.timestamp) - new Date(a.timestamp); });
+    return list;
+  }
+
+  events = genEvents();
+
+  async function loadData() {
+    try {
+      var offset = currentPage * pageSize;
+      var res = await api('GET', '/api/v1/data/events?limit=' + pageSize + '&offset=' + offset);
+      if (res && (res.events || res.entities)) {
+        var items = res.events || res.entities || [];
+        if (items.length > 0) {
+          events = items.map(function(e, i) {
+            var d = e.data || e;
+            return {
+              id: d.id || e.id || ('evt-' + i),
+              timestamp: d.timestamp || d.createdAt || new Date().toISOString(),
+              type: d.type || d.eventType || 'granted',
+              cardholder: d.cardholder || d.cardholderName || d.userName || 'Unknown',
+              door: d.door || d.doorName || 'Unknown Door',
+              zone: d.zone || '',
+              building: d.building || '',
+              badgeNumber: d.badgeNumber || d.cardNumber || '-',
+              severity: d.severity || 'low'
+            };
+          });
+        }
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function filtered() {
+    return events.filter(function(e) {
+      if (typeFilter && e.type !== typeFilter) return false;
+      if (severityFilter && e.severity !== severityFilter) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (e.cardholder.toLowerCase().indexOf(s) < 0 && e.door.toLowerCase().indexOf(s) < 0 && e.badgeNumber.indexOf(s) < 0) return false;
+      }
+      if (dateFrom) {
+        var from = new Date(dateFrom); from.setHours(0,0,0,0);
+        if (new Date(e.timestamp) < from) return false;
+      }
+      if (dateTo) {
+        var to = new Date(dateTo); to.setHours(23,59,59,999);
+        if (new Date(e.timestamp) > to) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    var data = filtered();
+    var totalFiltered = data.length;
+    var totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    if (currentPage >= totalPages) currentPage = totalPages - 1;
+    var pageData = data.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+    var granted = events.filter(function(e) { return e.type === 'granted'; }).length;
+    var denied = events.filter(function(e) { return e.type === 'denied'; }).length;
+    var forced = events.filter(function(e) { return e.type === 'forced'; }).length;
+    var held = events.filter(function(e) { return e.type === 'held_open'; }).length;
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Access Events Log</div>';
+    html += '<div class="subtitle">Real-time access control event monitoring and audit trail.</div></div>';
+    html += '<div style="display:flex;gap:0.5rem;align-items:center">';
+    html += '<button class="btn btn-sm ' + (autoRefresh ? 'btn-active' : 'btn-outline') + '" id="btnAutoRefresh"><span class="refresh-indicator ' + (autoRefresh ? 'active' : 'inactive') + '"></span>Auto-refresh</button>';
+    html += '<button class="btn btn-outline" id="btnExport">Export CSV</button>';
+    html += '</div></div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Total Events</div><div class="stat-value">' + events.length + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Grants</div><div class="stat-value green">' + granted + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Denials</div><div class="stat-value red">' + denied + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Forced Doors</div><div class="stat-value red">' + forced + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Held Open</div><div class="stat-value amber">' + held + '</div></div>';
+    html += '</div>';
+
+    // Toolbar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search cardholder, door, badge..." value="' + esc(searchText) + '">';
+    html += '<input type="date" class="filter" id="dateFrom" value="' + dateFrom + '" title="From date">';
+    html += '<input type="date" class="filter" id="dateTo" value="' + dateTo + '" title="To date">';
+    html += '<select class="filter" id="typeFilter"><option value="">All Types</option>';
+    ['granted','denied','forced','held_open','tailgate','alarm'].forEach(function(t) {
+      html += '<option value="' + t + '"' + (typeFilter === t ? ' selected' : '') + '>' + t.replace('_', ' ') + '</option>';
+    });
+    html += '</select>';
+    html += '<select class="filter" id="severityFilter"><option value="">All Severity</option>';
+    ['low','medium','high','critical'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (severityFilter === s ? ' selected' : '') + '>' + s + '</option>';
+    });
+    html += '</select>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + totalFiltered + ' results</span>';
+    html += '</div>';
+
+    // Table
+    html += '<table><thead><tr>';
+    html += '<th>Timestamp</th><th>Type</th><th>Cardholder</th><th>Door</th><th>Zone</th><th>Building</th><th>Badge #</th>';
+    html += '</tr></thead><tbody>';
+
+    if (pageData.length === 0) {
+      html += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:2rem">No events match your filters</td></tr>';
+    } else {
+      pageData.forEach(function(e) {
+        var typeBadge = 'badge-' + e.type.replace('_open', '');
+        var typeLabel = e.type.replace('_', ' ');
+        var ts = new Date(e.timestamp);
+        var tsStr = ts.toLocaleDateString() + ' ' + ts.toLocaleTimeString();
+        html += '<tr>';
+        html += '<td style="font-size:0.8rem;color:var(--text2);white-space:nowrap">' + esc(tsStr) + '</td>';
+        html += '<td><span class="badge ' + typeBadge + '">' + esc(typeLabel) + '</span></td>';
+        html += '<td>' + esc(e.cardholder) + '</td>';
+        html += '<td>' + esc(e.door) + '</td>';
+        html += '<td style="color:var(--text2)">' + esc(e.zone) + '</td>';
+        html += '<td style="color:var(--text2)">' + esc(e.building) + '</td>';
+        html += '<td><code style="font-size:0.8rem">' + esc(e.badgeNumber) + '</code></td>';
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+
+    // Pagination
+    html += '<div class="pagination">';
+    html += '<button class="page-btn" id="pgPrev"' + (currentPage <= 0 ? ' disabled' : '') + '>&laquo; Prev</button>';
+    for (var p = 0; p < totalPages && p < 10; p++) {
+      html += '<button class="page-btn' + (p === currentPage ? ' active' : '') + '" data-page="' + p + '">' + (p + 1) + '</button>';
+    }
+    if (totalPages > 10) html += '<span style="color:var(--text3)">...</span>';
+    html += '<button class="page-btn" id="pgNext"' + (currentPage >= totalPages - 1 ? ' disabled' : '') + '>Next &raquo;</button>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:0.5rem">Page ' + (currentPage + 1) + ' of ' + totalPages + '</span>';
+    html += '</div>';
+
+    document.getElementById('app').innerHTML = html;
+
+    // Bind
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; currentPage = 0; render(); });
+    document.getElementById('typeFilter').addEventListener('change', function() { typeFilter = this.value; currentPage = 0; render(); });
+    document.getElementById('severityFilter').addEventListener('change', function() { severityFilter = this.value; currentPage = 0; render(); });
+    document.getElementById('dateFrom').addEventListener('change', function() { dateFrom = this.value; currentPage = 0; render(); });
+    document.getElementById('dateTo').addEventListener('change', function() { dateTo = this.value; currentPage = 0; render(); });
+    document.getElementById('pgPrev').addEventListener('click', function() { if (currentPage > 0) { currentPage--; render(); } });
+    document.getElementById('pgNext').addEventListener('click', function() { if (currentPage < totalPages - 1) { currentPage++; render(); } });
+    document.querySelectorAll('.page-btn[data-page]').forEach(function(btn) {
+      btn.addEventListener('click', function() { currentPage = parseInt(this.dataset.page); render(); });
+    });
+
+    document.getElementById('btnAutoRefresh').addEventListener('click', function() {
+      autoRefresh = !autoRefresh;
+      if (autoRefresh) {
+        refreshTimer = setInterval(function() { loadData(); }, 10000);
+      } else {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+      render();
+    });
+
+    document.getElementById('btnExport').addEventListener('click', function() {
+      var csv = 'Timestamp,Type,Cardholder,Door,Zone,Building,Badge\n';
+      data.forEach(function(e) {
+        csv += '"' + e.timestamp + '","' + e.type + '","' + e.cardholder + '","' + e.door + '","' + e.zone + '","' + e.building + '","' + e.badgeNumber + '"\n';
+      });
+      var blob = new Blob([csv], { type: 'text/csv' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'access-events-' + new Date().toISOString().split('T')[0] + '.csv';
+      a.click();
+    });
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

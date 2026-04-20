@@ -4,15 +4,14 @@
  * Encodes/decodes 80-bit payloads into XXXX-XXXX-XXXX-XXXX Crockford Base32 keys.
  * Uses a fixed bit permutation table to scatter proxy_index bits across all 4 segments.
  *
- * Binary Payload Layout (80 bits):
+ * Binary Payload Layout v2 (80 bits):
  * | Field          | Bits | Range       | Purpose                                   |
  * |----------------|------|-------------|-------------------------------------------|
- * | product_flags  | 6    | 0-63        | Bitmask: bit3=SafeSchool (others reserved) |
+ * | product_flags  | 16   | 0-65535     | Bitmask: supports up to 16 products       |
  * | license_tier   | 3    | 0-7         | 0=trial, 1=starter, 2=pro, 3=enterprise   |
  * | proxy_index    | 10   | 0-1023      | Index into proxy lookup table              |
- * | issued_epoch   | 22   | 0-4194303   | Minutes since 2024-01-01 (~8 years)        |
- * | reserved       | 3    | 0-7         | Future use                                 |
- * | hmac_check     | 36   | -           | Truncated HMAC-SHA256                      |
+ * | issued_epoch   | 20   | 0-1048575   | Hours since 2024-01-01 (~119 years)       |
+ * | hmac_check     | 31   | -           | Truncated HMAC-SHA256                      |
  */
 
 import crypto from 'node:crypto';
@@ -31,8 +30,23 @@ for (let i = 0; i < CROCKFORD.length; i++) {
 // Epoch base: 2024-01-01T00:00:00Z
 export const EPOCH_BASE = new Date('2024-01-01T00:00:00Z').getTime();
 
-// HMAC secret for offline verification (in production, load from secure store)
-const HMAC_SECRET = process.env.EDGERUNTIME_HMAC_SECRET ?? 'edgeruntime-default-hmac-key-change-in-production';
+// HMAC secret for offline verification — lazy-loaded to avoid crash at import time.
+// Production MUST set EDGERUNTIME_HMAC_SECRET; without it, anyone can forge license
+// keys for any product/tier. Dev/test fall back to a well-known string so local
+// runs still work, but we throw in CI/prod.
+const DEV_DEFAULT_HMAC = 'edgeruntime-default-hmac-key-change-in-production';
+function getHmacSecret(): string {
+  const configured = process.env.EDGERUNTIME_HMAC_SECRET;
+  if (configured) return configured;
+  const env = (process.env.NODE_ENV || '').toLowerCase();
+  const isProd = env === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+  if (isProd) {
+    throw new Error(
+      'EDGERUNTIME_HMAC_SECRET is required in production — refusing to use the dev fallback.'
+    );
+  }
+  return DEV_DEFAULT_HMAC;
+}
 
 /**
  * Fixed bit permutation table (80 entries).
@@ -66,15 +80,15 @@ export interface KeyPayload {
 
 /**
  * Pack a KeyPayload into 80 bits (as a 10-byte Buffer).
- * Layout: [productFlags:6][licenseTier:3][proxyIndex:10][issuedEpoch:22][reserved:3][hmac:36]
+ * Layout v2: [productFlags:16][licenseTier:3][proxyIndex:10][issuedEpoch:20][hmac:31]
  */
 function packBits(payload: KeyPayload): Buffer {
   const bits = new Uint8Array(80);
 
   let offset = 0;
 
-  // product_flags: 6 bits
-  for (let i = 5; i >= 0; i--) {
+  // product_flags: 16 bits
+  for (let i = 15; i >= 0; i--) {
     bits[offset++] = (payload.productFlags >> i) & 1;
   }
 
@@ -88,22 +102,17 @@ function packBits(payload: KeyPayload): Buffer {
     bits[offset++] = (payload.proxyIndex >> i) & 1;
   }
 
-  // issued_epoch: 22 bits
-  for (let i = 21; i >= 0; i--) {
+  // issued_epoch: 20 bits (hours since epoch)
+  for (let i = 19; i >= 0; i--) {
     bits[offset++] = (payload.issuedEpoch >> i) & 1;
   }
 
-  // reserved: 3 bits
-  for (let i = 2; i >= 0; i--) {
-    bits[offset++] = (payload.reserved >> i) & 1;
-  }
+  // First 49 bits are the data portion. Compute HMAC over them.
+  const dataBytes = bitsToBuffer(bits.slice(0, 49));
+  const hmac = crypto.createHmac('sha256', getHmacSecret()).update(dataBytes).digest();
 
-  // First 44 bits are the data portion. Compute HMAC over them.
-  const dataBytes = bitsToBuffer(bits.slice(0, 44));
-  const hmac = crypto.createHmac('sha256', HMAC_SECRET).update(dataBytes).digest();
-
-  // Take first 36 bits of HMAC
-  for (let i = 0; i < 36; i++) {
+  // Take first 31 bits of HMAC
+  for (let i = 0; i < 31; i++) {
     const byteIdx = Math.floor(i / 8);
     const bitIdx = 7 - (i % 8);
     bits[offset++] = (hmac[byteIdx]! >> bitIdx) & 1;
@@ -121,7 +130,7 @@ function unpackBits(buf: Buffer): KeyPayload & { hmacCheck: number[] } {
   let offset = 0;
 
   let productFlags = 0;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 16; i++) {
     productFlags = (productFlags << 1) | bits[offset++]!;
   }
 
@@ -136,17 +145,14 @@ function unpackBits(buf: Buffer): KeyPayload & { hmacCheck: number[] } {
   }
 
   let issuedEpoch = 0;
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 20; i++) {
     issuedEpoch = (issuedEpoch << 1) | bits[offset++]!;
   }
 
   let reserved = 0;
-  for (let i = 0; i < 3; i++) {
-    reserved = (reserved << 1) | bits[offset++]!;
-  }
 
   const hmacCheck: number[] = [];
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < 31; i++) {
     hmacCheck.push(bits[offset++]!);
   }
 
@@ -288,19 +294,24 @@ export function decode(key: string): KeyPayload | null {
     // Unpack fields
     const unpacked = unpackBits(buf);
 
-    // Verify HMAC
-    const dataBits = Array.from(bits.slice(0, 44));
+    // Verify HMAC using a constant-time comparison so an attacker cannot forge
+    // keys bit-at-a-time by measuring timing (classic early-return side channel).
+    const dataBits = Array.from(bits.slice(0, 49));
     const dataBytes = bitsToBuffer(dataBits);
-    const expectedHmac = crypto.createHmac('sha256', HMAC_SECRET).update(dataBytes).digest();
+    const expectedHmac = crypto.createHmac('sha256', getHmacSecret()).update(dataBytes).digest();
 
-    // Compare first 36 bits
-    for (let i = 0; i < 36; i++) {
+    const expected = Buffer.alloc(4);
+    const actual = Buffer.alloc(4);
+    for (let i = 0; i < 31; i++) {
       const byteIdx = Math.floor(i / 8);
       const bitIdx = 7 - (i % 8);
       const expectedBit = (expectedHmac[byteIdx]! >> bitIdx) & 1;
-      if (unpacked.hmacCheck[i] !== expectedBit) {
-        return null; // HMAC mismatch
-      }
+      const actualBit = unpacked.hmacCheck[i] & 1;
+      if (expectedBit) expected[byteIdx] |= 1 << bitIdx;
+      if (actualBit) actual[byteIdx] |= 1 << bitIdx;
+    }
+    if (!crypto.timingSafeEqual(expected, actual)) {
+      return null; // HMAC mismatch
     }
 
     return {

@@ -394,6 +394,63 @@ export class MemoryAdapter implements SyncDatabaseAdapter, LicenseDatabaseAdapte
     }
   }
 
+  // ─── Pairing Code Methods ──────────────────────────────────────
+
+  private pairingCodes: Map<string, {
+    code: string; deviceFingerprint: string; product: string;
+    hostname?: string; ipAddress?: string; version?: string;
+    expiresAt: string; createdAt: string;
+    claimedByAccountId?: string; claimedAt?: string;
+    claimResponse?: Record<string, unknown>;
+  }> = new Map();
+
+  async createPairingCode(opts: {
+    code: string; deviceFingerprint: string; product: string;
+    hostname?: string; ipAddress?: string; version?: string; expiresAt: string;
+  }): Promise<void> {
+    this.pairingCodes.set(opts.code, { ...opts, createdAt: new Date().toISOString() });
+  }
+
+  async getPairingCode(code: string): Promise<{
+    code: string; deviceFingerprint: string; product: string;
+    hostname?: string; expiresAt: string; claimedAt?: string;
+    claimResponse?: Record<string, unknown>;
+  } | null> {
+    return this.pairingCodes.get(code) ?? null;
+  }
+
+  async getPairingCodeByFingerprint(fingerprint: string): Promise<{
+    code: string; expiresAt: string; claimedAt?: string;
+  } | null> {
+    for (const entry of this.pairingCodes.values()) {
+      if (entry.deviceFingerprint === fingerprint) return entry;
+    }
+    return null;
+  }
+
+  async claimPairingCode(code: string, opts: {
+    claimedByAccountId?: string; claimResponse: Record<string, unknown>;
+  }): Promise<void> {
+    const entry = this.pairingCodes.get(code);
+    if (entry) {
+      entry.claimedByAccountId = opts.claimedByAccountId;
+      entry.claimedAt = new Date().toISOString();
+      entry.claimResponse = opts.claimResponse;
+    }
+  }
+
+  async cleanExpiredPairingCodes(): Promise<number> {
+    let count = 0;
+    const now = Date.now();
+    for (const [code, entry] of this.pairingCodes) {
+      if (new Date(entry.expiresAt).getTime() < now && !entry.claimedAt) {
+        this.pairingCodes.delete(code);
+        count++;
+      }
+    }
+    return count;
+  }
+
   /** Clear all data (for testing) */
   clear(): void {
     this.entities.clear();
@@ -401,5 +458,6 @@ export class MemoryAdapter implements SyncDatabaseAdapter, LicenseDatabaseAdapte
     this.licenses.clear();
     this.users.clear();
     this.deviceConfigs.clear();
+    this.pairingCodes.clear();
   }
 }

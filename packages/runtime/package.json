@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
+    "bundle": "node esbuild.config.mjs",
     "dev": "tsc -b --watch",
     "test": "vitest run",
     "clean": "rm -rf dist *.tsbuildinfo",

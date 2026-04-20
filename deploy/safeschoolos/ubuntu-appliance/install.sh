@@ -78,6 +78,7 @@ cd "$SAFESCHOOL_DIR"
 echo "  Downloading configuration files..."
 curl -fsSL "$EDGERUNTIME_RAW/docker-compose.yml" -o docker-compose.yml
 curl -fsSL "$EDGERUNTIME_RAW/Caddyfile" -o Caddyfile
+curl -fsSL "$EDGERUNTIME_RAW/config.yaml" -o config.yaml
 curl -fsSL "$EDGERUNTIME_RAW/.env.example" -o .env.example
 curl -fsSL "$EDGERUNTIME_RAW/first-boot.sh" -o first-boot.sh
 chmod +x first-boot.sh
@@ -147,7 +148,7 @@ echo -e "  Dashboard:  ${BLUE}https://${LOCAL_IP}${NC}"
 echo -e "  Kiosk:      ${BLUE}https://${LOCAL_IP}:8443${NC}"
 echo -e "  API:        ${BLUE}https://${LOCAL_IP}:3443/api${NC}"
 echo ""
-echo -e "  Login:      ${YELLOW}admin@safeschool.local${NC} / ${YELLOW}safeschool123${NC}"
+echo -e "  Login:      ${YELLOW}admin${NC} / ${YELLOW}safeschool123${NC}"
 echo -e "  ${RED}(Change this password immediately!)${NC}"
 echo ""
 echo -e "  CLI:        ${BLUE}safeschool status${NC}"

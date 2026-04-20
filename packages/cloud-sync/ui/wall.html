@@ -11,61 +11,77 @@
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background: #0a0a1a;
+    background: #000;
     color: #e0e0e0;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    cursor: none;
   }
 
-  /* ── Overlays ── */
+  body.controls-visible { cursor: default; }
+
+  /* ── Top Bar ── */
 
   #overlay-top {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 48px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: 0 16px;
     z-index: 1000;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(10,10,26,0.85) 0%, transparent 100%);
+    background: rgba(0,0,0,0.85);
+    border-bottom: 1px solid #1a1a2a;
   }
 
   #clock {
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    color: #c0c0d0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #00ff88;
     font-variant-numeric: tabular-nums;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+
+  #clock-date {
+    font-size: 12px;
+    color: #556;
+    letter-spacing: 1px;
+    margin-left: 12px;
+    font-family: 'Consolas', monospace;
   }
 
   #screen-label {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
-    color: #00ff88;
+    color: #667;
     display: flex;
     align-items: center;
     gap: 10px;
   }
 
   #ws-status {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: #ff3344;
     transition: background 0.3s ease;
     flex-shrink: 0;
   }
 
-  #ws-status.connected { background: #00ff88; }
+  #ws-status.connected { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
 
   /* ── Main Content ── */
 
   #wall-content {
-    width: 100vw;
-    height: 100vh;
+    position: fixed;
+    top: 36px;
+    left: 0;
+    right: 0;
+    bottom: 32px; /* space for ticker */
+    overflow: hidden;
   }
 
   /* ── Camera Grid ── */
@@ -74,184 +90,507 @@
     width: 100%;
     height: 100%;
     display: grid;
-    gap: 2px;
-    background: #0a0a1a;
+    gap: 1px;
+    background: #000;
   }
 
   .camera-cell {
     position: relative;
     overflow: hidden;
-    background: #0d0d24;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: #080810;
+    border: 1px solid #111;
   }
 
-  .camera-cell img {
+  .camera-cell canvas {
     width: 100%;
     height: 100%;
-    object-fit: cover;
     display: block;
   }
 
-  .camera-cell .cam-label {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    color: #00ff88;
-    background: linear-gradient(0deg, rgba(10,10,26,0.9) 0%, transparent 100%);
-    pointer-events: none;
-  }
+  /* ── SOC Layout ── */
 
-  .camera-cell .cam-error {
-    color: #555;
-    font-size: 13px;
-    text-align: center;
-    padding: 20px;
-  }
-
-  /* ── Single Camera ── */
-
-  .single-view {
+  .soc-layout {
     width: 100%;
     height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr 340px;
+    grid-template-rows: 1fr 1fr 200px;
+    gap: 1px;
     background: #000;
   }
 
-  .single-view img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
+  .soc-layout .cam-cell { position: relative; background: #080810; border: 1px solid #111; overflow: hidden; }
+  .soc-layout .cam-cell canvas { width: 100%; height: 100%; display: block; }
 
-  .single-view .cam-label {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #00ff88;
-    background: rgba(10,10,26,0.7);
-    padding: 6px 14px;
-    border-radius: 4px;
-    letter-spacing: 0.5px;
-  }
-
-  /* ── Event Feed ── */
-
-  .event-feed {
-    width: 100%;
-    height: 100%;
+  .soc-layout .news-panel {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    background: #080812;
+    border: 1px solid #111;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  .soc-layout .alert-panel {
+    grid-column: 3;
+    grid-row: 3;
+    background: #080812;
+    border: 1px solid #111;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
-  .event-feed-header {
-    padding: 14px 20px;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #00ff88;
-    border-bottom: 1px solid #1a1a3a;
-    flex-shrink: 0;
-    margin-top: 48px;
+  .soc-layout .event-panel {
+    grid-column: 1 / 3;
+    grid-row: 3;
+    background: #080812;
+    border: 1px solid #111;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
-  .event-feed-list {
-    flex: 1;
-    overflow-y: auto;
-    scrollbar-width: none;
-  }
+  /* ── News Layout (4-up) ── */
 
-  .event-feed-list::-webkit-scrollbar { display: none; }
-
-  .event-item {
-    padding: 14px 20px;
-    border-bottom: 1px solid #12122a;
-    animation: eventSlideIn 0.3s ease-out;
-  }
-
-  .event-item:hover { background: #12122e; }
-
-  .event-item .event-time {
-    font-size: 11px;
-    color: #00ff88;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .event-item .event-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #e0e0e0;
-    margin-bottom: 2px;
-  }
-
-  .event-item .event-detail {
-    font-size: 12px;
-    color: #888;
-  }
-
-  .event-item.severity-critical { border-left: 3px solid #ff3344; }
-  .event-item.severity-warning  { border-left: 3px solid #ffaa00; }
-  .event-item.severity-info     { border-left: 3px solid #00ff88; }
-
-  @keyframes eventSlideIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ── Split Layout ── */
-
-  .split-layout {
+  .news-layout {
     width: 100%;
     height: 100%;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 2px;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    background: #000;
   }
 
-  .split-layout .split-camera {
-    position: relative;
+  .news-quad {
+    background: #080812;
+    border: 1px solid #111;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Mixed Layout ── */
+
+  .mixed-layout {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
     background: #000;
+  }
+
+  .mixed-layout .panel {
+    background: #080812;
+    border: 1px solid #111;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .mixed-layout .panel canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ── Panel Shared Styles ── */
+
+  .panel-header {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #00ff88;
+    border-bottom: 1px solid #1a1a2a;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,20,10,0.3);
+  }
+
+  .panel-header .header-icon {
+    font-size: 14px;
+    opacity: 0.7;
+  }
+
+  /* ── News Panel ── */
+
+  .news-list {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .news-card {
+    padding: 12px 14px;
+    border-bottom: 1px solid #111;
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .news-card.fading-out {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  .news-source {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .news-source.ap { color: #ff4444; }
+  .news-source.reuters { color: #ff8800; }
+  .news-source.local { color: #4488ff; }
+  .news-source.breaking { color: #ff2222; }
+
+  .news-source-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .news-headline {
+    font-size: 13px;
+    font-weight: 600;
+    color: #d0d0d8;
+    line-height: 1.35;
+    margin-bottom: 4px;
+  }
+
+  .news-time {
+    font-size: 10px;
+    color: #445;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Weather Panel ── */
+
+  .weather-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .weather-current {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .weather-temp {
+    font-size: 42px;
+    font-weight: 200;
+    color: #e0e0f0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .weather-temp-unit {
+    font-size: 18px;
+    color: #556;
+    vertical-align: super;
+  }
+
+  .weather-desc {
+    font-size: 14px;
+    color: #99a;
+    margin-bottom: 4px;
+  }
+
+  .weather-icon {
+    font-size: 36px;
+    line-height: 1;
+  }
+
+  .weather-details {
+    padding: 0 16px 12px;
+    display: flex;
+    gap: 20px;
+    font-size: 11px;
+    color: #556;
+    flex-shrink: 0;
+  }
+
+  .weather-details span { display: flex; align-items: center; gap: 4px; }
+
+  .weather-forecast {
+    display: flex;
+    gap: 1px;
+    flex: 1;
+    border-top: 1px solid #1a1a2a;
+  }
+
+  .forecast-day {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    border-right: 1px solid #111;
+  }
+
+  .forecast-day:last-child { border-right: none; }
+
+  .forecast-day-name {
+    font-size: 10px;
+    color: #556;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .forecast-icon { font-size: 18px; margin-bottom: 2px; }
+
+  .forecast-temp {
+    font-size: 12px;
+    font-weight: 600;
+    color: #aab;
+  }
+
+  .forecast-low {
+    font-size: 10px;
+    color: #445;
+  }
+
+  /* ── Alert Queue ── */
+
+  .alert-list {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .alert-item {
+    padding: 8px 14px;
+    border-bottom: 1px solid #111;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    animation: alertSlideIn 0.4s ease-out;
+    font-size: 12px;
+  }
+
+  .alert-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .alert-dot.critical { background: #ff3344; box-shadow: 0 0 6px rgba(255,51,68,0.5); }
+  .alert-dot.warning { background: #ffaa00; box-shadow: 0 0 6px rgba(255,170,0,0.3); }
+  .alert-dot.info { background: #3388ff; }
+
+  .alert-time {
+    font-size: 10px;
+    color: #445;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .alert-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .alert-source {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #556;
+    margin-bottom: 1px;
+  }
+
+  .alert-msg {
+    font-size: 12px;
+    color: #bbc;
+    line-height: 1.3;
+  }
+
+  .alert-msg.critical { color: #ff6677; }
+  .alert-msg.warning { color: #ffcc44; }
+
+  @keyframes alertSlideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ── Event Feed (SOC bottom) ── */
+
+  .event-feed-list {
+    flex: 1;
+    display: flex;
+    gap: 1px;
+    overflow: hidden;
+  }
+
+  .event-card {
+    flex: 1;
+    padding: 10px 14px;
+    border-right: 1px solid #111;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .event-card:last-child { border-right: none; }
+
+  .event-card .ev-time {
+    font-size: 10px;
+    color: #00ff88;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 3px;
+  }
+
+  .event-card .ev-type {
+    font-size: 13px;
+    font-weight: 600;
+    color: #d0d0d8;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .event-card .ev-detail {
+    font-size: 11px;
+    color: #556;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .event-card.sev-critical { border-top: 2px solid #ff3344; }
+  .event-card.sev-warning  { border-top: 2px solid #ffaa00; }
+  .event-card.sev-info     { border-top: 2px solid #3388ff; }
+
+  /* ── Breaking News Ticker ── */
+
+  #news-ticker {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: #cc0000;
+    display: flex;
+    align-items: center;
+    z-index: 1000;
+    overflow: hidden;
+  }
+
+  #ticker-label {
+    background: #fff;
+    color: #cc0000;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 0 12px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+
+  #ticker-track {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+  }
+
+  #ticker-text {
+    position: absolute;
+    white-space: nowrap;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.3px;
+    will-change: transform;
+  }
+
+  .ticker-separator {
+    display: inline-block;
+    margin: 0 24px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* ── Control Bar ── */
+
+  #control-bar {
+    position: fixed;
+    bottom: 32px;
+    left: 0;
+    right: 0;
+    height: 44px;
+    background: rgba(0,0,0,0.92);
+    border-top: 1px solid #222;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    padding: 0 20px;
+    z-index: 1000;
+    transform: translateY(44px);
+    transition: transform 0.3s ease;
+    backdrop-filter: blur(10px);
   }
 
-  .split-layout .split-camera img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+  #control-bar.visible {
+    transform: translateY(0);
   }
 
-  .split-layout .split-camera .cam-label {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #00ff88;
-    background: rgba(10,10,26,0.7);
-    padding: 4px 12px;
+  .ctrl-btn {
+    padding: 6px 14px;
+    background: #1a1a2a;
+    border: 1px solid #333;
     border-radius: 4px;
+    color: #99a;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
   }
 
-  .split-layout .split-events {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: #0a0a1a;
+  .ctrl-btn:hover {
+    border-color: #00ff88;
+    color: #00ff88;
+  }
+
+  .ctrl-btn.active {
+    background: #00ff88;
+    color: #000;
+    border-color: #00ff88;
+  }
+
+  .ctrl-sep {
+    width: 1px;
+    height: 24px;
+    background: #333;
+    margin: 0 4px;
   }
 
   /* ── No-Content State ── */
@@ -263,17 +602,12 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #333;
-    gap: 12px;
-  }
-
-  .no-content-icon {
-    font-size: 48px;
-    line-height: 1;
+    color: #222;
+    gap: 8px;
   }
 
   .no-content-text {
-    font-size: 14px;
+    font-size: 12px;
     letter-spacing: 1px;
     text-transform: uppercase;
   }
@@ -282,7 +616,10 @@
 <body>
 
 <div id="overlay-top">
-  <div id="clock"></div>
+  <div style="display:flex;align-items:center;">
+    <div id="clock"></div>
+    <span id="clock-date"></span>
+  </div>
   <div id="screen-label">
     <span id="screen-text">SCREEN --</span>
     <span id="ws-status"></span>
@@ -291,302 +628,1143 @@
 
 <div id="wall-content"></div>
 
+<div id="news-ticker">
+  <div id="ticker-label">BREAKING NEWS</div>
+  <div id="ticker-track">
+    <div id="ticker-text"></div>
+  </div>
+</div>
+
+<div id="control-bar">
+  <button class="ctrl-btn" data-layout="cameras">Cameras</button>
+  <button class="ctrl-btn" data-layout="soc">SOC</button>
+  <button class="ctrl-btn" data-layout="news">News</button>
+  <button class="ctrl-btn" data-layout="mixed">Mixed</button>
+  <div class="ctrl-sep"></div>
+  <button class="ctrl-btn" id="btn-fullscreen">Fullscreen</button>
+  <button class="ctrl-btn" id="btn-mute">Mute</button>
+  <div class="ctrl-sep"></div>
+  <button class="ctrl-btn" data-screen="1">S1</button>
+  <button class="ctrl-btn" data-screen="2">S2</button>
+  <button class="ctrl-btn" data-screen="3">S3</button>
+  <button class="ctrl-btn" data-screen="4">S4</button>
+</div>
+
 <script>
 (function () {
   'use strict';
 
-  // ── State ──
+  // ══════════════════════════════════════
+  // STATE
+  // ══════════════════════════════════════
 
-  const state = {
+  var state = {
     screenId: 1,
     layout: 'cameras',
     cameraIds: [],
     allCameras: [],
     singleCameraId: null,
     events: [],
+    alerts: [],
+    newsItems: [],
+    weather: null,
     wsConnected: false,
+    muted: true,
+    location: 'New York, NY',
   };
 
-  const MAX_EVENTS = 200;
-  const WS_RECONNECT_BASE = 1000;
-  const WS_RECONNECT_MAX = 30000;
+  var MAX_EVENTS = 200;
+  var MAX_ALERTS = 50;
+  var WS_RECONNECT_BASE = 1000;
+  var WS_RECONNECT_MAX = 30000;
+  var activeCanvases = [];
+  var animFrameId = null;
+  var ws = null;
+  var wsReconnectDelay = WS_RECONNECT_BASE;
+  var wsReconnectTimer = null;
+  var newsRotationTimer = null;
+  var newsPageIndex = 0;
 
-  let ws = null;
-  let wsReconnectDelay = WS_RECONNECT_BASE;
-  let wsReconnectTimer = null;
+  // ══════════════════════════════════════
+  // CAMERA SCENE CONFIGS
+  // ══════════════════════════════════════
 
-  // ── Parse screen ID from URL ──
+  var SCENE_CONFIGS = [
+    { baseR: 28, baseG: 32, baseB: 38, noiseAmt: 12, brightness: 0.9,
+      features: ['door-frame', 'floor-tiles'], motionChance: 0.02 },
+    { baseR: 22, baseG: 24, baseB: 30, noiseAmt: 18, brightness: 0.6,
+      features: ['ceiling-lights', 'columns'], motionChance: 0.01 },
+    { baseR: 35, baseG: 38, baseB: 42, noiseAmt: 10, brightness: 1.0,
+      features: ['road-lines', 'pillars'], motionChance: 0.03 },
+    { baseR: 20, baseG: 28, baseB: 22, noiseAmt: 14, brightness: 0.7,
+      features: ['server-racks'], motionChance: 0.005 },
+    { baseR: 30, baseG: 30, baseB: 35, noiseAmt: 8, brightness: 0.85,
+      features: ['benches', 'planters'], motionChance: 0.025 },
+    { baseR: 25, baseG: 22, baseB: 20, noiseAmt: 15, brightness: 0.5,
+      features: ['stairs'], motionChance: 0.015 },
+    { baseR: 38, baseG: 40, baseB: 48, noiseAmt: 6, brightness: 1.1,
+      features: ['desks', 'monitors'], motionChance: 0.02 },
+    { baseR: 32, baseG: 28, baseB: 26, noiseAmt: 20, brightness: 0.55,
+      features: ['gate-bars'], motionChance: 0.03 },
+    { baseR: 18, baseG: 20, baseB: 28, noiseAmt: 22, brightness: 0.4,
+      features: ['ir-dots'], motionChance: 0.01 },
+    { baseR: 34, baseG: 36, baseB: 40, noiseAmt: 9, brightness: 0.95,
+      features: ['doorway', 'exit-sign'], motionChance: 0.02 }
+  ];
+
+  var CAM_NAMES = [
+    'Lobby Entrance PTZ', 'Parking Garage L1', 'Loading Dock', 'Elevator Lobby F3',
+    'Package Room', 'Pool Area', 'Main Gate', 'Emergency Exit', 'Server Room', 'Stairwell B',
+    'Rooftop Access', 'Side Entrance', 'Mailroom', 'Conference Hall', 'Data Center', 'Break Room'
+  ];
+
+  // ══════════════════════════════════════
+  // NEWS HEADLINES
+  // ══════════════════════════════════════
+
+  var NEWS_HEADLINES = [
+    { source: 'AP', headline: 'Federal Reserve holds interest rates steady amid inflation concerns', cat: 'business' },
+    { source: 'Reuters', headline: 'Major cybersecurity breach reported at Fortune 500 company', cat: 'tech' },
+    { source: 'AP', headline: 'City council approves new public safety initiative for downtown district', cat: 'local' },
+    { source: 'Reuters', headline: 'International summit reaches agreement on climate action framework', cat: 'world' },
+    { source: 'Local', headline: 'Water main break causes road closures on Elm Street corridor', cat: 'local' },
+    { source: 'AP', headline: 'New workplace safety regulations take effect nationwide', cat: 'policy' },
+    { source: 'Reuters', headline: 'Tech stocks rally as AI sector reports strong quarterly earnings', cat: 'business' },
+    { source: 'Local', headline: 'Fire department responds to warehouse alarm on Industrial Boulevard', cat: 'local' },
+    { source: 'AP', headline: 'Transportation authority announces expanded rail service schedule', cat: 'transit' },
+    { source: 'Reuters', headline: 'Severe weather system expected to impact eastern seaboard this week', cat: 'weather' },
+    { source: 'Local', headline: 'City announces upgrade to municipal CCTV surveillance network', cat: 'local' },
+    { source: 'AP', headline: 'FBI releases annual crime statistics report showing mixed trends', cat: 'crime' },
+    { source: 'Reuters', headline: 'Global supply chain disruption eases as shipping routes normalize', cat: 'business' },
+    { source: 'Local', headline: 'Power grid maintenance scheduled for south district this weekend', cat: 'local' },
+    { source: 'AP', headline: 'Department of Homeland Security issues updated threat advisory', cat: 'security' },
+    { source: 'Reuters', headline: 'Autonomous vehicle testing approved in three additional states', cat: 'tech' },
+    { source: 'Local', headline: 'New building permit applications reach five-year high in harbor district', cat: 'local' },
+    { source: 'AP', headline: 'National Guard activated for flood relief operations in midwest', cat: 'emergency' },
+    { source: 'Reuters', headline: 'Drone delivery services receive FAA clearance for urban operations', cat: 'tech' },
+    { source: 'Local', headline: 'School board votes to install enhanced security systems district-wide', cat: 'local' },
+    { source: 'AP', headline: 'Emergency management agency updates disaster preparedness guidelines', cat: 'emergency' },
+    { source: 'Reuters', headline: 'Global satellite communications network expansion announced', cat: 'tech' },
+    { source: 'Local', headline: 'Traffic signal upgrade project to begin on Highway 12 interchange', cat: 'local' },
+    { source: 'AP', headline: 'New facial recognition policy framework released for law enforcement', cat: 'policy' },
+  ];
+
+  var TICKER_HEADLINES = [
+    'Breaking: Major power outage reported in downtown area affecting 50,000 customers',
+    'Weather Alert: Severe thunderstorm warning issued until 6:00 PM EST',
+    'Traffic: I-95 northbound closed at Exit 12 due to multi-vehicle accident',
+    'Local: City council approves new building permits for harbor district redevelopment',
+    'Security Advisory: Elevated threat level for federal buildings through end of week',
+    'Weather: Dense fog advisory in effect for morning commute hours',
+    'Traffic: Construction delays expected on Route 1 bridge replacement project',
+    'Breaking: Chemical spill reported near industrial park, hazmat teams responding',
+    'Local: Police increase patrol presence downtown following series of break-ins',
+    'Weather Alert: Wind advisory with gusts up to 55 mph expected overnight',
+    'Traffic: Metro rail service suspended on Blue Line due to signal malfunction',
+    'Breaking: Water treatment facility reports temporary service disruption',
+    'Security: Active shooter drill scheduled at civic center complex this afternoon',
+    'Local: Emergency services respond to gas leak on Commercial Street',
+    'Traffic: Airport access road detour in effect for runway construction project',
+    'Breaking: Communication tower damage causes cellular outage in west sector',
+    'Weather: Heat advisory issued for metropolitan area through Wednesday',
+    'Local: Fire marshal orders evacuation of condemned warehouse on River Road',
+    'Security: Package screening procedures updated at all government facilities',
+    'Traffic: School zone speed cameras activated on Oak Avenue and Pine Street',
+    'Breaking: Train derailment reported near freight yard, no hazardous materials involved',
+    'Local: County declares state of emergency following storm damage assessment',
+  ];
+
+  // ══════════════════════════════════════
+  // SIMULATED ALERT DATA
+  // ══════════════════════════════════════
+
+  var ALERT_TEMPLATES = [
+    { severity: 'critical', source: 'Intrusion', messages: [
+      'Perimeter breach detected at Zone 4 fence line',
+      'Forced entry alarm triggered at Loading Dock B',
+      'Glass break sensor activated at Server Room window',
+      'Unauthorized access attempt at restricted area',
+      'Tamper alarm on door controller at Emergency Exit 3',
+    ]},
+    { severity: 'critical', source: 'Fire Alarm', messages: [
+      'Smoke detector activated in Electrical Room 2B',
+      'Heat sensor threshold exceeded in Kitchen area',
+      'Fire suppression system triggered in Data Center',
+      'Pull station activated on Floor 3 East wing',
+    ]},
+    { severity: 'warning', source: 'Access Control', messages: [
+      'Door held open too long at Main Entrance',
+      'Invalid badge attempt at Parking Garage L2',
+      'Tailgating detected at turnstile 3',
+      'Badge reader communication lost at Side Entrance',
+      'Anti-passback violation at Elevator Lobby',
+      'Access denied: expired credential at Conference Room',
+    ]},
+    { severity: 'warning', source: 'Camera System', messages: [
+      'Camera offline: Stairwell B (connection timeout)',
+      'Video loss detected on Emergency Exit camera',
+      'Motion analytics overload on Parking Garage L1',
+      'Low light warning on Pool Area camera',
+      'PTZ preset drift detected on Lobby Entrance',
+    ]},
+    { severity: 'info', source: 'System', messages: [
+      'Scheduled backup completed successfully',
+      'Network switch firmware update available',
+      'Storage array at 72% capacity',
+      'Daily access report generated',
+      'Badge database sync completed',
+    ]},
+    { severity: 'info', source: 'Visitor Mgmt', messages: [
+      'Visitor check-in: John Smith (meeting with HR)',
+      'Visitor badge printed at Front Desk kiosk',
+      'Visitor checkout completed for suite 400 group',
+      'Contractor badge expires in 2 hours: Mike Johnson',
+    ]},
+  ];
+
+  // ══════════════════════════════════════
+  // WEATHER DATA (simulated)
+  // ══════════════════════════════════════
+
+  var WEATHER_CONDITIONS = [
+    { desc: 'Partly Cloudy', icon: '\u26C5', tempRange: [62, 78] },
+    { desc: 'Clear Sky', icon: '\u2600\uFE0F', tempRange: [68, 85] },
+    { desc: 'Overcast', icon: '\u2601\uFE0F', tempRange: [55, 68] },
+    { desc: 'Light Rain', icon: '\uD83C\uDF27\uFE0F', tempRange: [50, 62] },
+    { desc: 'Thunderstorm', icon: '\u26C8\uFE0F', tempRange: [58, 72] },
+    { desc: 'Fog', icon: '\uD83C\uDF2B\uFE0F', tempRange: [48, 58] },
+  ];
+
+  var FORECAST_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+
+  function generateWeather() {
+    var cond = WEATHER_CONDITIONS[Math.floor(Math.random() * WEATHER_CONDITIONS.length)];
+    var temp = cond.tempRange[0] + Math.floor(Math.random() * (cond.tempRange[1] - cond.tempRange[0]));
+    var wind = 5 + Math.floor(Math.random() * 20);
+    var humidity = 35 + Math.floor(Math.random() * 45);
+    var forecast = [];
+    for (var i = 0; i < 5; i++) {
+      var fc = WEATHER_CONDITIONS[Math.floor(Math.random() * WEATHER_CONDITIONS.length)];
+      var hi = fc.tempRange[0] + Math.floor(Math.random() * (fc.tempRange[1] - fc.tempRange[0]));
+      forecast.push({ day: FORECAST_DAYS[i], icon: fc.icon, hi: hi, lo: hi - 8 - Math.floor(Math.random() * 6) });
+    }
+    state.weather = { temp: temp, desc: cond.desc, icon: cond.icon, wind: wind, humidity: humidity, forecast: forecast };
+  }
+
+  generateWeather();
+
+  // ══════════════════════════════════════
+  // PARSE URL PARAMS
+  // ══════════════════════════════════════
 
   function parseScreenId() {
-    const match = window.location.pathname.match(/\/wall\/(\d+)/);
+    var match = window.location.pathname.match(/\/wall\/(\d+)/);
     if (match) return parseInt(match[1], 10);
-    const params = new URLSearchParams(window.location.search);
+    var params = new URLSearchParams(window.location.search);
     if (params.has('screen')) return parseInt(params.get('screen'), 10);
     return 1;
   }
 
+  var params = new URLSearchParams(window.location.search);
+  if (params.has('layout')) state.layout = params.get('layout');
+  if (params.has('location')) state.location = params.get('location');
+
   state.screenId = parseScreenId();
   document.getElementById('screen-text').textContent = 'SCREEN ' + state.screenId;
 
-  // ── Clock ──
+  // ══════════════════════════════════════
+  // CLOCK
+  // ══════════════════════════════════════
 
   function updateClock() {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2, '0');
+    var m = String(now.getMinutes()).padStart(2, '0');
+    var s = String(now.getSeconds()).padStart(2, '0');
     document.getElementById('clock').textContent = h + ':' + m + ':' + s;
+
+    var days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    var months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    document.getElementById('clock-date').textContent =
+      days[now.getDay()] + ' ' + months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
   }
 
   updateClock();
   setInterval(updateClock, 1000);
 
-  // ── Auth helper ──
+  // ══════════════════════════════════════
+  // AUTH HELPER
+  // ══════════════════════════════════════
 
   function getAuthHeaders() {
-    const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-    const headers = { 'Accept': 'application/json' };
+    var token = localStorage.getItem('jwt') || localStorage.getItem('token');
+    var headers = { 'Accept': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
     return headers;
   }
 
-  // ── Fetch cameras ──
+  // ══════════════════════════════════════
+  // FETCH CAMERAS (with fallback demo data)
+  // ══════════════════════════════════════
+
+  function genDemoCameras() {
+    var cams = [];
+    for (var i = 0; i < 16; i++) {
+      cams.push({
+        id: 'cam-' + String(i + 1).padStart(3, '0'),
+        name: CAM_NAMES[i % CAM_NAMES.length],
+        status: i === 7 ? 'offline' : 'online',
+        recording: i !== 5,
+        resolution: (i % 3 === 0) ? '4K' : '1080p',
+        sceneIndex: i % SCENE_CONFIGS.length,
+      });
+    }
+    return cams;
+  }
 
   async function fetchCameras() {
     try {
-      const resp = await fetch('/api/v1/data/cameras?limit=50', { headers: getAuthHeaders() });
+      var resp = await fetch('/api/v1/data/cameras?limit=50', { headers: getAuthHeaders() });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const body = await resp.json();
-      const list = Array.isArray(body) ? body : (body.data || body.rows || body.items || []);
-      state.allCameras = list;
-      if (!state.cameraIds.length) {
-        state.cameraIds = list.map(function (c) { return c.id || c.cameraId || c.camera_id; }).filter(Boolean);
+      var body = await resp.json();
+      var list = Array.isArray(body) ? body : (body.data || body.rows || body.items || body.cameras || body.entities || []);
+      if (list.length > 0) {
+        state.allCameras = list.map(function(c, i) {
+          var d = c.data || c;
+          return {
+            id: d.id || c.id || ('cam-' + i),
+            name: d.name || CAM_NAMES[i % CAM_NAMES.length],
+            status: d.status || 'online',
+            recording: d.recording !== false,
+            resolution: d.resolution || '1080p',
+            sceneIndex: i % SCENE_CONFIGS.length,
+          };
+        });
+      } else {
+        state.allCameras = genDemoCameras();
       }
-      render();
     } catch (err) {
-      console.error('[wall] Failed to fetch cameras:', err);
-      render();
+      console.log('[wall] Using demo cameras');
+      state.allCameras = genDemoCameras();
+    }
+    if (!state.cameraIds.length) {
+      state.cameraIds = state.allCameras.map(function(c) { return c.id; });
+    }
+    render();
+  }
+
+  // ══════════════════════════════════════
+  // CAMERA CANVAS RENDERER
+  // ══════════════════════════════════════
+
+  function initCameraCanvas(canvas, cam) {
+    var rect = canvas.parentElement.getBoundingClientRect();
+    var w = canvas.width = Math.max(rect.width, 320) | 0;
+    var h = canvas.height = Math.max(rect.height, 180) | 0;
+    var ctx = canvas.getContext('2d');
+    var scene = SCENE_CONFIGS[cam.sceneIndex % SCENE_CONFIGS.length];
+
+    var feedState = {
+      canvas: canvas,
+      ctx: ctx,
+      cam: cam,
+      scene: scene,
+      w: w,
+      h: h,
+      isOffline: cam.status === 'offline',
+      motionBoxes: [],
+      scanlineOffset: 0,
+      frameCount: 0,
+    };
+
+    activeCanvases.push(feedState);
+    return feedState;
+  }
+
+  function drawCameraFrame(st) {
+    var ctx = st.ctx, w = st.w, h = st.h, scene = st.scene, cam = st.cam;
+    st.frameCount++;
+
+    if (st.isOffline) {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, w, h);
+      var imgData = ctx.getImageData(0, 0, w, h);
+      var d = imgData.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var v = Math.random() * 60 | 0;
+        d[i] = v; d[i+1] = v; d[i+2] = v;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('NO SIGNAL', w / 2, h / 2);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '10px monospace';
+      ctx.fillText(cam.name, 8, h - 8);
+      return;
+    }
+
+    // Base scene
+    var br = scene.brightness;
+    ctx.fillStyle = 'rgb(' + (scene.baseR * br | 0) + ',' + (scene.baseG * br | 0) + ',' + (scene.baseB * br | 0) + ')';
+    ctx.fillRect(0, 0, w, h);
+
+    // Scene features
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    (scene.features || []).forEach(function(f) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      if (f === 'door-frame') {
+        ctx.strokeRect(w * 0.35, h * 0.15, w * 0.3, h * 0.8);
+        ctx.strokeRect(w * 0.38, h * 0.18, w * 0.24, h * 0.74);
+      } else if (f === 'floor-tiles') {
+        for (var fx = 0; fx < w; fx += 40) { ctx.beginPath(); ctx.moveTo(fx, h * 0.6); ctx.lineTo(fx, h); ctx.stroke(); }
+        for (var fy = h * 0.6; fy < h; fy += 30) { ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(w, fy); ctx.stroke(); }
+      } else if (f === 'ceiling-lights') {
+        for (var lx = w * 0.2; lx < w * 0.9; lx += w * 0.25) {
+          ctx.fillStyle = 'rgba(255,255,200,0.12)';
+          ctx.beginPath(); ctx.arc(lx, 20, 25, 0, Math.PI * 2); ctx.fill();
+        }
+      } else if (f === 'columns') {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(w * 0.15, h * 0.1, 12, h * 0.85);
+        ctx.fillRect(w * 0.5, h * 0.1, 12, h * 0.85);
+        ctx.fillRect(w * 0.85, h * 0.1, 12, h * 0.85);
+      } else if (f === 'road-lines') {
+        ctx.strokeStyle = 'rgba(255,255,100,0.15)'; ctx.lineWidth = 2;
+        ctx.setLineDash([15, 10]);
+        ctx.beginPath(); ctx.moveTo(w * 0.5, h * 0.3); ctx.lineTo(w * 0.5, h); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+        for (var sl = 0; sl < 5; sl++) ctx.strokeRect(w * (0.05 + sl * 0.18), h * 0.55, w * 0.12, h * 0.08);
+      } else if (f === 'pillars') {
+        ctx.fillStyle = 'rgba(200,200,200,0.08)';
+        for (var px = 0; px < 4; px++) ctx.fillRect(w * (0.1 + px * 0.25), h * 0.2, 18, h * 0.7);
+      } else if (f === 'server-racks') {
+        for (var rx = 0; rx < 6; rx++) {
+          ctx.fillStyle = 'rgba(100,200,100,0.06)';
+          ctx.fillRect(w * (0.08 + rx * 0.15), h * 0.1, w * 0.1, h * 0.85);
+          for (var led = 0; led < 8; led++) {
+            ctx.fillStyle = (Math.random() > 0.5 ? 'rgba(0,255,0,0.3)' : 'rgba(255,100,0,0.2)');
+            ctx.fillRect(w * (0.08 + rx * 0.15) + 3, h * 0.15 + led * 18, 4, 3);
+          }
+        }
+      } else if (f === 'stairs') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        for (var si = 0; si < 10; si++) { var sy = h * 0.2 + si * (h * 0.07); ctx.beginPath(); ctx.moveTo(w * 0.2, sy); ctx.lineTo(w * 0.8, sy); ctx.stroke(); }
+      } else if (f === 'gate-bars') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 3;
+        for (var gx = w * 0.1; gx < w * 0.9; gx += 20) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h * 0.7); ctx.stroke(); }
+      } else if (f === 'ir-dots') {
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        for (var ir = 0; ir < 30; ir++) { ctx.beginPath(); ctx.arc(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 0, Math.PI * 2); ctx.fill(); }
+      } else if (f === 'benches') {
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(w * 0.1, h * 0.65, w * 0.25, 8);
+        ctx.fillRect(w * 0.6, h * 0.65, w * 0.25, 8);
+      } else if (f === 'exit-sign') {
+        ctx.fillStyle = 'rgba(255,50,50,0.2)'; ctx.fillRect(w * 0.42, h * 0.05, w * 0.16, h * 0.06);
+        ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '8px sans-serif'; ctx.fillText('EXIT', w * 0.46, h * 0.09);
+      } else if (f === 'doorway') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.strokeRect(w * 0.7, h * 0.2, w * 0.15, h * 0.6);
+      } else if (f === 'desks') {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for (var dx = 0; dx < 3; dx++) ctx.fillRect(w * (0.1 + dx * 0.3), h * 0.5, w * 0.2, h * 0.1);
+      } else if (f === 'monitors') {
+        ctx.fillStyle = 'rgba(100,150,255,0.08)';
+        for (var mx = 0; mx < 3; mx++) ctx.fillRect(w * (0.15 + mx * 0.3), h * 0.35, w * 0.08, h * 0.12);
+      } else if (f === 'planters') {
+        ctx.fillStyle = 'rgba(50,150,50,0.08)';
+        ctx.beginPath(); ctx.arc(w * 0.3, h * 0.7, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(w * 0.7, h * 0.7, 20, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+    ctx.restore();
+
+    // Noise (every other frame)
+    if (st.frameCount % 2 === 0) {
+      var nc = document.createElement('canvas');
+      nc.width = w >> 2; nc.height = h >> 2;
+      var nCtx = nc.getContext('2d');
+      var nImg = nCtx.createImageData(nc.width, nc.height);
+      var nd = nImg.data, amt = scene.noiseAmt;
+      for (var ni = 0; ni < nd.length; ni += 4) {
+        var nv = (Math.random() * amt - amt / 2) | 0;
+        nd[ni] = 128 + nv; nd[ni+1] = 128 + nv; nd[ni+2] = 128 + nv; nd[ni+3] = 25;
+      }
+      nCtx.putImageData(nImg, 0, 0);
+      ctx.drawImage(nc, 0, 0, w, h);
+    }
+
+    // Scanlines
+    ctx.fillStyle = 'rgba(0,0,0,0.03)';
+    st.scanlineOffset = (st.scanlineOffset + 0.5) % 4;
+    for (var sli = st.scanlineOffset; sli < h; sli += 4) ctx.fillRect(0, sli, w, 1);
+
+    // Motion boxes
+    if (Math.random() < scene.motionChance) {
+      st.motionBoxes.push({
+        x: (Math.random() * w * 0.6 + w * 0.1) | 0,
+        y: (Math.random() * h * 0.4 + h * 0.2) | 0,
+        w: (30 + Math.random() * 50) | 0,
+        h: (40 + Math.random() * 60) | 0,
+        life: 60
+      });
+    }
+    st.motionBoxes = st.motionBoxes.filter(function(mb) {
+      mb.life--;
+      if (mb.life <= 0) return false;
+      ctx.strokeStyle = 'rgba(0, 255, 100, ' + (mb.life / 60 * 0.6) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(mb.x, mb.y, mb.w, mb.h);
+      return true;
+    });
+
+    // Overlays
+    var fontSize = 10, pad = 8;
+    ctx.font = fontSize + 'px monospace';
+
+    // Camera name
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    var nameW = ctx.measureText(cam.name).width + 16;
+    ctx.fillRect(0, 0, nameW + pad, fontSize + pad * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(cam.name, pad, fontSize + pad - 2);
+
+    // LIVE + REC indicators
+    var liveY = fontSize + pad * 2 + 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, liveY, 55, fontSize + pad);
+    var pulse = (Math.sin(Date.now() / 400) + 1) / 2;
+    ctx.fillStyle = 'rgba(239, 68, 68, ' + (0.4 + pulse * 0.6) + ')';
+    ctx.beginPath(); ctx.arc(pad + 4, liveY + (fontSize + pad) / 2, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText('LIVE', pad + 12, liveY + fontSize + 1);
+
+    // Timestamp
+    var now = new Date();
+    var ts = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0') + ' ' +
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0') + ':' +
+      String(now.getSeconds()).padStart(2, '0');
+    var tsW = ctx.measureText(ts).width + 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, h - fontSize - pad * 2, tsW + pad, fontSize + pad * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(ts, pad, h - pad);
+
+    // REC badge
+    if (cam.recording) {
+      var recText = 'REC';
+      var recW = ctx.measureText(recText).width + 18;
+      ctx.fillStyle = 'rgba(220,38,38,0.8)';
+      var recH = fontSize + pad;
+      ctx.fillRect(w - recW - pad, h - recH - pad, recW + pad, recH + pad);
+      if (Math.floor(Date.now() / 800) % 2 === 0) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(w - recW - pad + 9, h - pad - recH / 2 + pad / 2, 3, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#fff'; ctx.font = 'bold ' + fontSize + 'px monospace';
+      ctx.fillText(recText, w - recW - pad + 16, h - pad);
     }
   }
 
-  // ── Grid sizing ──
+  function startAnimation() {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    function loop() {
+      for (var i = 0; i < activeCanvases.length; i++) {
+        drawCameraFrame(activeCanvases[i]);
+      }
+      animFrameId = requestAnimationFrame(loop);
+    }
+    animFrameId = requestAnimationFrame(loop);
+  }
+
+  function stopAnimation() {
+    if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+    activeCanvases = [];
+  }
+
+  // ══════════════════════════════════════
+  // CAMERA HELPERS
+  // ══════════════════════════════════════
+
+  function getCam(id) {
+    for (var i = 0; i < state.allCameras.length; i++) {
+      if (state.allCameras[i].id === id) return state.allCameras[i];
+    }
+    return null;
+  }
 
   function gridDimensions(count) {
     if (count <= 1) return [1, 1];
     if (count === 2) return [2, 1];
     if (count <= 4) return [2, 2];
+    if (count <= 6) return [3, 2];
     if (count <= 9) return [3, 3];
+    if (count <= 12) return [4, 3];
     return [4, 4];
   }
 
-  // ── Camera name lookup ──
-
-  function cameraName(id) {
-    for (var i = 0; i < state.allCameras.length; i++) {
-      var c = state.allCameras[i];
-      var cid = c.id || c.cameraId || c.camera_id;
-      if (cid === id) return c.name || c.label || cid;
-    }
-    return id;
-  }
-
-  // ── Render helpers ──
-
-  function createCameraImg(id) {
-    var img = document.createElement('img');
-    img.src = '/api/v1/cameras/' + encodeURIComponent(id) + '/stream';
-    img.alt = cameraName(id);
-    img.draggable = false;
-    img.onerror = function () {
-      if (!img._retryCount) img._retryCount = 0;
-      img._retryCount++;
-      if (img._retryCount < 5) {
-        setTimeout(function () {
-          img.src = '/api/v1/cameras/' + encodeURIComponent(id) + '/stream?_t=' + Date.now();
-        }, 2000 * img._retryCount);
-      } else {
-        var errDiv = document.createElement('div');
-        errDiv.className = 'cam-error';
-        errDiv.textContent = 'Stream unavailable';
-        img.replaceWith(errDiv);
-      }
-    };
-    return img;
-  }
-
-  function createCameraCell(id) {
+  function createCameraCell(cam) {
     var cell = document.createElement('div');
     cell.className = 'camera-cell';
-    cell.appendChild(createCameraImg(id));
-    var label = document.createElement('div');
-    label.className = 'cam-label';
-    label.textContent = cameraName(id);
-    cell.appendChild(label);
+    var canvas = document.createElement('canvas');
+    cell.appendChild(canvas);
+    // Defer init until in DOM
+    requestAnimationFrame(function() {
+      initCameraCanvas(canvas, cam);
+    });
     return cell;
   }
 
-  function formatEventTime(ts) {
-    var d = ts ? new Date(ts) : new Date();
-    var h = String(d.getHours()).padStart(2, '0');
-    var m = String(d.getMinutes()).padStart(2, '0');
-    var s = String(d.getSeconds()).padStart(2, '0');
-    return h + ':' + m + ':' + s;
+  // ══════════════════════════════════════
+  // NEWS PANEL RENDERER
+  // ══════════════════════════════════════
+
+  function renderNewsPanel(container, numVisible) {
+    numVisible = numVisible || 4;
+    var panel = document.createElement('div');
+    panel.style.cssText = 'display:flex;flex-direction:column;height:100%;';
+
+    var header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = '<span class="header-icon">&#9888;</span> NEWS FEED';
+    panel.appendChild(header);
+
+    var list = document.createElement('div');
+    list.className = 'news-list';
+
+    function renderPage() {
+      list.innerHTML = '';
+      var start = (newsPageIndex * numVisible) % NEWS_HEADLINES.length;
+      for (var i = 0; i < numVisible; i++) {
+        var idx = (start + i) % NEWS_HEADLINES.length;
+        var item = NEWS_HEADLINES[idx];
+        var card = document.createElement('div');
+        card.className = 'news-card';
+
+        var srcClass = item.source.toLowerCase();
+        var srcColor = srcClass === 'ap' ? '#ff4444' : (srcClass === 'reuters' ? '#ff8800' : '#4488ff');
+
+        var minsAgo = 2 + Math.floor(Math.random() * 55);
+
+        card.innerHTML =
+          '<div class="news-source ' + srcClass + '">' +
+            '<span class="news-source-dot" style="background:' + srcColor + '"></span>' +
+            item.source +
+          '</div>' +
+          '<div class="news-headline">' + item.headline + '</div>' +
+          '<div class="news-time">' + minsAgo + ' min ago</div>';
+
+        list.appendChild(card);
+      }
+    }
+
+    renderPage();
+    panel.appendChild(list);
+    container.appendChild(panel);
+
+    // Rotation
+    if (newsRotationTimer) clearInterval(newsRotationTimer);
+    newsRotationTimer = setInterval(function() {
+      var cards = list.querySelectorAll('.news-card');
+      cards.forEach(function(c) { c.classList.add('fading-out'); });
+      setTimeout(function() {
+        newsPageIndex++;
+        renderPage();
+      }, 600);
+    }, 8000);
   }
 
-  function createEventItem(ev) {
+  // ══════════════════════════════════════
+  // WEATHER PANEL RENDERER
+  // ══════════════════════════════════════
+
+  function renderWeatherPanel(container) {
+    var panel = document.createElement('div');
+    panel.className = 'weather-panel';
+
+    var header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = '<span class="header-icon">&#127777;</span> WEATHER &mdash; ' + escHtml(state.location);
+    panel.appendChild(header);
+
+    var w = state.weather;
+
+    var current = document.createElement('div');
+    current.className = 'weather-current';
+    current.innerHTML =
+      '<div class="weather-icon">' + w.icon + '</div>' +
+      '<div>' +
+        '<div class="weather-temp">' + w.temp + '<span class="weather-temp-unit">&deg;F</span></div>' +
+        '<div class="weather-desc">' + w.desc + '</div>' +
+      '</div>';
+    panel.appendChild(current);
+
+    var details = document.createElement('div');
+    details.className = 'weather-details';
+    details.innerHTML =
+      '<span>Wind: ' + w.wind + ' mph</span>' +
+      '<span>Humidity: ' + w.humidity + '%</span>';
+    panel.appendChild(details);
+
+    var forecast = document.createElement('div');
+    forecast.className = 'weather-forecast';
+    w.forecast.forEach(function(fc) {
+      var day = document.createElement('div');
+      day.className = 'forecast-day';
+      day.innerHTML =
+        '<div class="forecast-day-name">' + fc.day + '</div>' +
+        '<div class="forecast-icon">' + fc.icon + '</div>' +
+        '<div class="forecast-temp">' + fc.hi + '&deg;</div>' +
+        '<div class="forecast-low">' + fc.lo + '&deg;</div>';
+      forecast.appendChild(day);
+    });
+    panel.appendChild(forecast);
+    container.appendChild(panel);
+  }
+
+  // ══════════════════════════════════════
+  // ALERT PANEL RENDERER
+  // ══════════════════════════════════════
+
+  function renderAlertPanel(container) {
+    var panel = document.createElement('div');
+    panel.style.cssText = 'display:flex;flex-direction:column;height:100%;';
+
+    var header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = '<span class="header-icon">&#128680;</span> ALERT QUEUE';
+    panel.appendChild(header);
+
+    var list = document.createElement('div');
+    list.className = 'alert-list';
+    list.id = 'alert-list-live';
+
+    state.alerts.forEach(function(a) {
+      list.appendChild(createAlertItem(a));
+    });
+
+    panel.appendChild(list);
+    container.appendChild(panel);
+  }
+
+  function createAlertItem(a) {
     var el = document.createElement('div');
-    var severity = ev.severity || ev.level || 'info';
-    el.className = 'event-item severity-' + severity;
+    el.className = 'alert-item';
 
-    var timeEl = document.createElement('div');
-    timeEl.className = 'event-time';
-    timeEl.textContent = formatEventTime(ev.timestamp || ev.time);
-    el.appendChild(timeEl);
-
-    var titleEl = document.createElement('div');
-    titleEl.className = 'event-title';
-    titleEl.textContent = ev.title || ev.type || ev.eventType || 'Event';
-    el.appendChild(titleEl);
-
-    if (ev.detail || ev.description || ev.message || ev.location) {
-      var detailEl = document.createElement('div');
-      detailEl.className = 'event-detail';
-      detailEl.textContent = ev.detail || ev.description || ev.message || ev.location;
-      el.appendChild(detailEl);
-    }
+    el.innerHTML =
+      '<div class="alert-dot ' + a.severity + '"></div>' +
+      '<div class="alert-time">' + formatTime(a.time) + '</div>' +
+      '<div class="alert-content">' +
+        '<div class="alert-source">' + escHtml(a.source) + '</div>' +
+        '<div class="alert-msg ' + a.severity + '">' + escHtml(a.message) + '</div>' +
+      '</div>';
 
     return el;
   }
 
-  function renderEventFeed(container) {
-    var feed = document.createElement('div');
-    feed.className = 'event-feed';
+  // ══════════════════════════════════════
+  // EVENT FEED RENDERER (SOC bottom bar)
+  // ══════════════════════════════════════
+
+  function renderEventFeedPanel(container) {
+    var panel = document.createElement('div');
+    panel.style.cssText = 'display:flex;flex-direction:column;height:100%;';
 
     var header = document.createElement('div');
-    header.className = 'event-feed-header';
-    header.textContent = 'Live Events';
-    feed.appendChild(header);
+    header.className = 'panel-header';
+    header.innerHTML = '<span class="header-icon">&#9889;</span> LIVE EVENT FEED';
+    panel.appendChild(header);
 
     var list = document.createElement('div');
     list.className = 'event-feed-list';
 
-    for (var i = 0; i < state.events.length; i++) {
-      list.appendChild(createEventItem(state.events[i]));
-    }
-
-    if (state.events.length === 0) {
+    var visible = state.events.slice(0, 6);
+    if (visible.length === 0) {
       var empty = document.createElement('div');
-      empty.className = 'no-content';
-      empty.style.height = 'auto';
-      empty.style.padding = '40px 0';
-      empty.innerHTML = '<div class="no-content-text">Waiting for events</div>';
+      empty.style.cssText = 'color:#333;text-align:center;padding:20px;font-size:12px;letter-spacing:1px;text-transform:uppercase;';
+      empty.textContent = 'Waiting for events';
       list.appendChild(empty);
+    } else {
+      visible.forEach(function(ev) {
+        var card = document.createElement('div');
+        var sev = ev.severity || 'info';
+        card.className = 'event-card sev-' + sev;
+        card.innerHTML =
+          '<div class="ev-time">' + formatTime(ev.timestamp || ev.time) + '</div>' +
+          '<div class="ev-type">' + escHtml(ev.title || ev.type || 'Event') + '</div>' +
+          '<div class="ev-detail">' + escHtml(ev.detail || ev.location || ev.source || '') + '</div>';
+        list.appendChild(card);
+      });
     }
 
-    feed.appendChild(list);
-    container.appendChild(feed);
+    panel.appendChild(list);
+    container.appendChild(panel);
   }
 
-  function renderNoContent(container, message) {
-    var nc = document.createElement('div');
-    nc.className = 'no-content';
-    nc.innerHTML =
-      '<div class="no-content-icon">&#9634;</div>' +
-      '<div class="no-content-text">' + message + '</div>';
-    container.appendChild(nc);
-  }
-
-  // ── Main render ──
+  // ══════════════════════════════════════
+  // MAIN RENDER
+  // ══════════════════════════════════════
 
   function render() {
+    stopAnimation();
+    if (newsRotationTimer) { clearInterval(newsRotationTimer); newsRotationTimer = null; }
+
     var root = document.getElementById('wall-content');
     root.innerHTML = '';
 
+    // Update control bar active states
+    document.querySelectorAll('.ctrl-btn[data-layout]').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.layout === state.layout);
+    });
+    document.querySelectorAll('.ctrl-btn[data-screen]').forEach(function(btn) {
+      btn.classList.toggle('active', parseInt(btn.dataset.screen) === state.screenId);
+    });
+
     switch (state.layout) {
-      case 'cameras':
-        renderCamerasLayout(root);
-        break;
-      case 'single':
-        renderSingleLayout(root);
-        break;
-      case 'events':
-        renderEventFeed(root);
-        break;
-      case 'split':
-        renderSplitLayout(root);
-        break;
-      default:
-        renderCamerasLayout(root);
+      case 'soc':    renderSocLayout(root); break;
+      case 'news':   renderNewsLayout(root); break;
+      case 'mixed':  renderMixedLayout(root); break;
+      default:       renderCamerasLayout(root); break;
     }
+
+    // Start canvas animation after DOM is ready
+    requestAnimationFrame(function() {
+      startAnimation();
+    });
   }
 
+  // ── Cameras Layout ──
+
   function renderCamerasLayout(root) {
-    var ids = state.cameraIds;
-    if (!ids.length) {
+    var cams = state.allCameras;
+    if (!cams.length) {
       renderNoContent(root, 'No cameras assigned');
       return;
     }
 
-    var dims = gridDimensions(ids.length);
+    var dims = gridDimensions(cams.length);
     var grid = document.createElement('div');
     grid.className = 'camera-grid';
     grid.style.gridTemplateColumns = 'repeat(' + dims[0] + ', 1fr)';
     grid.style.gridTemplateRows = 'repeat(' + dims[1] + ', 1fr)';
 
     var maxSlots = dims[0] * dims[1];
-    for (var i = 0; i < Math.min(ids.length, maxSlots); i++) {
-      grid.appendChild(createCameraCell(ids[i]));
+    for (var i = 0; i < Math.min(cams.length, maxSlots); i++) {
+      grid.appendChild(createCameraCell(cams[i]));
     }
 
     root.appendChild(grid);
   }
 
-  function renderSingleLayout(root) {
-    var id = state.singleCameraId || (state.cameraIds.length ? state.cameraIds[0] : null);
-    if (!id) {
-      renderNoContent(root, 'No camera selected');
-      return;
+  // ── SOC Layout ──
+
+  function renderSocLayout(root) {
+    var layout = document.createElement('div');
+    layout.className = 'soc-layout';
+
+    // 4 camera cells (2x2 top-left)
+    var cams = state.allCameras;
+    for (var ci = 0; ci < 4; ci++) {
+      var cell = document.createElement('div');
+      cell.className = 'cam-cell';
+      if (cams[ci]) {
+        var canvas = document.createElement('canvas');
+        cell.appendChild(canvas);
+        (function(cvs, cam) {
+          requestAnimationFrame(function() { initCameraCanvas(cvs, cam); });
+        })(canvas, cams[ci]);
+      } else {
+        cell.innerHTML = '<div class="no-content"><div class="no-content-text">No Feed</div></div>';
+      }
+      layout.appendChild(cell);
     }
 
-    var view = document.createElement('div');
-    view.className = 'single-view';
-    view.appendChild(createCameraImg(id));
+    // News panel (right column, rows 1-2)
+    var newsPanel = document.createElement('div');
+    newsPanel.className = 'news-panel';
+    renderNewsPanel(newsPanel, 5);
+    layout.appendChild(newsPanel);
 
-    var label = document.createElement('div');
-    label.className = 'cam-label';
-    label.textContent = cameraName(id);
-    view.appendChild(label);
+    // Event feed (bottom left, spanning 2 cols)
+    var eventPanel = document.createElement('div');
+    eventPanel.className = 'event-panel';
+    renderEventFeedPanel(eventPanel);
+    layout.appendChild(eventPanel);
 
-    root.appendChild(view);
+    // Alert queue (bottom right)
+    var alertPanel = document.createElement('div');
+    alertPanel.className = 'alert-panel';
+    renderAlertPanel(alertPanel);
+    layout.appendChild(alertPanel);
+
+    root.appendChild(layout);
   }
 
-  function renderSplitLayout(root) {
-    var split = document.createElement('div');
-    split.className = 'split-layout';
+  // ── News Layout (4-up) ──
 
-    var camSide = document.createElement('div');
-    camSide.className = 'split-camera';
-    var camId = state.singleCameraId || (state.cameraIds.length ? state.cameraIds[0] : null);
-    if (camId) {
-      camSide.appendChild(createCameraImg(camId));
-      var label = document.createElement('div');
-      label.className = 'cam-label';
-      label.textContent = cameraName(camId);
-      camSide.appendChild(label);
-    } else {
-      renderNoContent(camSide, 'No camera');
+  function renderNewsLayout(root) {
+    var layout = document.createElement('div');
+    layout.className = 'news-layout';
+
+    // Quadrant 1: News headlines
+    var q1 = document.createElement('div');
+    q1.className = 'news-quad';
+    renderNewsPanel(q1, 6);
+    layout.appendChild(q1);
+
+    // Quadrant 2: Weather
+    var q2 = document.createElement('div');
+    q2.className = 'news-quad';
+    renderWeatherPanel(q2);
+    layout.appendChild(q2);
+
+    // Quadrant 3: Alert queue
+    var q3 = document.createElement('div');
+    q3.className = 'news-quad';
+    renderAlertPanel(q3);
+    layout.appendChild(q3);
+
+    // Quadrant 4: Event feed (vertical)
+    var q4 = document.createElement('div');
+    q4.className = 'news-quad';
+    renderEventFeedVertical(q4);
+    layout.appendChild(q4);
+
+    root.appendChild(layout);
+  }
+
+  function renderEventFeedVertical(container) {
+    var panel = document.createElement('div');
+    panel.style.cssText = 'display:flex;flex-direction:column;height:100%;';
+
+    var header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = '<span class="header-icon">&#9889;</span> LIVE EVENTS';
+    panel.appendChild(header);
+
+    var list = document.createElement('div');
+    list.style.cssText = 'flex:1;overflow:hidden;';
+
+    state.events.slice(0, 12).forEach(function(ev) {
+      var item = document.createElement('div');
+      item.style.cssText = 'padding:8px 14px;border-bottom:1px solid #111;';
+      var sev = ev.severity || 'info';
+      var sevColor = sev === 'critical' ? '#ff3344' : (sev === 'warning' ? '#ffaa00' : '#3388ff');
+      item.innerHTML =
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">' +
+          '<span style="width:6px;height:6px;border-radius:50%;background:' + sevColor + ';display:inline-block;"></span>' +
+          '<span style="font-size:10px;color:#00ff88;font-variant-numeric:tabular-nums;">' + formatTime(ev.timestamp || ev.time) + '</span>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#bbc;">' + escHtml(ev.title || ev.type || 'Event') + '</div>' +
+        '<div style="font-size:10px;color:#445;">' + escHtml(ev.detail || ev.source || '') + '</div>';
+      list.appendChild(item);
+    });
+
+    if (state.events.length === 0) {
+      list.innerHTML = '<div style="color:#333;text-align:center;padding:30px;font-size:12px;letter-spacing:1px;text-transform:uppercase;">Waiting for events</div>';
     }
-    split.appendChild(camSide);
 
-    var eventSide = document.createElement('div');
-    eventSide.className = 'split-events';
-    renderEventFeed(eventSide);
-    split.appendChild(eventSide);
-
-    root.appendChild(split);
+    panel.appendChild(list);
+    container.appendChild(panel);
   }
 
-  // ── WebSocket ──
+  // ── Mixed Layout ──
+
+  function renderMixedLayout(root) {
+    var layout = document.createElement('div');
+    layout.className = 'mixed-layout';
+
+    var cams = state.allCameras;
+    // Row 1: Camera, Camera, News
+    // Row 2: Weather, Camera, Alerts
+
+    // Cam 1
+    var p1 = document.createElement('div');
+    p1.className = 'panel';
+    if (cams[0]) {
+      var c1 = document.createElement('canvas');
+      p1.appendChild(c1);
+      (function(cvs, cam) { requestAnimationFrame(function() { initCameraCanvas(cvs, cam); }); })(c1, cams[0]);
+    }
+    layout.appendChild(p1);
+
+    // Cam 2
+    var p2 = document.createElement('div');
+    p2.className = 'panel';
+    if (cams[1]) {
+      var c2 = document.createElement('canvas');
+      p2.appendChild(c2);
+      (function(cvs, cam) { requestAnimationFrame(function() { initCameraCanvas(cvs, cam); }); })(c2, cams[1]);
+    }
+    layout.appendChild(p2);
+
+    // News
+    var p3 = document.createElement('div');
+    p3.className = 'panel';
+    p3.style.overflow = 'auto';
+    renderNewsPanel(p3, 4);
+    layout.appendChild(p3);
+
+    // Weather
+    var p4 = document.createElement('div');
+    p4.className = 'panel';
+    p4.style.overflow = 'auto';
+    renderWeatherPanel(p4);
+    layout.appendChild(p4);
+
+    // Cam 3
+    var p5 = document.createElement('div');
+    p5.className = 'panel';
+    if (cams[2]) {
+      var c3 = document.createElement('canvas');
+      p5.appendChild(c3);
+      (function(cvs, cam) { requestAnimationFrame(function() { initCameraCanvas(cvs, cam); }); })(c3, cams[2]);
+    }
+    layout.appendChild(p5);
+
+    // Alerts
+    var p6 = document.createElement('div');
+    p6.className = 'panel';
+    p6.style.overflow = 'auto';
+    renderAlertPanel(p6);
+    layout.appendChild(p6);
+
+    root.appendChild(layout);
+  }
+
+  // ── No Content ──
+
+  function renderNoContent(container, message) {
+    var nc = document.createElement('div');
+    nc.className = 'no-content';
+    nc.innerHTML = '<div class="no-content-text">' + message + '</div>';
+    container.appendChild(nc);
+  }
+
+  // ══════════════════════════════════════
+  // TICKER
+  // ══════════════════════════════════════
+
+  function initTicker() {
+    var tickerEl = document.getElementById('ticker-text');
+    var combined = TICKER_HEADLINES.join('  \u2022  ');
+    tickerEl.innerHTML = combined + '<span class="ticker-separator">\u2022</span>' + combined;
+
+    var trackWidth = document.getElementById('ticker-track').offsetWidth;
+    var textWidth = tickerEl.scrollWidth / 2;
+    var speed = 80; // px per second
+    var duration = textWidth / speed;
+
+    tickerEl.style.animation = 'none';
+    tickerEl.offsetHeight; // reflow
+
+    var styleEl = document.getElementById('ticker-anim-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'ticker-anim-style';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent =
+      '@keyframes tickerScroll { from { transform: translateX(0); } to { transform: translateX(-' + textWidth + 'px); } }';
+    tickerEl.style.animation = 'tickerScroll ' + duration + 's linear infinite';
+  }
+
+  // ══════════════════════════════════════
+  // SIMULATED DATA GENERATION
+  // ══════════════════════════════════════
+
+  function generateAlert() {
+    var tpl = ALERT_TEMPLATES[Math.floor(Math.random() * ALERT_TEMPLATES.length)];
+    var msg = tpl.messages[Math.floor(Math.random() * tpl.messages.length)];
+    return {
+      severity: tpl.severity,
+      source: tpl.source,
+      message: msg,
+      time: new Date(),
+    };
+  }
+
+  function generateEvent() {
+    var types = [
+      { type: 'Door Access', details: ['Main Entrance', 'Side Door B', 'Loading Dock', 'Elevator Lobby'], severity: 'info' },
+      { type: 'Motion Detected', details: ['Parking Garage L1', 'Rooftop', 'Stairwell B', 'Pool Area'], severity: 'info' },
+      { type: 'Badge Denied', details: ['Server Room', 'Executive Suite', 'Restricted Area'], severity: 'warning' },
+      { type: 'Alarm Triggered', details: ['Fire Panel Zone 3', 'Intrusion Sensor 7', 'Glass Break Sensor'], severity: 'critical' },
+      { type: 'Visitor Check-in', details: ['Front Desk', 'Side Entrance Kiosk', 'Loading Dock Office'], severity: 'info' },
+      { type: 'Camera Alert', details: ['Lobby PTZ', 'Parking L2', 'Emergency Exit'], severity: 'warning' },
+      { type: 'System Status', details: ['Backup complete', 'Sync finished', 'Health check OK'], severity: 'info' },
+    ];
+
+    var t = types[Math.floor(Math.random() * types.length)];
+    return {
+      type: t.type,
+      title: t.type,
+      detail: t.details[Math.floor(Math.random() * t.details.length)],
+      severity: t.severity,
+      timestamp: new Date(),
+      source: 'Edge Runtime',
+    };
+  }
+
+  // Seed initial data
+  function seedData() {
+    for (var i = 0; i < 15; i++) {
+      var a = generateAlert();
+      a.time = new Date(Date.now() - (15 - i) * 45000);
+      state.alerts.push(a);
+    }
+    for (var j = 0; j < 8; j++) {
+      var e = generateEvent();
+      e.timestamp = new Date(Date.now() - (8 - j) * 30000);
+      state.events.push(e);
+    }
+  }
+
+  seedData();
+
+  // Live generation intervals
+  setInterval(function() {
+    var alert = generateAlert();
+    state.alerts.unshift(alert);
+    if (state.alerts.length > MAX_ALERTS) state.alerts = state.alerts.slice(0, MAX_ALERTS);
+
+    // Update alert list if visible
+    var listEl = document.getElementById('alert-list-live');
+    if (listEl) {
+      var item = createAlertItem(alert);
+      listEl.insertBefore(item, listEl.firstChild);
+      if (listEl.children.length > 20) listEl.removeChild(listEl.lastChild);
+    }
+  }, 6000 + Math.random() * 8000);
+
+  setInterval(function() {
+    var ev = generateEvent();
+    state.events.unshift(ev);
+    if (state.events.length > MAX_EVENTS) state.events = state.events.slice(0, MAX_EVENTS);
+    // SOC and news layouts show events -- re-render event panel sections
+  }, 4000 + Math.random() * 6000);
+
+  // Weather updates
+  setInterval(function() {
+    // Slight temperature drift
+    if (state.weather) {
+      state.weather.temp += Math.floor(Math.random() * 3) - 1;
+      state.weather.wind = Math.max(0, state.weather.wind + Math.floor(Math.random() * 5) - 2);
+      state.weather.humidity = Math.max(20, Math.min(95, state.weather.humidity + Math.floor(Math.random() * 5) - 2));
+    }
+  }, 60000);
+
+  // ══════════════════════════════════════
+  // WEBSOCKET
+  // ══════════════════════════════════════
 
   function wsConnect() {
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
@@ -597,44 +1775,27 @@
     try {
       ws = new WebSocket(url);
     } catch (err) {
-      console.error('[wall] WebSocket creation failed:', err);
       scheduleReconnect();
       return;
     }
 
     ws.onopen = function () {
-      console.log('[wall] WebSocket connected');
       state.wsConnected = true;
       wsReconnectDelay = WS_RECONNECT_BASE;
       updateWsIndicator();
-
-      // Register this screen with the server
-      ws.send(JSON.stringify({
-        action: 'wall:register',
-        screen: state.screenId,
-      }));
+      ws.send(JSON.stringify({ action: 'wall:register', screen: state.screenId }));
     };
 
     ws.onclose = function () {
-      console.log('[wall] WebSocket disconnected');
       state.wsConnected = false;
       updateWsIndicator();
       scheduleReconnect();
     };
 
-    ws.onerror = function (err) {
-      console.error('[wall] WebSocket error:', err);
-      ws.close();
-    };
+    ws.onerror = function () { ws.close(); };
 
     ws.onmessage = function (evt) {
-      var msg;
-      try {
-        msg = JSON.parse(evt.data);
-      } catch (e) {
-        return;
-      }
-      handleWsMessage(msg);
+      try { handleWsMessage(JSON.parse(evt.data)); } catch (e) {}
     };
   }
 
@@ -649,17 +1810,10 @@
 
   function updateWsIndicator() {
     var el = document.getElementById('ws-status');
-    if (state.wsConnected) {
-      el.classList.add('connected');
-    } else {
-      el.classList.remove('connected');
-    }
+    el.classList.toggle('connected', state.wsConnected);
   }
 
-  // ── Message handling ──
-
   function isForThisScreen(msg) {
-    // Accept messages with no screen (broadcast) or matching our screen
     return msg.screen === undefined || msg.screen === null || msg.screen === state.screenId || msg.screen === '*';
   }
 
@@ -669,59 +1823,99 @@
 
     switch (msg.action) {
       case 'wall:layout':
-        if (msg.layout && typeof msg.layout === 'string') {
-          state.layout = msg.layout;
-          render();
-        }
+        if (msg.layout) { state.layout = msg.layout; render(); }
         break;
-
-      case 'wall:push':
-        handlePush(msg);
-        break;
-
       case 'wall:cameras':
-        if (Array.isArray(msg.ids)) {
-          state.cameraIds = msg.ids;
-          if (state.layout === 'cameras') render();
-        }
+        if (Array.isArray(msg.ids)) { state.cameraIds = msg.ids; render(); }
         break;
-
+      case 'wall:push':
+        if (msg.type === 'event' && msg.data) pushEvent(msg.data);
+        break;
       default:
-        // Forward unrecognized events to the event feed
-        if (msg.type || msg.eventType) {
-          pushEvent(msg);
-        }
+        if (msg.type || msg.eventType) pushEvent(msg);
         break;
-    }
-  }
-
-  function handlePush(msg) {
-    if (msg.type === 'camera' && msg.id) {
-      state.singleCameraId = msg.id;
-      // Auto-switch to single view when a camera is pushed
-      if (state.layout !== 'split') {
-        state.layout = 'single';
-      }
-      render();
-    } else if (msg.type === 'event' && msg.data) {
-      pushEvent(msg.data);
     }
   }
 
   function pushEvent(ev) {
     state.events.unshift(ev);
-    if (state.events.length > MAX_EVENTS) {
-      state.events = state.events.slice(0, MAX_EVENTS);
-    }
-    if (state.layout === 'events' || state.layout === 'split') {
-      render();
-    }
+    if (state.events.length > MAX_EVENTS) state.events = state.events.slice(0, MAX_EVENTS);
   }
 
-  // ── Init ──
+  // ══════════════════════════════════════
+  // CONTROL BAR
+  // ══════════════════════════════════════
+
+  var controlBar = document.getElementById('control-bar');
+  var hideControlsTimer = null;
+
+  document.addEventListener('mousemove', function() {
+    document.body.classList.add('controls-visible');
+    controlBar.classList.add('visible');
+    if (hideControlsTimer) clearTimeout(hideControlsTimer);
+    hideControlsTimer = setTimeout(function() {
+      controlBar.classList.remove('visible');
+      document.body.classList.remove('controls-visible');
+    }, 3000);
+  });
+
+  // Layout buttons
+  document.querySelectorAll('.ctrl-btn[data-layout]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      state.layout = btn.dataset.layout;
+      render();
+    });
+  });
+
+  // Screen buttons
+  document.querySelectorAll('.ctrl-btn[data-screen]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      state.screenId = parseInt(btn.dataset.screen);
+      document.getElementById('screen-text').textContent = 'SCREEN ' + state.screenId;
+      render();
+    });
+  });
+
+  // Fullscreen
+  document.getElementById('btn-fullscreen').addEventListener('click', function() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  });
+
+  // Mute (placeholder)
+  document.getElementById('btn-mute').addEventListener('click', function() {
+    state.muted = !state.muted;
+    this.textContent = state.muted ? 'Mute' : 'Unmute';
+    this.classList.toggle('active', !state.muted);
+  });
+
+  // ══════════════════════════════════════
+  // UTILITY
+  // ══════════════════════════════════════
+
+  function formatTime(ts) {
+    var d = ts ? new Date(ts) : new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' +
+           String(d.getMinutes()).padStart(2, '0') + ':' +
+           String(d.getSeconds()).padStart(2, '0');
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ══════════════════════════════════════
+  // INIT
+  // ══════════════════════════════════════
 
   fetchCameras();
   wsConnect();
+  setTimeout(initTicker, 100);
+
 })();
 </script>
 </body>

@@ -23,6 +23,12 @@ services:
       - EDGERUNTIME_CONFIG=/app/config.yaml
       - EDGERUNTIME_SITE_ID=${SITE_ID:-}
       - EDGERUNTIME_CLOUD_SYNC_KEY=${CLOUD_SYNC_KEY:-}
+      - OPERATING_MODE=MIRROR
+      - DASHBOARD_PRODUCT=safeschool
+      - DASHBOARD_ADMIN_USER=${DASHBOARD_ADMIN_USER:-admin}
+      - DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD:-safeschool123}
+      - DASHBOARD_ADMIN_ORG=${DASHBOARD_ADMIN_ORG:-default}
+      - DATABASE_URL=postgresql://safeschool:${DB_PASSWORD}@postgres:5432/safeschool
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,7 +96,6 @@ services:
       - caddy_config:/config
     depends_on:
       - api
-      - dashboard
       - kiosk
       - edgeruntime
     restart: unless-stopped

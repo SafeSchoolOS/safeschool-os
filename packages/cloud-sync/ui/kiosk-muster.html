@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Emergency Muster Point</title>
+<style>
+:root {
+  --bg-primary: #0f0f23;
+  --bg-secondary: #1a1d2e;
+  --bg-tertiary: #242840;
+  --border: #2e3348;
+  --text-primary: #e4e6f0;
+  --text-secondary: #8b8fa3;
+  --accent: #f59e0b;
+  --accent-dim: rgba(245,158,11,0.15);
+  --success: #22c55e;
+  --success-dim: rgba(34,197,94,0.15);
+  --danger: #ef4444;
+  --danger-dim: rgba(239,68,68,0.15);
+  --warning: #f59e0b;
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.corner-clock {
+  position: fixed;
+  top: 1rem;
+  right: 1.5rem;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  z-index: 200;
+  letter-spacing: 0.04em;
+}
+
+/* Normal state */
+.normal-screen {
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+  text-align: center;
+}
+.muster-icon {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--success-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.muster-icon svg { width: 64px; height: 64px; fill: var(--success); }
+.muster-label {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.all-clear {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--success);
+}
+.building-status {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 600px;
+}
+.building-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.5rem;
+  min-width: 160px;
+  text-align: center;
+}
+.building-card .status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+.building-card .name { font-size: 1.05rem; font-weight: 600; }
+.building-card .count { font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.3rem; }
+.demo-btn {
+  margin-top: 1.5rem;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  min-height: 56px;
+}
+.demo-btn:active { transform: scale(0.97); }
+
+/* Emergency state */
+.emergency-screen {
+  background: #1a0505;
+}
+.emergency-header {
+  background: var(--danger);
+  padding: 1rem 2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+.emergency-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+  animation: flash-text 1.2s ease-in-out infinite;
+}
+@keyframes flash-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.drill-banner {
+  background: var(--warning);
+  color: #000;
+  padding: 0.5rem;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: none;
+}
+.drill-banner.show { display: block; }
+.emergency-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Head count */
+.headcount-section {
+  text-align: center;
+}
+.headcount-numbers {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.headcount-numbers .accounted { color: var(--success); }
+.headcount-numbers .total { color: var(--text-secondary); }
+.headcount-label {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-top: 0.3rem;
+}
+.headcount-bar {
+  width: 100%;
+  max-width: 500px;
+  height: 16px;
+  background: rgba(239,68,68,0.3);
+  border-radius: 8px;
+  margin: 1rem auto 0;
+  overflow: hidden;
+}
+.headcount-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 8px;
+  transition: width 0.5s ease;
+}
+
+/* Timer */
+.evac-timer {
+  text-align: center;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+.evac-timer .time {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Missing persons */
+.missing-section h3 {
+  font-size: 1.1rem;
+  color: var(--danger);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.missing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.missing-person {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  background: var(--danger-dim);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: var(--radius);
+}
+.missing-person .name { font-weight: 600; font-size: 1.1rem; }
+.missing-person .location { font-size: 0.9rem; color: var(--text-secondary); }
+
+/* I'm Here button */
+.checkin-btn {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  min-height: 64px;
+  animation: pulse-btn 2s ease-in-out infinite;
+}
+@keyframes pulse-btn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(34,197,94,0); }
+}
+.checkin-btn:active { transform: scale(0.97); }
+.checkin-btn.checked {
+  background: var(--bg-tertiary);
+  color: var(--success);
+  animation: none;
+  pointer-events: none;
+}
+
+/* Status feed */
+.status-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.status-msg {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(46,51,72,0.5);
+  display: flex;
+  gap: 0.5rem;
+}
+.status-msg .ts { color: var(--accent); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+/* Ripple */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  transform: scale(0);
+  animation: ripple-anim 0.6s linear;
+  pointer-events: none;
+}
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+.help-footer {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  z-index: 200;
+  opacity: 0.6;
+}
+
+.end-drill-btn {
+  margin: 0 auto;
+  padding: 0.8rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (orientation: portrait) {
+  .headcount-numbers { font-size: 2.8rem; }
+  .emergency-header h1 { font-size: 1.6rem; }
+  .building-status { flex-direction: column; align-items: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="corner-clock" id="clock"></div>
+
+<!-- Normal state -->
+<div class="screen active" id="screenNormal">
+  <div class="normal-screen">
+    <div class="muster-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path d="M10 16.5l6-4.5-6-4.5v9z"/></svg>
+    </div>
+    <div class="muster-label" id="musterLabel">Muster Point A</div>
+    <div class="all-clear">All Clear</div>
+    <div class="building-status" id="buildingStatus"></div>
+    <button class="demo-btn" onclick="startEmergency(false)">Demo: Trigger Evacuation</button>
+    <button class="demo-btn" style="background:var(--warning);color:#000;margin-top:0.5rem;" onclick="startEmergency(true)">Demo: Start Drill</button>
+  </div>
+</div>
+
+<!-- Emergency state -->
+<div class="screen" id="screenEmergency">
+  <div class="emergency-screen" style="display:flex;flex-direction:column;height:100%;">
+    <div class="drill-banner" id="drillBanner">DRILL - THIS IS A DRILL</div>
+    <div class="emergency-header">
+      <h1 id="emergencyTitle">EVACUATION IN PROGRESS</h1>
+    </div>
+    <div class="emergency-body">
+      <div class="headcount-section">
+        <div class="headcount-numbers">
+          <span class="accounted" id="accountedCount">0</span><span class="total" id="totalCount"> / 52</span>
+        </div>
+        <div class="headcount-label">personnel accounted for</div>
+        <div class="headcount-bar">
+          <div class="headcount-fill" id="headcountFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="evac-timer">
+        <div>Time since evacuation started</div>
+        <div class="time" id="evacTimer">00:00</div>
+      </div>
+
+      <button class="checkin-btn" id="checkinBtn" onclick="checkIn()">I'M HERE</button>
+
+      <div class="missing-section">
+        <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg> Missing Personnel</h3>
+        <div class="missing-list" id="missingList"></div>
+      </div>
+
+      <div class="status-feed" id="statusFeed"></div>
+
+      <button class="end-drill-btn" onclick="endEmergency()">End Drill / Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="help-footer">Need Help? Contact Safety Officer</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const accentColor = params.get('accent');
+const musterPoint = params.get('point') || 'A';
+const startMode = params.get('mode');
+
+if (accentColor) {
+  document.documentElement.style.setProperty('--accent', accentColor);
+  document.documentElement.style.setProperty('--accent-dim', accentColor + '26');
+}
+
+document.getElementById('musterLabel').textContent = 'Muster Point ' + musterPoint;
+
+const BUILDINGS = [
+  { name: 'Main Building', occupants: 38, status: 'normal' },
+  { name: 'East Wing', occupants: 22, status: 'normal' },
+  { name: 'West Annex', occupants: 14, status: 'normal' },
+  { name: 'Parking Garage', occupants: 8, status: 'normal' }
+];
+
+const PERSONNEL = [
+  { name: 'Sarah Johnson', dept: 'Engineering', lastSeen: 'Floor 3, Rm 312' },
+  { name: 'Mike Chen', dept: 'Operations', lastSeen: 'Server Room B' },
+  { name: 'Lisa Park', dept: 'HR', lastSeen: 'Floor 2, Rm 205' },
+  { name: 'David Williams', dept: 'Security', lastSeen: 'Loading Dock' },
+  { name: 'Rachel Torres', dept: 'Finance', lastSeen: 'Floor 4, Rm 401' }
+];
+
+const STATUS_MESSAGES = [
+  'All floors being swept by fire wardens',
+  'Fire department notified and en route',
+  'East stairwell confirmed clear',
+  'Elevator lockdown confirmed',
+  'Floor 1 sweep complete — all clear',
+  'Floor 2 sweep complete — all clear',
+  'Handicap assistance dispatched to Floor 3',
+  'Parking garage gates opened',
+  'Floor 3 sweep in progress',
+  'Loading dock area secured'
+];
+
+let totalPersonnel = 52;
+let accountedFor = 0;
+let missingPersonnel = [...PERSONNEL];
+let evacStartTime = null;
+let evacTimerInterval = null;
+let accountingInterval = null;
+let statusInterval = null;
+let statusIndex = 0;
+let isDrill = false;
+let idleTimer = null;
+const IDLE_TIMEOUT = 60000;
+
+// Build building status
+const buildingStatusEl = document.getElementById('buildingStatus');
+BUILDINGS.forEach(b => {
+  const card = document.createElement('div');
+  card.className = 'building-card';
+  card.innerHTML = '<div class="name"><span class="status-dot" style="background:var(--success)"></span>' + b.name + '</div><div class="count">' + b.occupants + ' occupants</div>';
+  buildingStatusEl.appendChild(card);
+});
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function startEmergency(drill) {
+  isDrill = drill;
+  evacStartTime = new Date();
+  accountedFor = 0;
+  missingPersonnel = [...PERSONNEL];
+  statusIndex = 0;
+
+  document.getElementById('drillBanner').classList.toggle('show', drill);
+  document.getElementById('emergencyTitle').textContent = drill ? 'EVACUATION DRILL IN PROGRESS' : 'EVACUATION IN PROGRESS';
+  document.getElementById('checkinBtn').className = 'checkin-btn';
+  document.getElementById('checkinBtn').textContent = "I'M HERE";
+
+  updateHeadcount();
+  renderMissing();
+  document.getElementById('statusFeed').innerHTML = '';
+
+  showScreen('screenEmergency');
+
+  // Simulate people checking in
+  clearInterval(accountingInterval);
+  accountingInterval = setInterval(() => {
+    if (accountedFor < totalPersonnel - missingPersonnel.length) {
+      accountedFor += Math.floor(Math.random() * 3) + 1;
+      if (accountedFor > totalPersonnel - missingPersonnel.length) accountedFor = totalPersonnel - missingPersonnel.length;
+      updateHeadcount();
+    }
+  }, 3000);
+
+  // Timer
+  clearInterval(evacTimerInterval);
+  evacTimerInterval = setInterval(updateEvacTimer, 1000);
+  updateEvacTimer();
+
+  // Status messages
+  clearInterval(statusInterval);
+  statusInterval = setInterval(() => {
+    if (statusIndex < STATUS_MESSAGES.length) {
+      addStatusMessage(STATUS_MESSAGES[statusIndex]);
+      statusIndex++;
+    }
+  }, 5000);
+}
+
+function updateHeadcount() {
+  document.getElementById('accountedCount').textContent = accountedFor;
+  document.getElementById('totalCount').textContent = ' / ' + totalPersonnel;
+  const pct = (accountedFor / totalPersonnel) * 100;
+  document.getElementById('headcountFill').style.width = pct + '%';
+}
+
+function updateEvacTimer() {
+  if (!evacStartTime) return;
+  const elapsed = Math.floor((Date.now() - evacStartTime) / 1000);
+  const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  const secs = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('evacTimer').textContent = mins + ':' + secs;
+}
+
+function renderMissing() {
+  const list = document.getElementById('missingList');
+  list.innerHTML = '';
+  missingPersonnel.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'missing-person';
+    div.innerHTML = '<div><div class="name">' + p.name + '</div><div class="location">Last seen: ' + p.lastSeen + '</div></div><div style="font-size:0.85rem;color:var(--text-secondary);">' + p.dept + '</div>';
+    list.appendChild(div);
+  });
+}
+
+function addStatusMessage(msg) {
+  const feed = document.getElementById('statusFeed');
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const div = document.createElement('div');
+  div.className = 'status-msg';
+  div.innerHTML = '<span class="ts">' + now + '</span><span>' + msg + '</span>';
+  feed.insertBefore(div, feed.firstChild);
+}
+
+function checkIn() {
+  const btn = document.getElementById('checkinBtn');
+  btn.className = 'checkin-btn checked';
+  btn.textContent = 'Checked In';
+  accountedFor++;
+  // Remove a random missing person
+  if (missingPersonnel.length > 0) {
+    const idx = Math.floor(Math.random() * missingPersonnel.length);
+    const found = missingPersonnel.splice(idx, 1)[0];
+    addStatusMessage(found.name + ' checked in at Muster Point ' + musterPoint);
+    renderMissing();
+  }
+  updateHeadcount();
+}
+
+function endEmergency() {
+  clearInterval(accountingInterval);
+  clearInterval(evacTimerInterval);
+  clearInterval(statusInterval);
+  showScreen('screenNormal');
+}
+
+// Auto-start in emergency mode if param set
+if (startMode === 'emergency') {
+  startEmergency(false);
+} else if (startMode === 'drill') {
+  startEmergency(true);
+}
+
+// Clock
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Idle timer (only in normal mode)
+function resetIdleTimer() {
+  clearTimeout(idleTimer);
+  if (document.getElementById('screenNormal').classList.contains('active')) {
+    idleTimer = setTimeout(() => showScreen('screenNormal'), IDLE_TIMEOUT);
+  }
+}
+['pointerdown', 'pointermove', 'keydown'].forEach(evt =>
+  document.addEventListener(evt, resetIdleTimer, { passive: true })
+);
+
+// Touch ripple
+document.addEventListener('pointerdown', e => {
+  const btn = e.target.closest('.demo-btn, .checkin-btn, .end-drill-btn');
+  if (!btn) return;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.width = r.style.height = size + 'px';
+  r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+});
+
+// Fullscreen on first touch
+let fsRequested = false;
+document.addEventListener('pointerdown', () => {
+  if (!fsRequested && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+    fsRequested = true;
+  }
+}, { once: true });
+</script>
+</body>
+</html>

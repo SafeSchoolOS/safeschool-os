@@ -15,6 +15,7 @@
     "@edgeruntime/core": "*",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.7.0",
+    "pg": "^8.13.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

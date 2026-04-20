@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Door Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 220px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-green { background: rgba(34,197,94,0.15); border: 1px solid var(--green); color: var(--green); }
+.btn-green:hover { background: rgba(34,197,94,0.25); }
+.btn-red { background: rgba(239,68,68,0.15); border: 1px solid var(--red); color: var(--red); }
+.btn-red:hover { background: rgba(239,68,68,0.25); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); cursor: pointer; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-locked { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-unlocked { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-alarm { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-held { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-offline { background: rgba(107,114,128,0.15); color: #6b7280; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+.health-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.health-fill { height: 100%; border-radius: 3px; }
+.events-list { max-height: 200px; overflow-y: auto; }
+.event-row { padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // --- State ---
+  var searchText = '';
+  var zoneFilter = '';
+  var statusFilter = '';
+  var buildingFilter = '';
+  var selectedDoor = null;
+  var doors = [];
+
+  // --- Demo Data ---
+  var ZONES = ['Main Lobby','Parking Garage','Loading Dock','Hallway A','Hallway B','Stairwell 1','Stairwell 2','Server Room','Rooftop','Courtyard','Front Entrance','Rear Entrance','Cafeteria','Conference Wing','Executive Floor'];
+  var BUILDINGS = ['Building A','Building B','Building C','Main Campus'];
+  var DOOR_TYPES = ['Single','Double','Revolving','Sliding','Emergency Exit','Gate','Turnstile'];
+  var STATUSES = ['locked','locked','locked','locked','locked','locked','unlocked','unlocked','alarm','held_open','offline'];
+
+  function genDoors() {
+    var list = [];
+    for (var i = 0; i < 50; i++) {
+      var status = STATUSES[i % STATUSES.length];
+      var health = status === 'offline' ? Math.floor(Math.random() * 40) : (60 + Math.floor(Math.random() * 40));
+      var readerCount = Math.floor(Math.random() * 3) + 1;
+      var events = [];
+      for (var j = 0; j < 8; j++) {
+        events.push({
+          time: new Date(Date.now() - Math.floor(Math.random() * 86400000)).toISOString(),
+          type: ['Access Granted','Access Denied','Door Forced','Door Held Open','Lock Command','Unlock Command'][Math.floor(Math.random() * 6)],
+          user: ['John Smith','Jane Doe','Mike Johnson','Sarah Wilson','Alex Chen'][Math.floor(Math.random() * 5)]
+        });
+      }
+      events.sort(function(a, b) { return new Date(b.time) - new Date(a.time); });
+
+      list.push({
+        id: 'door-' + String(i + 1).padStart(3, '0'),
+        name: ZONES[i % ZONES.length] + ' Door ' + (Math.floor(i / ZONES.length) + 1),
+        zone: ZONES[i % ZONES.length],
+        building: BUILDINGS[i % BUILDINGS.length],
+        status: status,
+        type: DOOR_TYPES[i % DOOR_TYPES.length],
+        lastEvent: events[0] ? events[0].time : new Date().toISOString(),
+        lastEventType: events[0] ? events[0].type : 'None',
+        readerCount: readerCount,
+        healthScore: health,
+        events: events,
+        schedule: 'Weekdays 7AM-7PM Auto-Unlock',
+        pairedCamera: i % 3 === 0 ? ('cam-' + String(i + 1).padStart(3, '0')) : null
+      });
+    }
+    return list;
+  }
+
+  doors = genDoors();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/data/doors?limit=200');
+      if (res && (res.doors || res.entities)) {
+        var items = res.doors || res.entities || [];
+        if (items.length > 0) {
+          doors = items.map(function(d, i) {
+            var dd = d.data || d;
+            return {
+              id: dd.id || d.id || ('door-' + i),
+              name: dd.name || ('Door ' + (i + 1)),
+              zone: dd.zone || ZONES[i % ZONES.length],
+              building: dd.building || BUILDINGS[i % BUILDINGS.length],
+              status: dd.status || 'locked',
+              type: dd.type || 'Single',
+              lastEvent: dd.lastEvent || new Date().toISOString(),
+              lastEventType: dd.lastEventType || 'None',
+              readerCount: dd.readerCount || 1,
+              healthScore: dd.healthScore || 90,
+              events: dd.events || [],
+              schedule: dd.schedule || 'Always Locked',
+              pairedCamera: dd.pairedCamera || null
+            };
+          });
+        }
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function filtered() {
+    return doors.filter(function(d) {
+      if (statusFilter && d.status !== statusFilter) return false;
+      if (zoneFilter && d.zone !== zoneFilter) return false;
+      if (buildingFilter && d.building !== buildingFilter) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (d.name.toLowerCase().indexOf(s) < 0 && d.zone.toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    var data = filtered();
+    var total = doors.length;
+    var locked = doors.filter(function(d) { return d.status === 'locked'; }).length;
+    var unlocked = doors.filter(function(d) { return d.status === 'unlocked'; }).length;
+    var alarm = doors.filter(function(d) { return d.status === 'alarm' || d.status === 'held_open'; }).length;
+    var offline = doors.filter(function(d) { return d.status === 'offline'; }).length;
+
+    var uniqueZones = []; doors.forEach(function(d) { if (uniqueZones.indexOf(d.zone) < 0) uniqueZones.push(d.zone); });
+    var uniqueBuildings = []; doors.forEach(function(d) { if (uniqueBuildings.indexOf(d.building) < 0) uniqueBuildings.push(d.building); });
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Door Management</div>';
+    html += '<div class="subtitle">Control and monitor all access doors, gates, and turnstiles.</div></div></div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Total Doors</div><div class="stat-value">' + total + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Locked</div><div class="stat-value green">' + locked + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Unlocked</div><div class="stat-value blue">' + unlocked + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Alarm / Held</div><div class="stat-value red">' + alarm + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Offline</div><div class="stat-value amber">' + offline + '</div></div>';
+    html += '</div>';
+
+    // Toolbar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search doors..." value="' + esc(searchText) + '">';
+    html += '<select class="filter" id="zoneFilter"><option value="">All Zones</option>';
+    uniqueZones.forEach(function(z) { html += '<option value="' + esc(z) + '"' + (zoneFilter === z ? ' selected' : '') + '>' + esc(z) + '</option>'; });
+    html += '</select>';
+    html += '<select class="filter" id="statusFilter"><option value="">All Status</option>';
+    ['locked','unlocked','alarm','held_open','offline'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (statusFilter === s ? ' selected' : '') + '>' + s.replace('_', ' ') + '</option>';
+    });
+    html += '</select>';
+    html += '<select class="filter" id="buildingFilter"><option value="">All Buildings</option>';
+    uniqueBuildings.forEach(function(b) { html += '<option value="' + esc(b) + '"' + (buildingFilter === b ? ' selected' : '') + '>' + esc(b) + '</option>'; });
+    html += '</select>';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + data.length + ' doors</span>';
+    html += '</div>';
+
+    // Table
+    html += '<table><thead><tr>';
+    html += '<th>Name</th><th>Zone</th><th>Building</th><th>Status</th><th>Type</th><th>Last Event</th><th>Readers</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    if (data.length === 0) {
+      html += '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:2rem">No doors match your filters</td></tr>';
+    } else {
+      data.forEach(function(d) {
+        var statusClass = d.status === 'locked' ? 'badge-locked' : d.status === 'unlocked' ? 'badge-unlocked' : d.status === 'alarm' ? 'badge-alarm' : d.status === 'held_open' ? 'badge-held' : 'badge-offline';
+        html += '<tr class="door-row" data-id="' + d.id + '">';
+        html += '<td><strong>' + esc(d.name) + '</strong></td>';
+        html += '<td>' + esc(d.zone) + '</td>';
+        html += '<td>' + esc(d.building) + '</td>';
+        html += '<td><span class="badge ' + statusClass + '">' + esc(d.status.replace('_', ' ')) + '</span></td>';
+        html += '<td style="color:var(--text2)">' + esc(d.type) + '</td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + timeAgo(d.lastEvent) + '</td>';
+        html += '<td>' + d.readerCount + '</td>';
+        html += '<td>';
+        if (d.status !== 'offline') {
+          if (d.status === 'unlocked' || d.status === 'held_open') {
+            html += '<button class="btn btn-sm btn-green door-action" data-id="' + d.id + '" data-action="lock">Lock</button>';
+          } else {
+            html += '<button class="btn btn-sm btn-red door-action" data-id="' + d.id + '" data-action="unlock">Unlock</button>';
+          }
+        }
+        html += '</td>';
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+
+    document.getElementById('app').innerHTML = html;
+
+    if (selectedDoor) renderDetail();
+
+    // Bind
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('zoneFilter').addEventListener('change', function() { zoneFilter = this.value; render(); });
+    document.getElementById('statusFilter').addEventListener('change', function() { statusFilter = this.value; render(); });
+    document.getElementById('buildingFilter').addEventListener('change', function() { buildingFilter = this.value; render(); });
+
+    document.querySelectorAll('.door-action').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = this.dataset.id;
+        var action = this.dataset.action;
+        var door = doors.find(function(d) { return d.id === id; });
+        if (!door) return;
+        if (action === 'lock') {
+          api('POST', '/api/v1/data/doors/' + id + '/lock');
+          door.status = 'locked';
+        } else {
+          api('POST', '/api/v1/data/doors/' + id + '/unlock');
+          door.status = 'unlocked';
+        }
+        render();
+      });
+    });
+
+    document.querySelectorAll('.door-row').forEach(function(row) {
+      row.addEventListener('click', function() {
+        selectedDoor = doors.find(function(d) { return d.id === row.dataset.id; });
+        render();
+      });
+    });
+  }
+
+  function renderDetail() {
+    var d = selectedDoor;
+    if (!d) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+
+    var statusClass = d.status === 'locked' ? 'badge-locked' : d.status === 'unlocked' ? 'badge-unlocked' : d.status === 'alarm' ? 'badge-alarm' : d.status === 'held_open' ? 'badge-held' : 'badge-offline';
+
+    var html = '<h3>' + esc(d.name) + ' <span class="badge ' + statusClass + '">' + esc(d.status.replace('_', ' ')) + '</span></h3>';
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Zone</span><div>' + esc(d.zone) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Building</span><div>' + esc(d.building) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Type</span><div>' + esc(d.type) + '</div></div>';
+    html += '<div><span style="color:var(--text3);font-size:0.75rem">Readers</span><div>' + d.readerCount + '</div></div>';
+    html += '</div>';
+
+    // Health
+    var hColor = d.healthScore >= 80 ? 'var(--green)' : d.healthScore >= 50 ? 'var(--amber)' : 'var(--red)';
+    html += '<div class="card"><div style="display:flex;justify-content:space-between;font-size:0.85rem"><span>Health Score</span><span style="font-weight:700;color:' + hColor + '">' + d.healthScore + '%</span></div>';
+    html += '<div class="health-bar"><div class="health-fill" style="width:' + d.healthScore + '%;background:' + hColor + '"></div></div></div>';
+
+    // Schedule
+    html += '<div class="card"><div style="font-size:0.75rem;color:var(--text3);margin-bottom:0.25rem">Schedule</div><div style="font-size:0.85rem">' + esc(d.schedule) + '</div></div>';
+
+    // Paired camera
+    if (d.pairedCamera) {
+      html += '<div class="card"><div style="font-size:0.75rem;color:var(--text3);margin-bottom:0.25rem">Paired Camera</div><div style="font-size:0.85rem">' + esc(d.pairedCamera) + '</div></div>';
+    }
+
+    // Recent Events
+    html += '<div style="font-weight:600;margin-bottom:0.5rem">Recent Events</div>';
+    html += '<div class="events-list">';
+    (d.events || []).forEach(function(ev) {
+      html += '<div class="event-row"><span>' + esc(ev.type) + ' &mdash; ' + esc(ev.user) + '</span><span style="color:var(--text3)">' + timeAgo(ev.time) + '</span></div>';
+    });
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    if (d.status !== 'offline') {
+      if (d.status === 'unlocked' || d.status === 'held_open') {
+        html += '<button class="btn btn-green" id="mAction" data-action="lock">Lock Door</button>';
+      } else {
+        html += '<button class="btn btn-red" id="mAction" data-action="unlock">Unlock Door</button>';
+      }
+    }
+    html += '<button class="btn btn-outline" id="mClose">Close</button></div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { selectedDoor = null; render(); } });
+    document.getElementById('mClose').addEventListener('click', function() { selectedDoor = null; render(); });
+    var actionBtn = document.getElementById('mAction');
+    if (actionBtn) {
+      actionBtn.addEventListener('click', function() {
+        if (this.dataset.action === 'lock') { d.status = 'locked'; api('POST', '/api/v1/data/doors/' + d.id + '/lock'); }
+        else { d.status = 'unlocked'; api('POST', '/api/v1/data/doors/' + d.id + '/unlock'); }
+        selectedDoor = null;
+        render();
+      });
+    }
+  }
+
+  function timeAgo(ts) {
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

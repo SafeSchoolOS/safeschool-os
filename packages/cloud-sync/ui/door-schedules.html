@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Door Schedule Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; overflow-y: auto; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.val-green { color: var(--green); }
+.val-accent { color: var(--accent); }
+.val-amber { color: var(--amber); }
+.val-red { color: var(--red); }
+.val-blue { color: var(--blue); }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 10px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text2); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.btn { padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.1); }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover:not(:disabled) { background: #16a34a; }
+.btn-amber { background: var(--amber); color: #000; }
+.btn-amber:hover:not(:disabled) { background: #d97706; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.badge-purple { background: rgba(139,92,246,0.15); color: var(--purple); }
+.form-row { margin-bottom: 12px; }
+.form-label { display: block; font-size: 12px; color: var(--text3); margin-bottom: 4px; font-weight: 600; }
+.form-input { width: 100%; padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+select.form-input { appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+textarea.form-input { resize: vertical; min-height: 60px; }
+.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.checkbox-row input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+/* Schedule list + editor split */
+.split-layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+@media (max-width: 900px) { .split-layout { grid-template-columns: 1fr; } }
+.schedule-list { display: flex; flex-direction: column; gap: 8px; max-height: 80vh; overflow-y: auto; padding-right: 4px; }
+.schedule-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.15s; }
+.schedule-item:hover { border-color: var(--text3); }
+.schedule-item.selected { border-color: var(--accent); background: var(--accent-dim); }
+.schedule-item .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.schedule-item .desc { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+.schedule-item .meta { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text2); flex-wrap: wrap; }
+
+/* Mini grid preview */
+.mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; width: 100%; height: 28px; border-radius: 4px; overflow: hidden; background: var(--border); margin-top: 8px; }
+.mini-col { display: flex; flex-direction: column; gap: 0; }
+.mini-cell { flex: 1; min-height: 1px; }
+
+/* Full editor grid */
+.editor-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.editor-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+.editor-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+@media (max-width: 700px) { .editor-fields { grid-template-columns: 1fr; } }
+
+/* Paint mode bar */
+.paint-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.paint-mode { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 6px; border: 2px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; user-select: none; }
+.paint-mode:hover { border-color: var(--text3); }
+.paint-mode.active { border-color: currentColor; }
+.paint-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+/* Weekly grid */
+.grid-wrap { overflow-x: auto; margin-bottom: 16px; }
+.weekly-grid { display: grid; grid-template-columns: 56px repeat(7, 1fr); user-select: none; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.grid-corner { background: var(--bg3); border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+.grid-day-header { background: var(--bg3); border-bottom: 1px solid var(--border); text-align: center; font-size: 11px; font-weight: 700; color: var(--text2); padding: 6px 0; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; }
+.grid-day-header:hover { background: var(--accent-dim); color: var(--accent); }
+.grid-time-label { background: var(--bg3); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); font-size: 10px; color: var(--text3); padding: 0 6px; display: flex; align-items: center; justify-content: flex-end; height: 18px; cursor: pointer; }
+.grid-time-label:hover { background: var(--accent-dim); }
+.grid-cell { height: 18px; border-bottom: 1px solid rgba(42,42,69,0.4); border-right: 1px solid rgba(42,42,69,0.2); cursor: crosshair; transition: none; }
+.grid-cell:hover { opacity: 0.85; filter: brightness(1.15); }
+.grid-cell.state-locked { background: var(--red); }
+.grid-cell.state-unlocked { background: var(--green); }
+.grid-cell.state-card { background: var(--blue); }
+.grid-cell.state-fpi { background: var(--amber); }
+.grid-cell.state-default { background: var(--bg); }
+
+/* Preview panel */
+.preview-panel { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; padding: 12px; background: var(--bg3); border-radius: 8px; }
+.preview-item { text-align: center; }
+.preview-item .p-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.preview-item .p-value { font-size: 14px; font-weight: 700; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+
+/* Door assignment */
+.door-section { margin-top: 16px; padding: 16px; background: var(--bg3); border-radius: 8px; }
+.door-section h4 { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.assigned-doors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.door-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; font-size: 11px; }
+.door-chip .remove-door { cursor: pointer; color: var(--text3); font-size: 13px; line-height: 1; }
+.door-chip .remove-door:hover { color: var(--red); }
+.bulk-bar { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+/* Holiday tab */
+.holiday-list { display: flex; flex-direction: column; gap: 8px; }
+.holiday-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+.holiday-form { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 12px; align-items: end; margin-bottom: 16px; }
+@media (max-width: 700px) { .holiday-form { grid-template-columns: 1fr 1fr; } }
+.holiday-timeline { display: flex; flex-direction: column; gap: 4px; margin-top: 16px; padding: 12px; background: var(--bg3); border-radius: 8px; }
+.holiday-timeline h4 { font-size: 12px; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; }
+.ht-item { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 4px 0; }
+.ht-item .ht-date { color: var(--text3); min-width: 80px; }
+.ht-item .ht-days { color: var(--accent); font-size: 11px; }
+
+/* Template cards */
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.template-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.template-card .tpl-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.template-card .tpl-desc { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+
+.empty-state { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+
+/* Modal */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* Door picker modal */
+.door-picker { max-height: 400px; overflow-y: auto; margin: 12px 0; }
+.door-picker-search { margin-bottom: 12px; }
+.door-picker-zones { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.door-picker-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.door-picker-item:hover { background: var(--bg3); }
+.door-picker-item input[type=checkbox] { accent-color: var(--accent); }
+.door-picker-item .zone-tag { font-size: 10px; color: var(--text3); margin-left: auto; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 200; animation: toastIn 0.2s ease, toastOut 0.3s ease 2.5s forwards; pointer-events: none; }
+.toast-success { background: var(--green); color: #fff; }
+.toast-error { background: var(--red); color: #fff; }
+.toast-info { background: var(--accent); color: #fff; }
+@keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* Saving indicator */
+.saving-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); margin-right: 6px; animation: pulse 0.8s ease infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+<div id="app"><div class="empty-state">Loading door schedule data...</div></div>
+<script>
+(function() {
+  'use strict';
+
+  // ---- Accent param ----
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  // ---- Auth ----
+  var token = null;
+  function api(method, path, body) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    var opts = { method: method, headers: headers };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(path, opts).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // ---- Toast ----
+  function toast(msg, type) {
+    var el = document.createElement('div');
+    el.className = 'toast toast-' + (type || 'info');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function() { el.remove(); }, 3000);
+  }
+
+  // ---- LocalStorage fallback ----
+  var LS_KEY = 'door-schedules-data';
+  function saveToLS() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ schedules: schedules, accessLevels: accessLevels }));
+    } catch(e) {}
+  }
+  function loadFromLS() {
+    try {
+      var d = JSON.parse(localStorage.getItem(LS_KEY));
+      if (d && d.schedules) return d;
+    } catch(e) {}
+    return null;
+  }
+
+  // ---- State ----
+  var currentTab = 'schedules';
+  var schedules = [];
+  var accessLevels = [];
+  var allDoors = [];
+  var selectedId = null;
+  var paintMode = 'unlocked';
+  var painting = false;
+  var showModal = null;
+  var editingAL = null; // access level being edited (null = new)
+  var saving = false;
+
+  var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var SLOTS = 48;
+  var STATE_COLORS = { locked: '#ef4444', unlocked: '#22c55e', card: '#3b82f6', fpi: '#f59e0b' };
+  var STATE_LABELS = { locked: 'Locked', unlocked: 'Unlocked', card: 'Card Only', fpi: 'First Person In' };
+  var STATE_CLASSES = { locked: 'default', unlocked: 'unlocked', card: 'card', fpi: 'fpi' };
+
+  // ---- Demo Data ----
+  function makeBlocks(pattern) {
+    var blocks = [];
+    if (pattern === 'business') {
+      for (var d = 1; d <= 5; d++)
+        for (var s = 16; s < 36; s++) blocks.push({ day: d, slot: s, state: 'unlocked' });
+    } else if (pattern === '24-7') {
+      for (var d2 = 0; d2 < 7; d2++)
+        for (var s2 = 0; s2 < 48; s2++) blocks.push({ day: d2, slot: s2, state: 'unlocked' });
+    } else if (pattern === 'school') {
+      for (var d3 = 1; d3 <= 5; d3++)
+        for (var s3 = 14; s3 < 32; s3++) blocks.push({ day: d3, slot: s3, state: 'unlocked' });
+    } else if (pattern === 'card-after') {
+      for (var d4 = 1; d4 <= 5; d4++) {
+        for (var s4 = 16; s4 < 36; s4++) blocks.push({ day: d4, slot: s4, state: 'unlocked' });
+        for (var s5 = 36; s5 < 44; s5++) blocks.push({ day: d4, slot: s5, state: 'card' });
+      }
+    } else if (pattern === 'weekend-locked') {
+      for (var d5 = 1; d5 <= 5; d5++)
+        for (var s6 = 0; s6 < 48; s6++) blocks.push({ day: d5, slot: s6, state: 'unlocked' });
+    } else if (pattern === 'school-fpi') {
+      for (var d6 = 1; d6 <= 5; d6++) {
+        blocks.push({ day: d6, slot: 14, state: 'fpi' });
+        for (var s7 = 15; s7 < 32; s7++) blocks.push({ day: d6, slot: s7, state: 'unlocked' });
+      }
+    }
+    return blocks;
+  }
+
+  var DEMO_SCHEDULES = [
+    { id: 'sched-1', name: 'Business Hours', description: 'Standard M-F 8am-6pm schedule', blocks: makeBlocks('business'), first_person_in: false, holidays: [
+      { date: '2026-12-25', name: 'Christmas Day', state: 'locked', recurring: true },
+      { date: '2026-01-01', name: 'New Year\'s Day', state: 'locked', recurring: true }
+    ], doors: ['door-1','door-2','door-5'] },
+    { id: 'sched-2', name: '24/7 Unrestricted', description: 'Full access around the clock', blocks: makeBlocks('24-7'), first_person_in: false, holidays: [], doors: ['door-3'] },
+    { id: 'sched-3', name: 'School Building Hours', description: 'M-F 7am-4pm for school buildings', blocks: makeBlocks('school'), first_person_in: true, holidays: [
+      { date: '2026-06-15', name: 'Summer Break Start', state: 'locked', recurring: false },
+      { date: '2026-11-26', name: 'Thanksgiving', state: 'locked', recurring: true }
+    ], doors: ['door-1','door-4','door-6','door-7','door-8'] }
+  ];
+
+  var DEMO_ACCESS_LEVELS = [
+    { id: 'al-1', name: 'Full Access', schedule_id: 'sched-2', description: 'Unrestricted access for administrators', doors: ['door-1','door-2','door-3','door-4','door-5'], cardholders: ['ch-1','ch-2','ch-3'], priority: 1, active: 1 },
+    { id: 'al-2', name: 'Staff Only', schedule_id: 'sched-1', description: 'Standard staff access during business hours', doors: ['door-1','door-2'], cardholders: ['ch-4','ch-5','ch-6','ch-7','ch-8'], priority: 2, active: 1 },
+    { id: 'al-3', name: 'Student Access', schedule_id: 'sched-3', description: 'Student building access during school hours', doors: ['door-1','door-4','door-6'], cardholders: [], priority: 3, active: 1 },
+    { id: 'al-4', name: 'After-Hours Maintenance', schedule_id: 'sched-1', description: 'Maintenance crew access', doors: ['door-1','door-2','door-3'], cardholders: ['ch-9'], priority: 5, active: 0 }
+  ];
+
+  var DEMO_DOORS = [
+    { id: 'door-1', name: 'Main Entrance', zone: 'Building A' },
+    { id: 'door-2', name: 'Side Entrance', zone: 'Building A' },
+    { id: 'door-3', name: 'Loading Dock', zone: 'Building A' },
+    { id: 'door-4', name: 'Gym Entrance', zone: 'Building B' },
+    { id: 'door-5', name: 'Office Suite 100', zone: 'Building A' },
+    { id: 'door-6', name: 'Library', zone: 'Building B' },
+    { id: 'door-7', name: 'Cafeteria', zone: 'Building B' },
+    { id: 'door-8', name: 'Auditorium', zone: 'Building C' },
+    { id: 'door-9', name: 'Server Room', zone: 'Building A' },
+    { id: 'door-10', name: 'Parking Gate', zone: 'Exterior' },
+    { id: 'door-11', name: 'Emergency Exit North', zone: 'Exterior' },
+    { id: 'door-12', name: 'Emergency Exit South', zone: 'Exterior' }
+  ];
+
+  var TEMPLATES = [
+    { name: 'Business Hours (M-F 8-6)', desc: 'Weekdays 08:00-18:00 unlocked, all other times locked', pattern: 'business' },
+    { name: '24/7 Access', desc: 'All doors unlocked around the clock', pattern: '24-7' },
+    { name: 'School Hours (M-F 7-4)', desc: 'Weekdays 07:00-16:00 unlocked for school buildings', pattern: 'school' },
+    { name: 'Card After Hours', desc: 'Weekdays business hours unlocked, evenings card-only', pattern: 'card-after' },
+    { name: 'Weekend Locked', desc: 'Weekdays fully unlocked, weekends locked', pattern: 'weekend-locked' },
+    { name: 'School with First Person In', desc: 'M-F school hours, first person must badge in to start', pattern: 'school-fpi' }
+  ];
+
+  // ---- Data Loading ----
+  function loadData() {
+    var schedP = api('GET', '/api/v1/data/schedules').catch(function() { return null; });
+    var alP = api('GET', '/api/v1/data/access-levels').catch(function() { return null; });
+    var doorP = api('GET', '/api/v1/data/doors?limit=200').catch(function() { return null; });
+
+    Promise.all([schedP, alP, doorP]).then(function(results) {
+      var schedData = results[0];
+      var alData = results[1];
+      var doorData = results[2];
+
+      // Parse schedules
+      var apiScheds = schedData && schedData.schedules;
+      if (apiScheds && Array.isArray(apiScheds) && apiScheds.length > 0) {
+        schedules = apiScheds.map(function(s) {
+          var blk = s.blocks;
+          if (typeof blk === 'string') try { blk = JSON.parse(blk); } catch(e) { blk = []; }
+          var hol = s.holidays;
+          if (typeof hol === 'string') try { hol = JSON.parse(hol); } catch(e) { hol = []; }
+          return {
+            id: s.id, name: s.name || 'Untitled',
+            description: s.description || '',
+            blocks: Array.isArray(blk) ? blk : [],
+            first_person_in: !!s.first_person_in,
+            holidays: Array.isArray(hol) ? hol : [],
+            doors: Array.isArray(s.doors) ? s.doors : (s.data && Array.isArray(s.data.doors) ? s.data.doors : [])
+          };
+        });
+      } else {
+        // Try localStorage, then demo
+        var ls = loadFromLS();
+        if (ls && ls.schedules && ls.schedules.length) {
+          schedules = ls.schedules;
+        } else {
+          schedules = JSON.parse(JSON.stringify(DEMO_SCHEDULES));
+        }
+      }
+
+      // Parse access levels
+      var apiLevels = alData && (alData.levels || alData);
+      if (apiLevels && Array.isArray(apiLevels) && apiLevels.length > 0) {
+        accessLevels = apiLevels.map(function(a) {
+          var doors = a.doors;
+          if (typeof doors === 'string') try { doors = JSON.parse(doors); } catch(e) { doors = []; }
+          var ch = a.cardholders;
+          if (typeof ch === 'string') try { ch = JSON.parse(ch); } catch(e) { ch = []; }
+          return {
+            id: a.id, name: a.name || 'Untitled',
+            description: a.description || '',
+            schedule_id: a.schedule_id || '',
+            schedule_name: a.schedule_name || '',
+            doors: Array.isArray(doors) ? doors : [],
+            cardholders: Array.isArray(ch) ? ch : [],
+            priority: a.priority || 0,
+            active: a.active !== undefined ? !!a.active : true
+          };
+        });
+      } else {
+        var ls2 = loadFromLS();
+        if (ls2 && ls2.accessLevels && ls2.accessLevels.length) {
+          accessLevels = ls2.accessLevels;
+        } else {
+          accessLevels = JSON.parse(JSON.stringify(DEMO_ACCESS_LEVELS));
+        }
+      }
+
+      // Parse doors
+      if (doorData && Array.isArray(doorData)) {
+        allDoors = doorData;
+      } else if (doorData && doorData.doors && Array.isArray(doorData.doors)) {
+        allDoors = doorData.doors;
+      } else if (doorData && Array.isArray(doorData.data)) {
+        allDoors = doorData.data;
+      } else {
+        allDoors = JSON.parse(JSON.stringify(DEMO_DOORS));
+      }
+      // Normalize door objects
+      allDoors = allDoors.map(function(d) {
+        return {
+          id: d.id || d.entity_id,
+          name: d.name || (d.data && d.data.name) || d.id || 'Unknown Door',
+          zone: d.zone || (d.data && d.data.zone) || d.location || (d.data && d.data.location) || ''
+        };
+      });
+
+      if (!selectedId && schedules.length > 0) selectedId = schedules[0].id;
+      render();
+    });
+  }
+
+  function getSelected() {
+    if (!selectedId) return null;
+    for (var i = 0; i < schedules.length; i++) {
+      if (schedules[i].id === selectedId) return schedules[i];
+    }
+    return null;
+  }
+
+  function getDoorName(id) {
+    for (var i = 0; i < allDoors.length; i++) {
+      if (allDoors[i].id === id) return allDoors[i].name;
+    }
+    return id;
+  }
+
+  function getDoorZone(id) {
+    for (var i = 0; i < allDoors.length; i++) {
+      if (allDoors[i].id === id) return allDoors[i].zone;
+    }
+    return '';
+  }
+
+  function getZones() {
+    var zones = {};
+    for (var i = 0; i < allDoors.length; i++) {
+      var z = allDoors[i].zone || 'Unzoned';
+      if (!zones[z]) zones[z] = [];
+      zones[z].push(allDoors[i]);
+    }
+    return zones;
+  }
+
+  function getCellState(blocks, day, slot) {
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].day === day && blocks[i].slot === slot) return blocks[i].state;
+    }
+    return 'locked';
+  }
+
+  function setCellState(blocks, day, slot, state) {
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].day === day && blocks[i].slot === slot) {
+        if (state === 'locked') { blocks.splice(i, 1); }
+        else { blocks[i].state = state; }
+        return;
+      }
+    }
+    if (state !== 'locked') blocks.push({ day: day, slot: slot, state: state });
+  }
+
+  function slotToTime(slot) {
+    var h = Math.floor(slot / 2);
+    var m = (slot % 2) * 30;
+    return (h < 10 ? '0' : '') + h + ':' + (m === 0 ? '00' : '30');
+  }
+
+  function slotToTime12(slot) {
+    var h = Math.floor(slot / 2);
+    var m = (slot % 2) * 30;
+    var ampm = h >= 12 ? 'pm' : 'am';
+    var h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+    return h12 + ':' + (m === 0 ? '00' : '30') + ampm;
+  }
+
+  function genId() { return 'sched-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5); }
+
+  // ---- Schedule current state helpers ----
+  function getCurrentScheduleState(sched) {
+    var now = new Date();
+    var day = now.getDay();
+    var slot = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
+
+    // Check holiday override
+    var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    if (sched.holidays) {
+      for (var i = 0; i < sched.holidays.length; i++) {
+        var h = sched.holidays[i];
+        if (h.date === todayStr) return { state: h.state, source: 'holiday', holiday: h.name };
+        if (h.recurring) {
+          var hd = h.date.substring(5);
+          var td = todayStr.substring(5);
+          if (hd === td) return { state: h.state, source: 'holiday', holiday: h.name };
+        }
+      }
+    }
+
+    var state = getCellState(sched.blocks, day, slot);
+    return { state: state, source: 'schedule' };
+  }
+
+  function getNextTransition(sched) {
+    var now = new Date();
+    var currentDay = now.getDay();
+    var currentSlot = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
+    var currentState = getCellState(sched.blocks, currentDay, currentSlot);
+
+    // Search forward for up to 7 days
+    for (var offset = 0; offset < 7 * 48; offset++) {
+      var totalSlot = currentDay * 48 + currentSlot + offset + 1;
+      var day = Math.floor(totalSlot / 48) % 7;
+      var slot = totalSlot % 48;
+      var nextState = getCellState(sched.blocks, day, slot);
+      if (nextState !== currentState) {
+        var mins = (offset + 1) * 30;
+        var hours = Math.floor(mins / 60);
+        var dayLabel = offset < 48 ? '' : (DAY_NAMES[day] + ' ');
+        if (hours < 1) return dayLabel + mins + 'm';
+        if (hours < 24) return dayLabel + hours + 'h ' + (mins % 60) + 'm';
+        return dayLabel + slotToTime12(slot);
+      }
+    }
+    return 'No change (static)';
+  }
+
+  // ---- Stats ----
+  function countFPI() {
+    var n = 0;
+    for (var i = 0; i < schedules.length; i++) if (schedules[i].first_person_in) n++;
+    return n;
+  }
+
+  function countAssignedDoors() {
+    var ids = {};
+    for (var i = 0; i < schedules.length; i++) {
+      var d = schedules[i].doors || [];
+      for (var j = 0; j < d.length; j++) ids[d[j]] = true;
+    }
+    return Object.keys(ids).length;
+  }
+
+  // ---- API Save/Create/Delete ----
+  function saveScheduleToAPI(sched) {
+    saving = true;
+    var body = {
+      name: sched.name, description: sched.description,
+      blocks: sched.blocks, first_person_in: sched.first_person_in,
+      holidays: sched.holidays, doors: sched.doors || []
+    };
+    api('PUT', '/api/v1/data/schedules/' + encodeURIComponent(sched.id), body)
+      .then(function() {
+        saving = false;
+        saveToLS();
+        toast('Schedule saved', 'success');
+      })
+      .catch(function() {
+        saving = false;
+        saveToLS();
+        toast('Saved locally (API unavailable)', 'info');
+      });
+  }
+
+  function createScheduleAPI(sched) {
+    api('POST', '/api/v1/data/schedules', {
+      name: sched.name, description: sched.description,
+      blocks: sched.blocks, first_person_in: sched.first_person_in,
+      holidays: sched.holidays || [], doors: sched.doors || []
+    }).then(function(result) {
+      if (result && result.id) {
+        // Update local id to match server-assigned id
+        var oldId = sched.id;
+        sched.id = result.id;
+        if (selectedId === oldId) selectedId = result.id;
+        // Update access levels referencing old id
+        for (var i = 0; i < accessLevels.length; i++) {
+          if (accessLevels[i].schedule_id === oldId) accessLevels[i].schedule_id = result.id;
+        }
+      }
+      saveToLS();
+      toast('Schedule created', 'success');
+    }).catch(function() {
+      saveToLS();
+      toast('Created locally (API unavailable)', 'info');
+    });
+  }
+
+  function deleteScheduleAPI(id) {
+    api('DELETE', '/api/v1/data/schedules/' + encodeURIComponent(id))
+      .then(function() { toast('Schedule deleted', 'success'); })
+      .catch(function() { toast('Deleted locally', 'info'); });
+    saveToLS();
+  }
+
+  function saveAccessLevelAPI(al) {
+    var body = {
+      name: al.name, description: al.description, schedule_id: al.schedule_id,
+      doors: al.doors || [], cardholders: al.cardholders || [],
+      priority: al.priority, active: al.active ? 1 : 0
+    };
+    if (al._isNew) {
+      delete al._isNew;
+      api('POST', '/api/v1/data/access-levels', body)
+        .then(function(result) {
+          if (result && result.id) {
+            var oldId = al.id;
+            al.id = result.id;
+          }
+          saveToLS();
+          toast('Access level created', 'success');
+        })
+        .catch(function() { saveToLS(); toast('Created locally', 'info'); });
+    } else {
+      api('PUT', '/api/v1/data/access-levels/' + encodeURIComponent(al.id), body)
+        .then(function() { saveToLS(); toast('Access level saved', 'success'); })
+        .catch(function() { saveToLS(); toast('Saved locally', 'info'); });
+    }
+  }
+
+  function deleteAccessLevelAPI(id) {
+    api('DELETE', '/api/v1/data/access-levels/' + encodeURIComponent(id))
+      .then(function() { toast('Access level deleted', 'success'); })
+      .catch(function() { toast('Deleted locally', 'info'); });
+    saveToLS();
+  }
+
+  // ---- Render ----
+  function render() {
+    var app = document.getElementById('app');
+    var html = '';
+
+    html += '<div class="header"><div><h1>Door <span>Schedules</span></h1></div>';
+    if (saving) html += '<div style="font-size:12px;color:var(--amber)"><span class="saving-dot"></span>Saving...</div>';
+    html += '</div>';
+
+    // Stats
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Schedules</div><div class="value val-accent">' + schedules.length + '</div></div>';
+    html += '<div class="stat-card"><div class="label">Access Levels</div><div class="value val-blue">' + accessLevels.length + '</div></div>';
+    html += '<div class="stat-card"><div class="label">Doors Assigned</div><div class="value val-green">' + countAssignedDoors() + '</div></div>';
+    html += '<div class="stat-card"><div class="label">First Person In</div><div class="value val-amber">' + countFPI() + '</div></div>';
+    html += '</div>';
+
+    // Tabs
+    html += '<div class="tabs">';
+    var tabs = [['schedules','Schedules'],['access-levels','Access Levels'],['holidays','Holiday Overrides'],['templates','Templates']];
+    for (var t = 0; t < tabs.length; t++) {
+      html += '<button class="tab' + (currentTab === tabs[t][0] ? ' active' : '') + '" data-tab="' + tabs[t][0] + '">' + tabs[t][1] + '</button>';
+    }
+    html += '</div>';
+
+    if (currentTab === 'schedules') html += renderSchedulesTab();
+    else if (currentTab === 'access-levels') html += renderAccessLevelsTab();
+    else if (currentTab === 'holidays') html += renderHolidaysTab();
+    else if (currentTab === 'templates') html += renderTemplatesTab();
+
+    if (showModal === 'schedule') html += renderNewScheduleModal();
+    else if (showModal === 'access-level') html += renderAccessLevelModal();
+    else if (showModal === 'door-picker') html += renderDoorPickerModal();
+    else if (showModal === 'al-door-picker') html += renderALDoorPickerModal();
+
+    app.innerHTML = html;
+    bindEvents();
+    if (currentTab === 'schedules') bindGridEvents();
+  }
+
+  // ---- Mini Grid ----
+  function renderMiniGrid(blocks) {
+    var html = '<div class="mini-grid">';
+    for (var d = 0; d < 7; d++) {
+      html += '<div class="mini-col">';
+      for (var s = 0; s < 48; s += 4) {
+        var state = 'locked';
+        for (var ss = s; ss < s + 4 && ss < 48; ss++) {
+          var st = getCellState(blocks, d, ss);
+          if (st !== 'locked') { state = st; break; }
+        }
+        var color = STATE_COLORS[state] || '#0f0f23';
+        html += '<div class="mini-cell" style="background:' + color + '"></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // ---- Schedules Tab ----
+  function renderSchedulesTab() {
+    var html = '<div class="toolbar">';
+    html += '<button class="btn btn-accent" id="btn-new-sched">+ New Schedule</button>';
+    html += '<button class="btn btn-outline" id="btn-copy-sched"' + (getSelected() ? '' : ' disabled') + '>Copy Schedule</button>';
+    html += '</div>';
+    html += '<div class="split-layout">';
+
+    // Left: list
+    html += '<div class="schedule-list">';
+    if (schedules.length === 0) {
+      html += '<div class="empty-state">No schedules yet. Create one to get started.</div>';
+    }
+    for (var i = 0; i < schedules.length; i++) {
+      var s = schedules[i];
+      var doorCount = (s.doors || []).length;
+      html += '<div class="schedule-item' + (s.id === selectedId ? ' selected' : '') + '" data-id="' + esc(s.id) + '">';
+      html += '<div class="name">' + esc(s.name) + '</div>';
+      if (s.description) html += '<div class="desc">' + esc(s.description) + '</div>';
+      html += '<div class="meta">';
+      if (s.first_person_in) html += '<span class="badge badge-amber">FPI</span>';
+      html += '<span>' + s.blocks.length + ' blocks</span>';
+      if (doorCount > 0) html += '<span class="badge badge-blue">' + doorCount + ' door' + (doorCount !== 1 ? 's' : '') + '</span>';
+      if (s.holidays && s.holidays.length) html += '<span>' + s.holidays.length + ' holidays</span>';
+      html += '</div>';
+      html += renderMiniGrid(s.blocks);
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Right: editor
+    html += '<div>';
+    var sel = getSelected();
+    if (sel) {
+      html += renderEditor(sel);
+    } else {
+      html += '<div class="editor-panel"><div class="empty-state">Select a schedule to edit</div></div>';
+    }
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  // ---- Schedule Editor ----
+  function renderEditor(sched) {
+    var html = '<div class="editor-panel">';
+
+    // Header
+    html += '<div class="editor-header">';
+    html += '<div style="font-size:16px;font-weight:700">Edit Schedule</div>';
+    html += '<div style="display:flex;gap:8px">';
+    html += '<button class="btn btn-green btn-save-sched">Save</button>';
+    html += '<button class="btn btn-danger btn-delete-sched">Delete</button>';
+    html += '</div></div>';
+
+    // Fields
+    html += '<div class="editor-fields">';
+    html += '<div class="form-row"><label class="form-label">Name</label>';
+    html += '<input type="text" class="form-input" id="sched-name" value="' + esc(sched.name) + '"></div>';
+    html += '<div class="form-row"><label class="form-label">Description</label>';
+    html += '<input type="text" class="form-input" id="sched-desc" value="' + esc(sched.description || '') + '"></div>';
+    html += '</div>';
+    html += '<div class="form-row"><label class="checkbox-row"><input type="checkbox" id="sched-fpi"' + (sched.first_person_in ? ' checked' : '') + '> First Person In (require initial card tap to unlock)</label></div>';
+
+    // Preview panel
+    var currentStatus = getCurrentScheduleState(sched);
+    var nextChange = getNextTransition(sched);
+    var doorCount = (sched.doors || []).length;
+    html += '<div class="preview-panel">';
+    html += '<div class="preview-item"><div class="p-label">Current Status</div><div class="p-value">';
+    html += '<span class="status-dot" style="background:' + (STATE_COLORS[currentStatus.state] || STATE_COLORS.locked) + '"></span>';
+    html += esc(STATE_LABELS[currentStatus.state] || currentStatus.state);
+    if (currentStatus.source === 'holiday') html += ' <span style="font-size:10px;color:var(--text3)">(' + esc(currentStatus.holiday) + ')</span>';
+    html += '</div></div>';
+    html += '<div class="preview-item"><div class="p-label">Next Change</div><div class="p-value" style="color:var(--accent)">' + esc(nextChange) + '</div></div>';
+    html += '<div class="preview-item"><div class="p-label">Doors Assigned</div><div class="p-value val-blue">' + doorCount + '</div></div>';
+    html += '</div>';
+
+    // Paint bar
+    html += '<div class="paint-bar">';
+    html += '<span style="font-size:12px;color:var(--text3);font-weight:600;margin-right:4px">Paint:</span>';
+    var modes = ['locked', 'unlocked', 'card', 'fpi'];
+    for (var m = 0; m < modes.length; m++) {
+      var mode = modes[m];
+      html += '<div class="paint-mode' + (paintMode === mode ? ' active' : '') + '" data-mode="' + mode + '" style="color:' + STATE_COLORS[mode] + '">';
+      html += '<div class="paint-swatch" style="background:' + STATE_COLORS[mode] + '"></div>';
+      html += STATE_LABELS[mode];
+      html += '</div>';
+    }
+    html += '<div style="flex:1"></div>';
+    html += '<button class="btn btn-outline btn-sm btn-clear-grid">Clear All</button>';
+    html += '</div>';
+
+    // Hint
+    html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Click to paint | Drag to fill | Shift+click for entire row | Right-click to clear | Click day header for entire column</div>';
+
+    // Weekly grid
+    html += '<div class="grid-wrap"><div class="weekly-grid" id="weekly-grid">';
+    html += '<div class="grid-corner"></div>';
+    for (var d = 0; d < 7; d++) {
+      html += '<div class="grid-day-header" data-day="' + d + '">' + DAYS[d] + '</div>';
+    }
+    for (var slot = 0; slot < SLOTS; slot++) {
+      if (slot % 2 === 0) {
+        html += '<div class="grid-time-label" data-slot="' + slot + '">' + slotToTime(slot) + '</div>';
+      } else {
+        html += '<div class="grid-time-label" data-slot="' + slot + '" style="font-size:9px;color:var(--text3);opacity:0.5">' + slotToTime(slot) + '</div>';
+      }
+      for (var day = 0; day < 7; day++) {
+        var state = getCellState(sched.blocks, day, slot);
+        var cls = STATE_CLASSES[state] || 'default';
+        html += '<div class="grid-cell state-' + cls + '" data-day="' + day + '" data-slot="' + slot + '"></div>';
+      }
+    }
+    html += '</div></div>';
+
+    // Door assignment section
+    html += renderDoorAssignment(sched);
+
+    html += '</div>';
+    return html;
+  }
+
+  // ---- Door Assignment Section ----
+  function renderDoorAssignment(sched) {
+    var doors = sched.doors || [];
+    var html = '<div class="door-section">';
+    html += '<h4>Assigned Doors (' + doors.length + ') <button class="btn btn-accent btn-sm" id="btn-assign-doors">Assign Doors</button></h4>';
+
+    // Bulk actions
+    html += '<div class="bulk-bar">';
+    html += '<button class="btn btn-outline btn-sm" id="btn-exterior-doors">Apply to All Exterior Doors</button>';
+    html += '<select class="form-input" id="bulk-zone-select" style="width:auto;padding:4px 24px 4px 8px;font-size:11px">';
+    html += '<option value="">Apply to Zone...</option>';
+    var zones = getZones();
+    for (var z in zones) {
+      html += '<option value="' + esc(z) + '">' + esc(z) + ' (' + zones[z].length + ' doors)</option>';
+    }
+    html += '</select>';
+    html += '</div>';
+
+    if (doors.length === 0) {
+      html += '<div style="color:var(--text3);font-size:12px;margin-top:8px">No doors assigned to this schedule.</div>';
+    } else {
+      html += '<div class="assigned-doors">';
+      for (var i = 0; i < doors.length; i++) {
+        var doorId = doors[i];
+        var doorName = getDoorName(doorId);
+        var doorZone = getDoorZone(doorId);
+        html += '<div class="door-chip">';
+        html += esc(doorName);
+        if (doorZone) html += ' <span style="color:var(--text3);font-size:10px">[' + esc(doorZone) + ']</span>';
+        html += ' <span class="remove-door" data-door="' + esc(doorId) + '">&times;</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  // ---- Access Levels Tab ----
+  function renderAccessLevelsTab() {
+    var html = '<div class="toolbar"><button class="btn btn-accent" id="btn-new-al">+ New Access Level</button></div>';
+    html += '<div class="card"><table>';
+    html += '<thead><tr><th>Name</th><th>Schedule</th><th>Doors</th><th>Cardholders</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>';
+    html += '<tbody>';
+    if (accessLevels.length === 0) {
+      html += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">No access levels defined</td></tr>';
+    }
+    for (var i = 0; i < accessLevels.length; i++) {
+      var al = accessLevels[i];
+      var schedName = al.schedule_name || '--';
+      if (schedName === '--') {
+        for (var j = 0; j < schedules.length; j++) {
+          if (schedules[j].id === al.schedule_id) { schedName = schedules[j].name; break; }
+        }
+      }
+      var doorCount = Array.isArray(al.doors) ? al.doors.length : 0;
+      var chCount = Array.isArray(al.cardholders) ? al.cardholders.length : 0;
+      html += '<tr>';
+      html += '<td><div style="font-weight:600">' + esc(al.name) + '</div>';
+      if (al.description) html += '<div style="font-size:11px;color:var(--text3)">' + esc(al.description) + '</div>';
+      html += '</td>';
+      html += '<td>' + esc(schedName) + '</td>';
+      html += '<td>' + doorCount + '</td>';
+      html += '<td>' + chCount + '</td>';
+      html += '<td>' + al.priority + '</td>';
+      html += '<td><span class="badge ' + (al.active ? 'badge-green' : 'badge-gray') + '">' + (al.active ? 'active' : 'inactive') + '</span></td>';
+      html += '<td><button class="btn btn-outline btn-sm btn-edit-al" data-id="' + esc(al.id) + '" style="margin-right:4px">Edit</button>';
+      html += '<button class="btn btn-danger btn-sm btn-delete-al" data-id="' + esc(al.id) + '">Delete</button></td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  // ---- Holidays Tab ----
+  function renderHolidaysTab() {
+    var sel = getSelected();
+    var html = '';
+    if (!sel) {
+      html += '<div class="empty-state">Select a schedule from the Schedules tab first to manage its holiday overrides.</div>';
+      html += '<div style="text-align:center;margin-top:16px">';
+      for (var i = 0; i < schedules.length; i++) {
+        html += '<button class="btn btn-outline" style="margin:4px" data-select-sched="' + esc(schedules[i].id) + '">' + esc(schedules[i].name) + '</button>';
+      }
+      html += '</div>';
+      return html;
+    }
+
+    html += '<div style="margin-bottom:16px"><span style="font-size:15px;font-weight:700">Holidays for: ' + esc(sel.name) + '</span></div>';
+
+    // Add form
+    html += '<div class="holiday-form">';
+    html += '<div class="form-row"><label class="form-label">Date</label><input type="date" class="form-input" id="hol-date"></div>';
+    html += '<div class="form-row"><label class="form-label">Name</label><input type="text" class="form-input" id="hol-name" placeholder="e.g. Christmas Day"></div>';
+    html += '<div class="form-row"><label class="form-label">Override State</label><select class="form-input" id="hol-state"><option value="locked">Locked</option><option value="unlocked">Unlocked</option><option value="card">Card Only</option></select></div>';
+    html += '<div class="form-row"><label class="form-label">Recurring</label><select class="form-input" id="hol-recurring"><option value="true">Annual Repeat</option><option value="false">One-time</option></select></div>';
+    html += '<div><button class="btn btn-accent" id="btn-add-holiday">Add</button></div>';
+    html += '</div>';
+
+    // List
+    var holidays = sel.holidays || [];
+    if (holidays.length === 0) {
+      html += '<div class="empty-state">No holiday overrides for this schedule.</div>';
+    } else {
+      html += '<div class="holiday-list">';
+      for (var h = 0; h < holidays.length; h++) {
+        var hol = holidays[h];
+        var stateColor = STATE_COLORS[hol.state] || STATE_COLORS.locked;
+        html += '<div class="holiday-item">';
+        html += '<div><span style="font-weight:600">' + esc(hol.name) + '</span>';
+        html += '<span style="color:var(--text3);margin-left:12px;font-size:12px">' + esc(hol.date) + '</span>';
+        if (hol.recurring) html += ' <span class="badge badge-purple" style="margin-left:6px">recurring</span>';
+        html += '</div>';
+        html += '<div style="display:flex;align-items:center;gap:10px">';
+        html += '<span class="badge" style="background:' + stateColor + '22;color:' + stateColor + '">' + esc(STATE_LABELS[hol.state] || hol.state) + '</span>';
+        html += '<button class="btn btn-danger btn-sm btn-remove-holiday" data-idx="' + h + '">Remove</button>';
+        html += '</div></div>';
+      }
+      html += '</div>';
+    }
+
+    // Upcoming holidays timeline
+    var upcoming = getUpcomingHolidays(sel);
+    if (upcoming.length > 0) {
+      html += '<div class="holiday-timeline"><h4>Upcoming Holidays</h4>';
+      for (var u = 0; u < upcoming.length; u++) {
+        var uh = upcoming[u];
+        var stColor = STATE_COLORS[uh.state] || STATE_COLORS.locked;
+        html += '<div class="ht-item">';
+        html += '<span class="ht-date">' + esc(uh.displayDate) + '</span>';
+        html += '<span class="status-dot" style="background:' + stColor + '"></span>';
+        html += '<span>' + esc(uh.name) + '</span>';
+        html += '<span class="ht-days">in ' + uh.daysUntil + ' day' + (uh.daysUntil !== 1 ? 's' : '') + '</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    return html;
+  }
+
+  function getUpcomingHolidays(sched) {
+    var now = new Date();
+    var upcoming = [];
+    var holidays = sched.holidays || [];
+    for (var i = 0; i < holidays.length; i++) {
+      var h = holidays[i];
+      var d = new Date(h.date + 'T00:00:00');
+      if (h.recurring) {
+        d.setFullYear(now.getFullYear());
+        if (d < now) d.setFullYear(now.getFullYear() + 1);
+      }
+      var diff = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+      if (diff >= 0 && diff <= 365) {
+        upcoming.push({
+          name: h.name, state: h.state, daysUntil: diff,
+          displayDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        });
+      }
+    }
+    upcoming.sort(function(a, b) { return a.daysUntil - b.daysUntil; });
+    return upcoming.slice(0, 10);
+  }
+
+  // ---- Templates Tab ----
+  function renderTemplatesTab() {
+    var sel = getSelected();
+    var html = '';
+    if (sel) {
+      html += '<div style="margin-bottom:16px;font-size:13px;color:var(--text2)">Applying a template will overwrite the blocks of <strong>' + esc(sel.name) + '</strong>.</div>';
+    } else {
+      html += '<div style="margin-bottom:16px;font-size:13px;color:var(--text2)">Select a schedule first to apply a template to it.</div>';
+    }
+    html += '<div class="template-grid">';
+    for (var t = 0; t < TEMPLATES.length; t++) {
+      var tpl = TEMPLATES[t];
+      var tplBlocks = makeBlocks(tpl.pattern);
+      html += '<div class="template-card">';
+      html += '<div class="tpl-name">' + esc(tpl.name) + '</div>';
+      html += '<div class="tpl-desc">' + esc(tpl.desc) + '</div>';
+      html += renderMiniGrid(tplBlocks);
+      html += '<div style="margin-top:12px">';
+      html += '<button class="btn btn-accent btn-sm btn-apply-tpl" data-pattern="' + esc(tpl.pattern) + '"' + (sel ? '' : ' disabled') + '>Apply to Selected</button>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // ---- Modals ----
+  function renderNewScheduleModal() {
+    var html = '<div class="modal-overlay" id="modal-overlay">';
+    html += '<div class="modal">';
+    html += '<h3>New Schedule</h3>';
+    html += '<div class="form-row"><label class="form-label">Name</label><input type="text" class="form-input" id="modal-sched-name" placeholder="e.g. Office Hours"></div>';
+    html += '<div class="form-row"><label class="form-label">Description</label><input type="text" class="form-input" id="modal-sched-desc" placeholder="Optional description"></div>';
+    html += '<div class="form-row"><label class="form-label">Start from Template</label><select class="form-input" id="modal-sched-tpl">';
+    html += '<option value="">Empty (paint from scratch)</option>';
+    for (var t = 0; t < TEMPLATES.length; t++) {
+      html += '<option value="' + esc(TEMPLATES[t].pattern) + '">' + esc(TEMPLATES[t].name) + '</option>';
+    }
+    html += '</select></div>';
+    html += '<div class="modal-actions">';
+    html += '<button class="btn btn-outline" id="modal-cancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="modal-create-sched">Create</button>';
+    html += '</div></div></div>';
+    return html;
+  }
+
+  function renderAccessLevelModal() {
+    var al = editingAL;
+    var isNew = !al;
+    var title = isNew ? 'New Access Level' : 'Edit Access Level';
+    var html = '<div class="modal-overlay" id="modal-overlay">';
+    html += '<div class="modal">';
+    html += '<h3>' + title + '</h3>';
+    html += '<div class="form-row"><label class="form-label">Name</label><input type="text" class="form-input" id="modal-al-name" value="' + (al ? esc(al.name) : '') + '" placeholder="e.g. Staff Access"></div>';
+    html += '<div class="form-row"><label class="form-label">Description</label><input type="text" class="form-input" id="modal-al-desc" value="' + (al ? esc(al.description || '') : '') + '" placeholder="Optional description"></div>';
+    html += '<div class="form-row"><label class="form-label">Schedule</label><select class="form-input" id="modal-al-sched">';
+    html += '<option value="">-- None --</option>';
+    for (var i = 0; i < schedules.length; i++) {
+      var selected = al && al.schedule_id === schedules[i].id ? ' selected' : '';
+      html += '<option value="' + esc(schedules[i].id) + '"' + selected + '>' + esc(schedules[i].name) + '</option>';
+    }
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Priority (1=highest)</label><input type="number" class="form-input" id="modal-al-priority" value="' + (al ? al.priority : 5) + '" min="1" max="99"></div>';
+
+    // Doors
+    var alDoors = al ? (al.doors || []) : [];
+    html += '<div class="form-row"><label class="form-label">Assigned Doors (' + alDoors.length + ')</label>';
+    html += '<button class="btn btn-outline btn-sm" id="btn-al-pick-doors" style="margin-bottom:6px">Select Doors</button>';
+    if (alDoors.length > 0) {
+      html += '<div class="assigned-doors">';
+      for (var d = 0; d < alDoors.length; d++) {
+        html += '<div class="door-chip">' + esc(getDoorName(alDoors[d]));
+        html += ' <span class="al-remove-door" data-door="' + esc(alDoors[d]) + '">&times;</span></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Status
+    html += '<div class="form-row"><label class="form-label">Status</label><select class="form-input" id="modal-al-status">';
+    html += '<option value="1"' + (al && al.active ? ' selected' : (!al ? ' selected' : '')) + '>Active</option>';
+    html += '<option value="0"' + (al && !al.active ? ' selected' : '') + '>Inactive</option>';
+    html += '</select></div>';
+
+    html += '<div class="modal-actions">';
+    html += '<button class="btn btn-outline" id="modal-cancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="modal-save-al">' + (isNew ? 'Create' : 'Save') + '</button>';
+    html += '</div></div></div>';
+    return html;
+  }
+
+  function renderDoorPickerModal() {
+    var sel = getSelected();
+    if (!sel) return '';
+    var currentDoors = sel.doors || [];
+    var html = '<div class="modal-overlay" id="modal-overlay">';
+    html += '<div class="modal" style="width:560px">';
+    html += '<h3>Assign Doors to Schedule</h3>';
+    html += '<div class="door-picker-search"><input type="text" class="form-input" id="door-search" placeholder="Search doors..."></div>';
+
+    // Zone quick-select buttons
+    var zones = getZones();
+    html += '<div class="door-picker-zones">';
+    html += '<button class="btn btn-outline btn-sm dp-select-all">Select All</button>';
+    html += '<button class="btn btn-outline btn-sm dp-select-none">Select None</button>';
+    for (var z in zones) {
+      html += '<button class="btn btn-outline btn-sm dp-select-zone" data-zone="' + esc(z) + '">All in ' + esc(z) + '</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="door-picker" id="door-picker-list">';
+    for (var z2 in zones) {
+      var zdoors = zones[z2];
+      html += '<div style="font-size:11px;color:var(--text3);padding:6px 10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border)">' + esc(z2) + '</div>';
+      for (var i = 0; i < zdoors.length; i++) {
+        var dr = zdoors[i];
+        var checked = currentDoors.indexOf(dr.id) >= 0 ? ' checked' : '';
+        html += '<div class="door-picker-item"><input type="checkbox" class="dp-check" data-id="' + esc(dr.id) + '"' + checked + '> <span>' + esc(dr.name) + '</span><span class="zone-tag">' + esc(dr.zone) + '</span></div>';
+      }
+    }
+    html += '</div>';
+
+    html += '<div class="modal-actions">';
+    html += '<button class="btn btn-outline" id="modal-cancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="modal-save-doors">Apply</button>';
+    html += '</div></div></div>';
+    return html;
+  }
+
+  function renderALDoorPickerModal() {
+    var al = editingAL;
+    if (!al) return '';
+    var currentDoors = al.doors || [];
+    var html = '<div class="modal-overlay" id="modal-overlay">';
+    html += '<div class="modal" style="width:560px">';
+    html += '<h3>Select Doors for Access Level</h3>';
+    html += '<div class="door-picker-search"><input type="text" class="form-input" id="door-search" placeholder="Search doors..."></div>';
+
+    var zones = getZones();
+    html += '<div class="door-picker-zones">';
+    html += '<button class="btn btn-outline btn-sm dp-select-all">Select All</button>';
+    html += '<button class="btn btn-outline btn-sm dp-select-none">Select None</button>';
+    for (var z in zones) {
+      html += '<button class="btn btn-outline btn-sm dp-select-zone" data-zone="' + esc(z) + '">All in ' + esc(z) + '</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="door-picker" id="door-picker-list">';
+    for (var z2 in zones) {
+      var zdoors = zones[z2];
+      html += '<div style="font-size:11px;color:var(--text3);padding:6px 10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border)">' + esc(z2) + '</div>';
+      for (var i = 0; i < zdoors.length; i++) {
+        var dr = zdoors[i];
+        var checked = currentDoors.indexOf(dr.id) >= 0 ? ' checked' : '';
+        html += '<div class="door-picker-item"><input type="checkbox" class="dp-check" data-id="' + esc(dr.id) + '"' + checked + '> <span>' + esc(dr.name) + '</span><span class="zone-tag">' + esc(dr.zone) + '</span></div>';
+      }
+    }
+    html += '</div>';
+
+    html += '<div class="modal-actions">';
+    html += '<button class="btn btn-outline" id="modal-cancel-aldp">Cancel</button>';
+    html += '<button class="btn btn-accent" id="modal-save-al-doors">Apply</button>';
+    html += '</div></div></div>';
+    return html;
+  }
+
+  // ---- Event Binding ----
+  function bindEvents() {
+    // Tabs
+    document.querySelectorAll('.tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        currentTab = this.getAttribute('data-tab');
+        render();
+      });
+    });
+
+    // Schedule list selection
+    document.querySelectorAll('.schedule-item').forEach(function(item) {
+      item.addEventListener('click', function() {
+        selectedId = this.getAttribute('data-id');
+        render();
+      });
+    });
+
+    // New schedule
+    var newSched = document.getElementById('btn-new-sched');
+    if (newSched) newSched.addEventListener('click', function() { showModal = 'schedule'; render(); });
+
+    // Copy schedule
+    var copyBtn = document.getElementById('btn-copy-sched');
+    if (copyBtn) copyBtn.addEventListener('click', function() {
+      var sel = getSelected();
+      if (!sel) return;
+      var copy = JSON.parse(JSON.stringify(sel));
+      copy.id = genId();
+      copy.name = sel.name + ' (Copy)';
+      copy.doors = [];
+      schedules.push(copy);
+      selectedId = copy.id;
+      createScheduleAPI(copy);
+      render();
+    });
+
+    // New access level
+    var newAL = document.getElementById('btn-new-al');
+    if (newAL) newAL.addEventListener('click', function() { editingAL = null; showModal = 'access-level'; render(); });
+
+    // Modal cancel
+    var cancel = document.getElementById('modal-cancel');
+    if (cancel) cancel.addEventListener('click', function() { showModal = null; editingAL = null; render(); });
+    var overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) { showModal = null; editingAL = null; render(); } });
+
+    // Create schedule
+    var createSched = document.getElementById('modal-create-sched');
+    if (createSched) createSched.addEventListener('click', function() {
+      var nameEl = document.getElementById('modal-sched-name');
+      var descEl = document.getElementById('modal-sched-desc');
+      var tplEl = document.getElementById('modal-sched-tpl');
+      var name = nameEl ? nameEl.value.trim() : '';
+      if (!name) { nameEl && nameEl.focus(); return; }
+      var pattern = tplEl ? tplEl.value : '';
+      var newS = {
+        id: genId(), name: name, description: descEl ? descEl.value.trim() : '',
+        blocks: pattern ? makeBlocks(pattern) : [],
+        first_person_in: false, holidays: [], doors: []
+      };
+      schedules.push(newS);
+      selectedId = newS.id;
+      showModal = null;
+      createScheduleAPI(newS);
+      render();
+    });
+
+    // Save/create access level
+    var saveAL = document.getElementById('modal-save-al');
+    if (saveAL) saveAL.addEventListener('click', function() {
+      var nameEl = document.getElementById('modal-al-name');
+      var descEl = document.getElementById('modal-al-desc');
+      var schedEl = document.getElementById('modal-al-sched');
+      var prioEl = document.getElementById('modal-al-priority');
+      var statusEl = document.getElementById('modal-al-status');
+      var name = nameEl ? nameEl.value.trim() : '';
+      if (!name) { nameEl && nameEl.focus(); return; }
+
+      if (editingAL) {
+        // Update existing
+        editingAL.name = name;
+        editingAL.description = descEl ? descEl.value.trim() : '';
+        editingAL.schedule_id = schedEl ? schedEl.value : '';
+        editingAL.priority = prioEl ? parseInt(prioEl.value) || 5 : 5;
+        editingAL.active = statusEl ? statusEl.value === '1' : true;
+        saveAccessLevelAPI(editingAL);
+      } else {
+        // Create new
+        var newALObj = {
+          id: 'al-' + Date.now(), name: name,
+          description: descEl ? descEl.value.trim() : '',
+          schedule_id: schedEl ? schedEl.value : '',
+          doors: [], cardholders: [],
+          priority: prioEl ? parseInt(prioEl.value) || 5 : 5,
+          active: statusEl ? statusEl.value === '1' : true,
+          _isNew: true
+        };
+        accessLevels.push(newALObj);
+        saveAccessLevelAPI(newALObj);
+      }
+      showModal = null;
+      editingAL = null;
+      render();
+    });
+
+    // AL door picker button in modal
+    var alPickDoors = document.getElementById('btn-al-pick-doors');
+    if (alPickDoors) alPickDoors.addEventListener('click', function() {
+      // Save modal form state to editingAL before switching modals
+      var nameEl = document.getElementById('modal-al-name');
+      var descEl = document.getElementById('modal-al-desc');
+      var schedEl = document.getElementById('modal-al-sched');
+      var prioEl = document.getElementById('modal-al-priority');
+      var statusEl = document.getElementById('modal-al-status');
+      if (!editingAL) {
+        editingAL = { id: 'al-' + Date.now(), doors: [], cardholders: [], _isNew: true };
+      }
+      editingAL.name = nameEl ? nameEl.value.trim() : editingAL.name || '';
+      editingAL.description = descEl ? descEl.value.trim() : editingAL.description || '';
+      editingAL.schedule_id = schedEl ? schedEl.value : editingAL.schedule_id || '';
+      editingAL.priority = prioEl ? parseInt(prioEl.value) || 5 : editingAL.priority || 5;
+      editingAL.active = statusEl ? statusEl.value === '1' : editingAL.active;
+      showModal = 'al-door-picker';
+      render();
+    });
+
+    // AL remove door chip (in modal)
+    document.querySelectorAll('.al-remove-door').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!editingAL) return;
+        var doorId = this.getAttribute('data-door');
+        editingAL.doors = (editingAL.doors || []).filter(function(d) { return d !== doorId; });
+        render();
+      });
+    });
+
+    // AL door picker cancel
+    var cancelALDP = document.getElementById('modal-cancel-aldp');
+    if (cancelALDP) cancelALDP.addEventListener('click', function() {
+      showModal = 'access-level';
+      render();
+    });
+
+    // AL door picker save
+    var saveALDoors = document.getElementById('modal-save-al-doors');
+    if (saveALDoors) saveALDoors.addEventListener('click', function() {
+      if (!editingAL) return;
+      var checks = document.querySelectorAll('.dp-check');
+      var doors = [];
+      checks.forEach(function(c) { if (c.checked) doors.push(c.getAttribute('data-id')); });
+      editingAL.doors = doors;
+      showModal = 'access-level';
+      render();
+    });
+
+    // Paint mode
+    document.querySelectorAll('.paint-mode').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        paintMode = this.getAttribute('data-mode');
+        document.querySelectorAll('.paint-mode').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+      });
+    });
+
+    // Clear grid
+    var clearBtn = document.querySelector('.btn-clear-grid');
+    if (clearBtn) clearBtn.addEventListener('click', function() {
+      var sel = getSelected();
+      if (sel && confirm('Clear all time blocks from this schedule?')) {
+        sel.blocks = [];
+        render();
+      }
+    });
+
+    // Save schedule
+    var saveBtn = document.querySelector('.btn-save-sched');
+    if (saveBtn) saveBtn.addEventListener('click', function() {
+      var sel = getSelected();
+      if (!sel) return;
+      var nameEl = document.getElementById('sched-name');
+      var descEl = document.getElementById('sched-desc');
+      var fpiEl = document.getElementById('sched-fpi');
+      if (nameEl) sel.name = nameEl.value.trim() || sel.name;
+      if (descEl) sel.description = descEl.value.trim();
+      if (fpiEl) sel.first_person_in = fpiEl.checked;
+      saveScheduleToAPI(sel);
+      render();
+    });
+
+    // Delete schedule
+    var delBtn = document.querySelector('.btn-delete-sched');
+    if (delBtn) delBtn.addEventListener('click', function() {
+      var sel = getSelected();
+      if (!sel) return;
+      if (!confirm('Delete schedule "' + sel.name + '"? This cannot be undone.')) return;
+      deleteScheduleAPI(sel.id);
+      schedules = schedules.filter(function(s) { return s.id !== sel.id; });
+      selectedId = schedules.length > 0 ? schedules[0].id : null;
+      render();
+    });
+
+    // Edit access level
+    document.querySelectorAll('.btn-edit-al').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        for (var i = 0; i < accessLevels.length; i++) {
+          if (accessLevels[i].id === id) { editingAL = accessLevels[i]; break; }
+        }
+        showModal = 'access-level';
+        render();
+      });
+    });
+
+    // Delete access level
+    document.querySelectorAll('.btn-delete-al').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        if (!confirm('Delete this access level?')) return;
+        deleteAccessLevelAPI(id);
+        accessLevels = accessLevels.filter(function(a) { return a.id !== id; });
+        render();
+      });
+    });
+
+    // Assign doors button
+    var assignBtn = document.getElementById('btn-assign-doors');
+    if (assignBtn) assignBtn.addEventListener('click', function() {
+      showModal = 'door-picker';
+      render();
+    });
+
+    // Remove door chip from schedule
+    document.querySelectorAll('.remove-door').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var sel = getSelected();
+        if (!sel) return;
+        var doorId = this.getAttribute('data-door');
+        sel.doors = (sel.doors || []).filter(function(d) { return d !== doorId; });
+        render();
+      });
+    });
+
+    // Exterior doors quick button
+    var extBtn = document.getElementById('btn-exterior-doors');
+    if (extBtn) extBtn.addEventListener('click', function() {
+      var sel = getSelected();
+      if (!sel) return;
+      if (!sel.doors) sel.doors = [];
+      for (var i = 0; i < allDoors.length; i++) {
+        var z = (allDoors[i].zone || '').toLowerCase();
+        if (z === 'exterior' || z.indexOf('exterior') >= 0 || z.indexOf('outside') >= 0 || z.indexOf('parking') >= 0) {
+          if (sel.doors.indexOf(allDoors[i].id) < 0) sel.doors.push(allDoors[i].id);
+        }
+      }
+      render();
+      toast('Added exterior doors', 'success');
+    });
+
+    // Zone bulk select
+    var zoneSelect = document.getElementById('bulk-zone-select');
+    if (zoneSelect) zoneSelect.addEventListener('change', function() {
+      var zone = this.value;
+      if (!zone) return;
+      var sel = getSelected();
+      if (!sel) return;
+      if (!sel.doors) sel.doors = [];
+      for (var i = 0; i < allDoors.length; i++) {
+        if (allDoors[i].zone === zone && sel.doors.indexOf(allDoors[i].id) < 0) {
+          sel.doors.push(allDoors[i].id);
+        }
+      }
+      this.value = '';
+      render();
+      toast('Added all doors in ' + zone, 'success');
+    });
+
+    // Door picker modal events
+    bindDoorPickerEvents();
+
+    // Door picker save
+    var saveDoors = document.getElementById('modal-save-doors');
+    if (saveDoors) saveDoors.addEventListener('click', function() {
+      var sel = getSelected();
+      if (!sel) return;
+      var checks = document.querySelectorAll('.dp-check');
+      var doors = [];
+      checks.forEach(function(c) { if (c.checked) doors.push(c.getAttribute('data-id')); });
+      sel.doors = doors;
+      showModal = null;
+      render();
+    });
+
+    // Add holiday
+    var addHolBtn = document.getElementById('btn-add-holiday');
+    if (addHolBtn) addHolBtn.addEventListener('click', function() {
+      var sel = getSelected();
+      if (!sel) return;
+      var dateEl = document.getElementById('hol-date');
+      var nameEl = document.getElementById('hol-name');
+      var stateEl = document.getElementById('hol-state');
+      var recurEl = document.getElementById('hol-recurring');
+      var date = dateEl ? dateEl.value : '';
+      var name = nameEl ? nameEl.value.trim() : '';
+      if (!date || !name) { toast('Date and name are required', 'error'); return; }
+      if (!sel.holidays) sel.holidays = [];
+      sel.holidays.push({
+        date: date, name: name,
+        state: stateEl ? stateEl.value : 'locked',
+        recurring: recurEl ? recurEl.value === 'true' : false
+      });
+      // Auto-save
+      saveScheduleToAPI(sel);
+      render();
+    });
+
+    // Remove holiday
+    document.querySelectorAll('.btn-remove-holiday').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        var sel = getSelected();
+        if (sel && sel.holidays) {
+          sel.holidays.splice(idx, 1);
+          render();
+        }
+      });
+    });
+
+    // Select schedule from holidays tab
+    document.querySelectorAll('[data-select-sched]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        selectedId = this.getAttribute('data-select-sched');
+        render();
+      });
+    });
+
+    // Apply template
+    document.querySelectorAll('.btn-apply-tpl').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var pattern = this.getAttribute('data-pattern');
+        var sel = getSelected();
+        if (!sel || !pattern) return;
+        if (!confirm('This will overwrite the current schedule blocks. Continue?')) return;
+        sel.blocks = makeBlocks(pattern);
+        if (currentTab === 'templates') { currentTab = 'schedules'; }
+        render();
+        toast('Template applied to ' + sel.name, 'success');
+      });
+    });
+  }
+
+  // ---- Door Picker sub-events ----
+  function bindDoorPickerEvents() {
+    // Search filter
+    var searchEl = document.getElementById('door-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', function() {
+        var q = this.value.toLowerCase();
+        var items = document.querySelectorAll('.door-picker-item');
+        items.forEach(function(item) {
+          var name = item.querySelector('span').textContent.toLowerCase();
+          item.style.display = name.indexOf(q) >= 0 ? '' : 'none';
+        });
+      });
+    }
+
+    // Select all
+    var selAll = document.querySelector('.dp-select-all');
+    if (selAll) selAll.addEventListener('click', function() {
+      document.querySelectorAll('.dp-check').forEach(function(c) { c.checked = true; });
+    });
+
+    // Select none
+    var selNone = document.querySelector('.dp-select-none');
+    if (selNone) selNone.addEventListener('click', function() {
+      document.querySelectorAll('.dp-check').forEach(function(c) { c.checked = false; });
+    });
+
+    // Select zone
+    document.querySelectorAll('.dp-select-zone').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var zone = this.getAttribute('data-zone');
+        for (var i = 0; i < allDoors.length; i++) {
+          if (allDoors[i].zone === zone) {
+            var cb = document.querySelector('.dp-check[data-id="' + allDoors[i].id + '"]');
+            if (cb) cb.checked = true;
+          }
+        }
+      });
+    });
+  }
+
+  // ---- Grid Drag-to-Paint ----
+  function bindGridEvents() {
+    var grid = document.getElementById('weekly-grid');
+    if (!grid) return;
+
+    function paintCell(cell) {
+      var day = parseInt(cell.getAttribute('data-day'));
+      var slot = parseInt(cell.getAttribute('data-slot'));
+      if (isNaN(day) || isNaN(slot)) return;
+      var sel = getSelected();
+      if (!sel) return;
+      setCellState(sel.blocks, day, slot, paintMode);
+      // Direct DOM update
+      cell.className = 'grid-cell state-' + (STATE_CLASSES[paintMode] || 'default');
+    }
+
+    function clearCell(cell) {
+      var day = parseInt(cell.getAttribute('data-day'));
+      var slot = parseInt(cell.getAttribute('data-slot'));
+      if (isNaN(day) || isNaN(slot)) return;
+      var sel = getSelected();
+      if (!sel) return;
+      setCellState(sel.blocks, day, slot, 'locked');
+      cell.className = 'grid-cell state-default';
+    }
+
+    // Mouse paint
+    grid.addEventListener('mousedown', function(e) {
+      if (e.target.classList.contains('grid-cell')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Shift+click: paint entire row (all days for this time slot)
+          var slot = parseInt(e.target.getAttribute('data-slot'));
+          if (!isNaN(slot)) {
+            var cells = grid.querySelectorAll('.grid-cell[data-slot="' + slot + '"]');
+            cells.forEach(function(c) { paintCell(c); });
+          }
+          return;
+        }
+        painting = true;
+        paintCell(e.target);
+      }
+    });
+
+    grid.addEventListener('mousemove', function(e) {
+      if (painting && e.target.classList.contains('grid-cell')) {
+        paintCell(e.target);
+      }
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (painting) {
+        painting = false;
+        updateMiniGridForSelected();
+        updatePreviewForSelected();
+      }
+    });
+
+    // Right-click to clear
+    grid.addEventListener('contextmenu', function(e) {
+      if (e.target.classList.contains('grid-cell')) {
+        e.preventDefault();
+        clearCell(e.target);
+        updateMiniGridForSelected();
+      }
+    });
+
+    // Click day header to paint entire column
+    var dayHeaders = grid.querySelectorAll('.grid-day-header');
+    dayHeaders.forEach(function(hdr) {
+      hdr.addEventListener('click', function() {
+        var day = parseInt(this.getAttribute('data-day'));
+        if (isNaN(day)) return;
+        var cells = grid.querySelectorAll('.grid-cell[data-day="' + day + '"]');
+        cells.forEach(function(c) { paintCell(c); });
+        updateMiniGridForSelected();
+        updatePreviewForSelected();
+      });
+    });
+
+    // Click time label to paint entire row
+    var timeLabels = grid.querySelectorAll('.grid-time-label');
+    timeLabels.forEach(function(lbl) {
+      lbl.addEventListener('click', function() {
+        var slot = parseInt(this.getAttribute('data-slot'));
+        if (isNaN(slot)) return;
+        var cells = grid.querySelectorAll('.grid-cell[data-slot="' + slot + '"]');
+        cells.forEach(function(c) { paintCell(c); });
+        updateMiniGridForSelected();
+        updatePreviewForSelected();
+      });
+    });
+
+    // Touch support
+    grid.addEventListener('touchstart', function(e) {
+      var touch = e.touches[0];
+      var cell = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (cell && cell.classList.contains('grid-cell')) {
+        e.preventDefault();
+        painting = true;
+        paintCell(cell);
+      }
+    }, { passive: false });
+
+    grid.addEventListener('touchmove', function(e) {
+      if (!painting) return;
+      var touch = e.touches[0];
+      var cell = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (cell && cell.classList.contains('grid-cell')) {
+        e.preventDefault();
+        paintCell(cell);
+      }
+    }, { passive: false });
+
+    grid.addEventListener('touchend', function() {
+      if (painting) {
+        painting = false;
+        updateMiniGridForSelected();
+        updatePreviewForSelected();
+      }
+    });
+  }
+
+  function updateMiniGridForSelected() {
+    var sel = getSelected();
+    if (!sel) return;
+    var item = document.querySelector('.schedule-item.selected');
+    if (!item) return;
+    var miniGrid = item.querySelector('.mini-grid');
+    if (miniGrid) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = renderMiniGrid(sel.blocks);
+      miniGrid.replaceWith(tmp.firstChild);
+    }
+    var meta = item.querySelector('.meta');
+    if (meta) {
+      var spans = meta.querySelectorAll('span:not(.badge)');
+      if (spans.length > 0) spans[0].textContent = sel.blocks.length + ' blocks';
+    }
+  }
+
+  function updatePreviewForSelected() {
+    var sel = getSelected();
+    if (!sel) return;
+    var previewItems = document.querySelectorAll('.preview-item');
+    if (previewItems.length >= 2) {
+      var status = getCurrentScheduleState(sel);
+      var pVal = previewItems[0].querySelector('.p-value');
+      if (pVal) {
+        pVal.innerHTML = '<span class="status-dot" style="background:' + (STATE_COLORS[status.state] || STATE_COLORS.locked) + '"></span>' + esc(STATE_LABELS[status.state] || status.state);
+      }
+      var nextVal = previewItems[1].querySelector('.p-value');
+      if (nextVal) nextVal.textContent = getNextTransition(sel);
+    }
+  }
+
+  // ---- Init ----
+  loadData();
+
+})();
+</script>
+</body>
+</html>

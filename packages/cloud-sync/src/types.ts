@@ -49,6 +49,12 @@ export interface HeartbeatRequest {
   upgradeStatus?: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS';
   upgradeError?: string;
   configVersion?: number;
+  /** Activation key — cloud auto-resolves account from this (edge never needs org config) */
+  activationKey?: string;
+  /** Map of adapterId -> installed version (for update checking) */
+  installedAdapters?: Record<string, string>;
+  /** Results from previous adapter update attempts */
+  adapterUpdateResults?: Array<{ adapterId: string; targetVersion: string; status: 'success' | 'failed' | 'rolled_back'; error?: string; appliedAt?: string }>;
 }
 
 export interface UpgradeCommand {
@@ -63,6 +69,8 @@ export interface HeartbeatResponse {
   peers?: PeerInfo[];
   license?: LicenseInfo;
   config?: DeviceConfigPayload;
+  /** If true, device has been unclaimed — should clear config and re-enter pairing mode. */
+  unclaimed?: boolean;
 }
 
 // ─── Remote Device Configuration ─────────────────────────────────
@@ -91,6 +99,8 @@ export interface DeviceConfigPayload {
     peers: FederationPeerEntry[];
   };
   commands?: DeviceCommand[];
+  /** Adapter updates available for this device */
+  adapterUpdates?: Array<{ adapterId: string; targetVersion: string; bundleUrl: string; bundleHash: string; bundleSize: number; priority: 'critical' | 'normal' | 'low'; minRuntimeVersion?: string; deadline?: string }>;
 }
 
 export interface DeviceCommand {
@@ -374,4 +384,67 @@ export interface SyncDatabaseAdapter {
    * Mark a config version as applied by the edge device.
    */
   ackDeviceConfig(siteId: string, version: number): Promise<void>;
+
+  // ─── Multi-tenancy methods ──────────────────────────────────
+
+  /** Resolve an activation key to an account ID. Returns null if not linked. */
+  resolveActivationKey?(key: string): Promise<{ accountId: string } | null>;
+
+  /** Link an activation key to an account. */
+  linkKeyToAccount?(key: string, accountId: string): Promise<void>;
+
+  /** Create a new account. Returns the account ID. */
+  createAccount?(opts: {
+    accountName: string; slug?: string; products?: string[];
+    plan?: string; billingEmail?: string; billingModel?: string;
+  }): Promise<{ id: string }>;
+
+  /** Create a site within an account. Returns the site ID. */
+  createAccountSite?(accountId: string, opts: {
+    siteName: string; siteCode?: string; address?: string;
+    city?: string; state?: string; timezone?: string; siteType?: string;
+  }): Promise<{ id: string }>;
+
+  // ─── Pairing code methods ──────────────────────────────────
+
+  /** Create or replace a pairing code. */
+  createPairingCode?(opts: {
+    code: string;
+    deviceFingerprint: string;
+    product: string;
+    hostname?: string;
+    ipAddress?: string;
+    version?: string;
+    expiresAt: string;
+  }): Promise<void>;
+
+  /** Get a pairing code record by code. */
+  getPairingCode?(code: string): Promise<{
+    code: string;
+    deviceFingerprint: string;
+    product: string;
+    hostname?: string;
+    ipAddress?: string;
+    version?: string;
+    expiresAt: string;
+    claimedAt?: string;
+    claimedByAccountId?: string;
+    claimResponse?: Record<string, unknown>;
+  } | null>;
+
+  /** Get the most recent pairing code for a device fingerprint. */
+  getPairingCodeByFingerprint?(fingerprint: string): Promise<{
+    code: string;
+    expiresAt: string;
+    claimedAt?: string;
+  } | null>;
+
+  /** Mark a pairing code as claimed. */
+  claimPairingCode?(code: string, opts: {
+    claimedByAccountId?: string;
+    claimResponse: Record<string, unknown>;
+  }): Promise<void>;
+
+  /** Delete expired unclaimed pairing codes. */
+  cleanExpiredPairingCodes?(): Promise<number>;
 }

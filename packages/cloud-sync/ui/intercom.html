@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intercom / Door Station</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); } .val-accent { color: var(--accent); } .val-amber { color: var(--amber); } .val-red { color: var(--red); } .val-blue { color: var(--blue); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-accent { background: var(--accent-dim); color: var(--accent); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.btn { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--accent-hover); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-danger { background: var(--red); } .btn-danger:hover { opacity: 0.9; background: var(--red); }
+.btn-green { background: var(--green); } .btn-green:hover { opacity: 0.9; background: var(--green); }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+.station-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding: 20px; }
+.station-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color 0.15s; }
+.station-card:hover { border-color: var(--accent); }
+.station-card.active-call { border-color: var(--green); box-shadow: 0 0 20px rgba(34,197,94,0.2); }
+.station-feed { position: relative; aspect-ratio: 16/9; background: #111; display: flex; align-items: center; justify-content: center; }
+.station-feed .feed-placeholder { color: var(--text3); font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.station-feed .feed-placeholder .cam-icon { font-size: 32px; opacity: 0.4; }
+.station-feed .status-dot { position: absolute; top: 10px; right: 10px; width: 10px; height: 10px; border-radius: 50%; }
+.station-feed .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.station-feed .status-dot.offline { background: var(--red); }
+.station-info { padding: 14px; }
+.station-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.station-meta { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+.station-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Active call indicator */
+.active-call-banner { background: rgba(34,197,94,0.1); border: 1px solid var(--green); border-radius: 10px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; }
+.call-pulse { width: 14px; height: 14px; border-radius: 50%; background: var(--green); animation: callPulse 1.5s infinite; flex-shrink: 0; }
+@keyframes callPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); } 50% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } }
+.call-info { flex: 1; }
+.call-info .call-title { font-size: 14px; font-weight: 600; }
+.call-info .call-detail { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.call-actions { display: flex; gap: 8px; }
+
+.tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+.tab-btn { padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--text3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var stations = [
+    { id: 'lobby', name: 'Main Lobby', location: 'Front Entrance', status: 'online', lastCall: '2 min ago', model: 'Aiphone IX-DVF-L' },
+    { id: 'side', name: 'Side Entrance', location: 'West Wing', status: 'online', lastCall: '18 min ago', model: 'Aiphone IX-DVF' },
+    { id: 'parking', name: 'Parking Gate', location: 'Underground Garage', status: 'online', lastCall: '1 hr ago', model: 'Aiphone IX-DVF-RA' },
+    { id: 'package', name: 'Package Room', location: 'Ground Floor', status: 'offline', lastCall: '3 hrs ago', model: 'Aiphone IX-SS-2G' },
+    { id: 'pool', name: 'Pool Gate', location: 'Amenity Level', status: 'online', lastCall: '45 min ago', model: 'Aiphone IX-DVF' }
+  ];
+
+  var activeCall = { station: 'lobby', caller: 'John Smith (Visitor)', unit: '4B', duration: 12, active: true };
+
+  var visitorNames = ['John Smith','Maria Garcia','David Lee','Sarah Wilson','Ahmed Hassan','Jennifer Park','Carlos Rivera','Emma Thompson','Wei Zhang','Priya Patel','Marcus Johnson','Sofia Chen','James Wright','Ana Martinez','Robert Kim'];
+  var actions = ['Answered','Door Released','Missed','Denied','Transferred','Answered','Door Released','Answered','Missed','Door Released','Answered','Door Released','Denied','Answered','Door Released','Answered','Missed','Door Released','Answered','Answered'];
+  var callerTypes = ['visitor','visitor','unit','visitor','delivery','visitor','unit','visitor','visitor','delivery','unit','visitor','visitor','unit','delivery','visitor','visitor','unit','visitor','delivery'];
+
+  var now = new Date();
+  var callHistory = [];
+  for (var i = 0; i < 20; i++) {
+    var t = new Date(now - i * 900000 - Math.random() * 600000);
+    var stationIdx = i % stations.length;
+    var isUnit = callerTypes[i] === 'unit';
+    var isDelivery = callerTypes[i] === 'delivery';
+    callHistory.push({
+      id: 'CALL-' + (5000 + i),
+      time: t,
+      station: stations[stationIdx].name,
+      stationId: stations[stationIdx].id,
+      caller: isUnit ? ('Unit ' + ['4B','12A','7C','3D','8B'][i % 5]) : isDelivery ? ('FedEx Driver') : visitorNames[i % visitorNames.length],
+      callerType: callerTypes[i],
+      action: actions[i],
+      duration: Math.floor(Math.random() * 45) + 5,
+      targetUnit: ['4B','12A','7C','3D','8B','15A','6C','11B','2A','9D'][i % 10]
+    });
+  }
+
+  var currentTab = 'stations';
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function timeStr(d) { return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+  function dateTimeStr(d) { return d.toLocaleDateString() + ' ' + timeStr(d); }
+
+  function actionBadge(a) {
+    if (a === 'Answered') return '<span class="badge badge-green">Answered</span>';
+    if (a === 'Door Released') return '<span class="badge badge-accent">Door Released</span>';
+    if (a === 'Missed') return '<span class="badge badge-red">Missed</span>';
+    if (a === 'Denied') return '<span class="badge badge-amber">Denied</span>';
+    if (a === 'Transferred') return '<span class="badge badge-blue">Transferred</span>';
+    return '<span class="badge badge-gray">' + esc(a) + '</span>';
+  }
+
+  function render() {
+    var totalCalls = callHistory.length;
+    var answered = callHistory.filter(function(c){ return c.action === 'Answered' || c.action === 'Door Released'; }).length;
+    var missed = callHistory.filter(function(c){ return c.action === 'Missed'; }).length;
+    var onlineCount = stations.filter(function(s){ return s.status === 'online'; }).length;
+
+    var html = '<div class="header"><h1><span>Intercom</span> / Door Station</h1></div>';
+
+    // Active call banner
+    if (activeCall.active) {
+      html += '<div class="active-call-banner">';
+      html += '<div class="call-pulse"></div>';
+      html += '<div class="call-info"><div class="call-title">Incoming Call &mdash; ' + esc(stations.find(function(s){return s.id===activeCall.station;}).name) + '</div>';
+      html += '<div class="call-detail">' + esc(activeCall.caller) + ' requesting access to Unit ' + esc(activeCall.unit) + ' &bull; ' + activeCall.duration + 's</div></div>';
+      html += '<div class="call-actions">';
+      html += '<button class="btn btn-green btn-sm" onclick="answerCall()">Answer</button>';
+      html += '<button class="btn btn-sm" onclick="releaseCall()">Release Door</button>';
+      html += '<button class="btn btn-danger btn-sm" onclick="denyCall()">Deny</button>';
+      html += '<button class="btn btn-outline btn-sm" onclick="transferCall()">Transfer</button>';
+      html += '</div></div>';
+    }
+
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Stations Online</div><div class="value val-green">' + onlineCount + ' / ' + stations.length + '</div><div class="sub">' + (stations.length - onlineCount) + ' offline</div></div>';
+    html += '<div class="stat-card"><div class="label">Calls Today</div><div class="value val-accent">' + totalCalls + '</div><div class="sub">' + Math.round(answered/totalCalls*100) + '% answer rate</div></div>';
+    html += '<div class="stat-card"><div class="label">Doors Released</div><div class="value val-blue">' + callHistory.filter(function(c){return c.action==='Door Released';}).length + '</div><div class="sub">Via intercom today</div></div>';
+    html += '<div class="stat-card"><div class="label">Missed Calls</div><div class="value val-red">' + missed + '</div><div class="sub">Require follow-up</div></div>';
+    html += '</div>';
+
+    html += '<div class="tab-bar">';
+    html += '<button class="tab-btn' + (currentTab==='stations'?' active':'') + '" onclick="switchTab(\'stations\')">Door Stations</button>';
+    html += '<button class="tab-btn' + (currentTab==='history'?' active':'') + '" onclick="switchTab(\'history\')">Call History</button>';
+    html += '</div>';
+
+    if (currentTab === 'stations') html += renderStations();
+    else html += renderHistory();
+
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function renderStations() {
+    var html = '<div class="card"><div class="card-head"><h2>Door Stations</h2><span class="count">' + stations.length + ' stations</span></div>';
+    html += '<div class="station-grid">';
+    stations.forEach(function(s) {
+      var hasCall = activeCall.active && activeCall.station === s.id;
+      html += '<div class="station-card' + (hasCall ? ' active-call' : '') + '">';
+      html += '<div class="station-feed">';
+      html += '<div class="status-dot ' + s.status + '"></div>';
+      if (hasCall) {
+        html += '<div class="feed-placeholder" style="color:var(--green)"><div class="cam-icon">\u{1F4F9}</div><div>LIVE &mdash; Active Call</div></div>';
+      } else {
+        html += '<div class="feed-placeholder"><div class="cam-icon">\u{1F4F7}</div><div>Camera Feed</div></div>';
+      }
+      html += '</div>';
+      html += '<div class="station-info">';
+      html += '<div class="station-name">' + esc(s.name) + '</div>';
+      html += '<div class="station-meta">' + esc(s.location) + ' &bull; ' + esc(s.model) + '</div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+      html += '<span>' + (s.status === 'online' ? '<span class="badge badge-green">Online</span>' : '<span class="badge badge-red">Offline</span>') + '</span>';
+      html += '<span style="font-size:11px;color:var(--text3)">Last call: ' + esc(s.lastCall) + '</span>';
+      html += '</div>';
+      html += '<div class="station-actions">';
+      if (s.status === 'online') {
+        html += '<button class="btn btn-sm btn-green" onclick="callStation(\'' + s.id + '\')">Call</button>';
+        html += '<button class="btn btn-sm" onclick="releaseDoor(\'' + s.id + '\')">Release Door</button>';
+      }
+      html += '<button class="btn btn-sm btn-outline">Settings</button>';
+      html += '</div></div></div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderHistory() {
+    var html = '<div class="card"><div class="card-head"><h2>Call History</h2><span class="count">' + callHistory.length + ' calls</span></div>';
+    html += '<div style="padding:0;overflow-x:auto"><table><thead><tr><th>Time</th><th>Station</th><th>Caller</th><th>Type</th><th>Target Unit</th><th>Duration</th><th>Action</th></tr></thead><tbody>';
+    callHistory.forEach(function(c) {
+      html += '<tr>';
+      html += '<td style="font-size:12px;color:var(--text3)">' + dateTimeStr(c.time) + '</td>';
+      html += '<td>' + esc(c.station) + '</td>';
+      html += '<td>' + esc(c.caller) + '</td>';
+      html += '<td>';
+      if (c.callerType === 'visitor') html += '<span class="badge badge-blue">Visitor</span>';
+      else if (c.callerType === 'delivery') html += '<span class="badge badge-purple">Delivery</span>';
+      else html += '<span class="badge badge-gray">Resident</span>';
+      html += '</td>';
+      html += '<td>' + esc(c.targetUnit) + '</td>';
+      html += '<td>' + c.duration + 's</td>';
+      html += '<td>' + actionBadge(c.action) + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  window.switchTab = function(t) { currentTab = t; render(); };
+  window.answerCall = function() {
+    activeCall.active = false;
+    callHistory.unshift({ id: 'CALL-' + (6000 + callHistory.length), time: new Date(), station: 'Main Lobby', stationId: 'lobby', caller: activeCall.caller, callerType: 'visitor', action: 'Answered', duration: activeCall.duration, targetUnit: activeCall.unit });
+    render();
+  };
+  window.releaseCall = function() {
+    activeCall.active = false;
+    callHistory.unshift({ id: 'CALL-' + (6000 + callHistory.length), time: new Date(), station: 'Main Lobby', stationId: 'lobby', caller: activeCall.caller, callerType: 'visitor', action: 'Door Released', duration: activeCall.duration, targetUnit: activeCall.unit });
+    render();
+  };
+  window.denyCall = function() {
+    activeCall.active = false;
+    callHistory.unshift({ id: 'CALL-' + (6000 + callHistory.length), time: new Date(), station: 'Main Lobby', stationId: 'lobby', caller: activeCall.caller, callerType: 'visitor', action: 'Denied', duration: activeCall.duration, targetUnit: activeCall.unit });
+    render();
+  };
+  window.transferCall = function() {
+    activeCall.active = false;
+    callHistory.unshift({ id: 'CALL-' + (6000 + callHistory.length), time: new Date(), station: 'Main Lobby', stationId: 'lobby', caller: activeCall.caller, callerType: 'visitor', action: 'Transferred', duration: activeCall.duration, targetUnit: activeCall.unit });
+    render();
+  };
+  window.releaseDoor = function(id) {
+    var s = stations.find(function(x){return x.id===id;});
+    if (s) {
+      callHistory.unshift({ id: 'CALL-' + (6000 + callHistory.length), time: new Date(), station: s.name, stationId: s.id, caller: 'Manual Release', callerType: 'unit', action: 'Door Released', duration: 0, targetUnit: '--' });
+      s.lastCall = 'just now';
+    }
+    render();
+  };
+  window.callStation = function(id) {
+    var s = stations.find(function(x){return x.id===id;});
+    if (s) s.lastCall = 'just now';
+    render();
+  };
+
+  // Simulate call timer
+  setInterval(function() {
+    if (activeCall.active) {
+      activeCall.duration++;
+      render();
+    }
+  }, 1000);
+
+  render();
+})();
+</script>
+</body>
+</html>

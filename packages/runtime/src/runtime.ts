@@ -23,6 +23,10 @@ import { SyncEngine, type SyncRouteConfig, LatencyProber, FederationManager } fr
 import { ModuleLoader, ModuleRegistry } from '@edgeruntime/module-loader';
 import { ConnectorRegistry } from '@edgeruntime/connector-framework';
 import { createApiServer, ConnectorEventBuffer } from './api-server.js';
+import { AdapterInventory } from './adapter-inventory.js';
+import { AdapterDownloader } from './adapter-downloader.js';
+import { AdapterHotLoader } from './adapter-hot-loader.js';
+import type { AdapterUpdateDirective } from '@edgeruntime/sync-engine';
 import type { FastifyInstance } from 'fastify';
 import type { RealtimeChannel } from '@edgeruntime/cloud-sync';
 
@@ -39,6 +43,10 @@ export class EdgeRuntime {
   private apiServer: FastifyInstance | null = null;
   private realtimeChannel: RealtimeChannel | null = null;
   private cameraSyncHandle: ReturnType<typeof setInterval> | null = null;
+  private adapterInventory: AdapterInventory | null = null;
+  private adapterDownloader: AdapterDownloader | null = null;
+  private adapterHotLoader: AdapterHotLoader | null = null;
+  private adapterUpdateResults: import('@edgeruntime/sync-engine').AdapterUpdateResult[] = [];
 
   constructor(config: EdgeRuntimeConfig) {
     this.config = config;
@@ -46,6 +54,23 @@ export class EdgeRuntime {
     this.connectorEvents = new ConnectorEventBuffer(1000);
   }
 
+  /**
+   * Boot the EdgeRuntime through the full initialization sequence.
+   *
+   * Steps (in order):
+   *   1. Ensure data directory exists
+   *   2-4. Validate activation key(s) — HMAC verification, product/tier extraction
+   *   5. Resolve cloud proxy URL from activation key's proxy index
+   *   6. Create SyncEngine with primary cloud URL
+   *   7. Load product modules (registers connectors, conflict strategies, federation handlers)
+   *   8. Build multi-backend sync routing map (geo-routed per product)
+   *   9. Start sync engine, connectors, and realtime command handlers
+   *   10. Initialize federation (cross-product event sharing between edge VMs)
+   *   11. Start Fastify API server (with cloud routes if CLOUD/MIRROR mode)
+   *
+   * @throws {ActivationError} If no activation key is provided or key validation fails.
+   * @throws {ActivationError} If the proxy index from the key has no configured URL.
+   */
   async boot(): Promise<void> {
     log.info('EdgeRuntime booting...');
 
@@ -55,81 +80,70 @@ export class EdgeRuntime {
       mkdirSync(dataDir, { recursive: true });
     }
 
-    // Step 2-4: Validate activation key(s) — supports single key, array, or standalone mode
-    const hasActivationKey = this.config.activationKey &&
-      !(Array.isArray(this.config.activationKey) && this.config.activationKey.length === 0) &&
-      this.config.activationKey !== '';
+    // Step 2-4: Validate activation key(s) — supports single key or array
+    if (!this.config.activationKey || (Array.isArray(this.config.activationKey) && this.config.activationKey.length === 0)) {
+      throw new ActivationError('No activation key provided. Set EDGERUNTIME_ACTIVATION_KEY or config.activationKey');
+    }
 
-    let cloudSyncUrl: string | undefined;
-    let cloudSyncKey: string;
+    const keys = Array.isArray(this.config.activationKey)
+      ? this.config.activationKey
+      : [this.config.activationKey];
 
-    if (!hasActivationKey) {
-      // Standalone / demo mode — no activation key required, no cloud sync
-      log.info('No activation key provided — running in STANDALONE mode (no cloud sync)');
-      this.activation = {
-        valid: true,
-        products: ['safeschool'] as ProductFlag[],
-        tier: 'community',
-        proxyIndex: -1,
-        proxyUrl: undefined,
-      } as ValidationResult;
-      cloudSyncUrl = undefined;
-      cloudSyncKey = 'standalone';
-    } else {
-      const keys = Array.isArray(this.config.activationKey)
-        ? this.config.activationKey
-        : [this.config.activationKey];
+    this.activation = keys.length === 1
+      ? validateKey(keys[0]!)
+      : validateKeys(keys);
 
-      this.activation = keys.length === 1
-        ? validateKey(keys[0]!)
-        : validateKeys(keys);
+    if (!this.activation.valid) {
+      throw new ActivationError(`Activation key invalid: ${this.activation.error}`);
+    }
 
-      if (!this.activation.valid) {
-        throw new ActivationError(`Activation key invalid: ${this.activation.error}`);
-      }
+    log.info({
+      products: this.activation.products,
+      tier: this.activation.tier,
+      proxyUrl: this.activation.proxyUrl,
+      keyCount: keys.length,
+    }, 'Activation key(s) validated');
 
-      log.info({
-        products: this.activation.products,
-        tier: this.activation.tier,
-        proxyUrl: this.activation.proxyUrl,
-        keyCount: keys.length,
-      }, 'Activation key(s) validated');
-
-      // Step 5: Resolve primary proxy URL (used for heartbeat/upgrade)
-      cloudSyncUrl = this.activation.proxyUrl;
-      if (!cloudSyncUrl) {
-        throw new ActivationError(
-          `Proxy index ${this.activation.proxyIndex} is not configured. ` +
-          `Set EDGERUNTIME_PROXY_${this.activation.proxyIndex} environment variable to the cloud sync URL.`,
-        );
-      }
-      cloudSyncKey = this.config.cloudSyncKey ?? 'default-sync-key';
+    // Step 5: Resolve primary proxy URL (used for heartbeat/upgrade)
+    const cloudSyncUrl = this.activation.proxyUrl;
+    if (!cloudSyncUrl) {
+      throw new ActivationError(
+        `Proxy index ${this.activation.proxyIndex} is not configured. ` +
+        `Set EDGERUNTIME_PROXY_${this.activation.proxyIndex} environment variable to the cloud sync URL.`,
+      );
+    }
+    let cloudSyncKey = this.config.cloudSyncKey;
+    if (!cloudSyncKey) {
+      // Auto-generate a key so the runtime can boot; cloud will reject syncs until keys match
+      const { randomBytes } = await import('node:crypto');
+      cloudSyncKey = randomBytes(32).toString('hex');
+      log.warn('No cloudSyncKey configured — generated a random key. Set EDGERUNTIME_CLOUD_SYNC_KEY for cloud sync to work.');
     }
     const queueDbPath = resolve(dataDir, 'sync-queue.db');
 
-    // Step 6: Create SyncEngine (skipped in standalone mode without cloud URL)
-    if (cloudSyncUrl) {
-      this.syncEngine = new SyncEngine({
-        siteId: this.config.siteId,
-        cloudSyncUrl,
-        cloudSyncKey,
-        syncIntervalMs: this.config.syncIntervalMs,
-        healthCheckIntervalMs: this.config.healthCheckIntervalMs,
-        queueDbPath,
-        dataDir,
-        cloudTlsFingerprint: this.config.cloudTlsFingerprint,
-        operatingMode: this.config.operatingMode,
-        orgId: this.config.orgId,
-      });
-    } else {
-      log.info('Standalone mode — sync engine disabled');
-    }
+    // Step 6: Create SyncEngine with primary URL (modules can trackChange immediately)
+    this.syncEngine = new SyncEngine({
+      siteId: this.config.siteId,
+      cloudSyncUrl,
+      cloudSyncKey,
+      syncIntervalMs: this.config.syncIntervalMs,
+      healthCheckIntervalMs: this.config.healthCheckIntervalMs,
+      queueDbPath,
+      dataDir,
+      cloudTlsFingerprint: this.config.cloudTlsFingerprint,
+      operatingMode: this.config.operatingMode,
+      orgId: this.config.orgId,
+      activationKey: keys[0],
+    });
 
     // Step 7: Load product modules
     const enabledProducts = this.activation.products!;
-    const conflictResolver = this.syncEngine?.getConflictResolver();
+    const conflictResolver = this.syncEngine.getConflictResolver();
 
-    // Collect federation handlers registered by modules (deferred — FederationManager created later)
+    // Collect federation handlers registered by modules.
+    // These are deferred: modules register handlers during loadAll(), but the
+    // FederationManager is created later (Step 10) after connectors are wired.
+    // Each handler receives events from a peer product and returns filtered/transformed events.
     const federationHandlers: Array<(fromProduct: string, events: Record<string, unknown>[]) => Record<string, unknown>[]> = [];
 
     const moduleLoader = new ModuleLoader({
@@ -139,21 +153,21 @@ export class EdgeRuntime {
         siteId: this.config.siteId,
         dataDir,
         registerConflictStrategy: (entityType, strategy) => {
-          conflictResolver?.registerStrategy(entityType, strategy as any);
+          conflictResolver.registerStrategy(entityType, strategy as any);
         },
         registerConflictMerger: (entityType, merger) => {
-          conflictResolver?.registerMerger(entityType, merger);
+          conflictResolver.registerMerger(entityType, merger);
         },
         registerConnectorType: (typeName, connectorClass) => {
           this.connectorRegistry.registerType(typeName, connectorClass);
         },
         trackChange: (entity) => {
-          this.syncEngine?.trackChange(entity);
+          this.syncEngine!.trackChange(entity);
         },
         registerFederationHandler: (handler) => {
           federationHandlers.push(handler);
         },
-        userAccountStore: this.syncEngine?.userAccountStore,
+        userAccountStore: this.syncEngine.userAccountStore,
       },
     });
 
@@ -163,15 +177,16 @@ export class EdgeRuntime {
       modules: this.moduleRegistry.getNames(),
     }, 'Modules loaded');
 
-    // Step 8-9: Build routing map and start sync engine (if available)
-    if (this.syncEngine) {
-      const routeConfigs = await this.buildRoutingMap(enabledProducts);
-      if (routeConfigs.length > 0) {
-        this.syncEngine.setRoutes(routeConfigs);
-        log.info({ routes: routeConfigs.length }, 'Multi-backend sync routing activated');
-      }
-      this.syncEngine.start();
+    // Step 8: Build routing map from loaded module manifests
+    const routeConfigs = await this.buildRoutingMap(enabledProducts);
+
+    if (routeConfigs.length > 0) {
+      this.syncEngine.setRoutes(routeConfigs);
+      log.info({ routes: routeConfigs.length }, 'Multi-backend sync routing activated');
     }
+
+    // Step 9: Start sync engine (now routes correctly)
+    this.syncEngine.start();
 
     // Start modules
     await this.moduleRegistry.startAll();
@@ -221,14 +236,85 @@ export class EdgeRuntime {
       this.cameraSyncHandle = setInterval(() => this.syncCameraEntities(), 5 * 60 * 1000);
     }
 
+    // Step 9b-3: Initialize adapter update system
+    if (this.config.operatingMode !== 'CLOUD') {
+      this.adapterInventory = new AdapterInventory(dataDir);
+      this.adapterDownloader = new AdapterDownloader(cloudSyncUrl, dataDir, cloudSyncKey);
+      this.adapterHotLoader = new AdapterHotLoader(this.connectorRegistry, this.adapterInventory);
+      await this.adapterHotLoader.loadAllFromInventory();
+
+      // Report installed adapters to sync engine (included in heartbeats)
+      this.syncEngine!.setInstalledAdapters(this.adapterInventory.getVersionMap());
+      log.info({ installedAdapters: Object.keys(this.adapterInventory.getVersionMap()).length }, 'Adapter update system initialized');
+    }
+
     // Step 9c: Register remote config handler (cloud pushes settings via heartbeat)
     if (this.config.operatingMode !== 'CLOUD') {
       this.syncEngine.onConfigChange(async (config) => {
         await this.applyRemoteConfig(config);
       });
+
+      // Step 9d: Register realtime command handlers — route cloud commands to PAC connectors
+      const registry = this.connectorRegistry;
+
+      // Lockdown: broadcast to all access control connectors
+      this.syncEngine.onRealtimeCommand('lockdown', async (cmd) => {
+        const results = await registry.executeCommand('lockdown', cmd.payload);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      this.syncEngine.onRealtimeCommand('lockdown_end', async (cmd) => {
+        const results = await registry.executeCommand('lockdown_end', cmd.payload);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      this.syncEngine.onRealtimeCommand('lockdown_zone', async (cmd) => {
+        const results = await registry.executeCommand('lockdown_zone', cmd.payload);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      this.syncEngine.onRealtimeCommand('lockdown_building', async (cmd) => {
+        const results = await registry.executeCommand('lockdown_building', cmd.payload);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      // Door control: route to specific or all access connectors
+      this.syncEngine.onRealtimeCommand('door_lock', async (cmd) => {
+        const results = await registry.executeCommand('door_lock', cmd.payload, cmd.payload.connectorName as string | undefined);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      this.syncEngine.onRealtimeCommand('door_unlock', async (cmd) => {
+        const results = await registry.executeCommand('door_unlock', cmd.payload, cmd.payload.connectorName as string | undefined);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      // Credential commands
+      this.syncEngine.onRealtimeCommand('credential_suspend', async (cmd) => {
+        const results = await registry.executeCommand('credential_suspend', cmd.payload);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+      this.syncEngine.onRealtimeCommand('credential_revoke', async (cmd) => {
+        const results = await registry.executeCommand('credential_revoke', cmd.payload);
+        const allOk = Object.values(results).every(r => r.status === 'completed');
+        return { status: allOk ? 'completed' : 'failed', detail: JSON.stringify(results) };
+      });
+
+      // Report capabilities: edge sends capabilities on connect
+      this.syncEngine.onRealtimeCommand('report_capabilities', async () => {
+        const caps = registry.getCapabilitiesAll();
+        return { status: 'completed', detail: JSON.stringify(caps) };
+      });
+
+      log.info('Realtime command handlers registered for PAC connector routing');
     }
 
-    // Step 10: Federation — cross-product event sharing between edge VMs
+    // Step 10: Federation — cross-product event sharing between edge VMs.
+    // Federation allows multiple edge VMs (each running different products) to share
+    // events over the local network. For example, a SafeSchool VM can receive
+    // SafeSchool visitor events and display them on its dashboard.
+    // Only peers whose product is in our activation key are connected (license-gated).
     if (this.config.federation?.enabled && this.config.federation.peers.length > 0) {
       const enabledProducts = this.activation!.products!;
       // Filter peers to only those whose product is in our activation key
@@ -261,7 +347,10 @@ export class EdgeRuntime {
       }
     }
 
-    // Step 11: Start API server (in CLOUD mode, mount cloud-sync routes)
+    // Step 11: Start API server
+    // CLOUD mode: full cloud backend with all routes
+    // MIRROR mode: edge device with local dashboard (EDGE sync + CLOUD routes backed by local data)
+    const needsCloudRoutes = this.config.operatingMode === 'CLOUD' || this.config.operatingMode === 'MIRROR';
     const apiResult = await createApiServer({
       syncEngine: this.syncEngine,
       moduleRegistry: this.moduleRegistry,
@@ -270,8 +359,8 @@ export class EdgeRuntime {
       federationManager: this.federationManager ?? undefined,
       port: this.config.apiPort,
       operatingMode: this.config.operatingMode,
-      userAccountStore: this.syncEngine?.userAccountStore,
-      ...(this.config.operatingMode === 'CLOUD' ? {
+      userAccountStore: this.syncEngine.userAccountStore,
+      ...(needsCloudRoutes ? {
         cloudOptions: {
           syncKey: cloudSyncKey,
           syncAdapter: this.config.cloudSyncAdapter ?? await this.createDefaultSyncAdapter(),
@@ -286,7 +375,7 @@ export class EdgeRuntime {
 
     log.info({
       siteId: this.config.siteId,
-      mode: this.syncEngine?.getOperatingMode() ?? 'STANDALONE',
+      mode: this.syncEngine.getOperatingMode(),
       products: enabledProducts,
       tier: this.activation.tier,
       apiPort: this.config.apiPort,
@@ -363,8 +452,13 @@ export class EdgeRuntime {
    * Production deployments should provide their own adapter via config.
    */
   private async createDefaultSyncAdapter() {
+    if (process.env.DATABASE_URL) {
+      const { PostgresAdapter } = await import('@edgeruntime/cloud-sync');
+      log.info('Using PostgreSQL SyncDatabaseAdapter (DATABASE_URL detected)');
+      return new PostgresAdapter(process.env.DATABASE_URL);
+    }
     const { MemoryAdapter } = await import('@edgeruntime/cloud-sync');
-    log.warn('Using in-memory SyncDatabaseAdapter — data will be lost on restart. Provide cloudSyncAdapter in config for production.');
+    log.warn('Using in-memory SyncDatabaseAdapter — data will be lost on restart. Set DATABASE_URL for production.');
     return new MemoryAdapter();
   }
 
@@ -373,8 +467,13 @@ export class EdgeRuntime {
    * Production deployments should provide their own adapter via config.
    */
   private async createDefaultLicenseAdapter() {
+    if (process.env.DATABASE_URL) {
+      const { PostgresAdapter } = await import('@edgeruntime/cloud-sync');
+      log.info('Using PostgreSQL LicenseDatabaseAdapter (DATABASE_URL detected)');
+      return new PostgresAdapter(process.env.DATABASE_URL);
+    }
     const { MemoryAdapter } = await import('@edgeruntime/cloud-sync');
-    log.warn('Using in-memory LicenseDatabaseAdapter — data will be lost on restart. Provide cloudLicenseAdapter in config for production.');
+    log.warn('Using in-memory LicenseDatabaseAdapter — data will be lost on restart. Set DATABASE_URL for production.');
     return new MemoryAdapter();
   }
 
@@ -410,32 +509,51 @@ export class EdgeRuntime {
     return undefined;
   }
 
+  /**
+   * Gracefully shut down the EdgeRuntime.
+   *
+   * Shutdown sequence (reverse of boot order to avoid dangling references):
+   *   1. Stop camera sync polling timer
+   *   2. Close realtime WebSocket channel (disconnects all dashboard clients)
+   *   3. Close Fastify HTTP server (stops accepting new requests, drains in-flight)
+   *   4. Stop federation manager (stops pushing events to peer VMs)
+   *   5. Stop all PAC/VMS connectors (closes vendor API connections)
+   *   6. Stop all product modules (cleanup hooks)
+   *   7. Shutdown sync engine (flushes pending queue, closes SQLite)
+   */
   async shutdown(): Promise<void> {
     log.info('EdgeRuntime shutting down...');
 
+    // 1. Stop camera entity sync timer
     if (this.cameraSyncHandle) {
       clearInterval(this.cameraSyncHandle);
       this.cameraSyncHandle = null;
     }
 
+    // 2. Close realtime WebSocket channel
     if (this.realtimeChannel) {
       this.realtimeChannel.shutdown();
     }
 
+    // 3. Close HTTP server
     if (this.apiServer) {
       await this.apiServer.close();
     }
 
+    // 4. Stop federation
     if (this.federationManager) {
       this.federationManager.shutdown();
     }
 
+    // 5. Stop connectors
     await this.connectorRegistry.stopAll();
 
+    // 6. Stop modules
     if (this.moduleRegistry) {
       await this.moduleRegistry.stopAll();
     }
 
+    // 7. Shutdown sync engine
     if (this.syncEngine) {
       this.syncEngine.shutdown();
     }
@@ -443,18 +561,22 @@ export class EdgeRuntime {
     log.info('EdgeRuntime shutdown complete');
   }
 
+  /** Get the validated activation key result (products, tier, proxy URL). Null before boot(). */
   getActivation(): ValidationResult | null {
     return this.activation;
   }
 
+  /** Get the sync engine instance. Null before boot(). */
   getSyncEngine(): SyncEngine | null {
     return this.syncEngine;
   }
 
+  /** Get the module registry with all loaded product modules. Null before boot(). */
   getModuleRegistry(): ModuleRegistry | null {
     return this.moduleRegistry;
   }
 
+  /** Get the connector registry (always available, may be empty before boot). */
   getConnectorRegistry(): ConnectorRegistry {
     return this.connectorRegistry;
   }
@@ -624,8 +746,74 @@ export class EdgeRuntime {
       log.info({ count: this.connectorRegistry.getAllConnectors().length }, 'Remote connectors started');
     }
 
+    // Process adapter updates from cloud
+    if (config.adapterUpdates && config.adapterUpdates.length > 0 && this.adapterDownloader && this.adapterHotLoader && this.adapterInventory) {
+      await this.processAdapterUpdates(config.adapterUpdates);
+    }
+
     // Persist to config.yaml so settings survive restarts
     this.persistRemoteConfig(config);
+  }
+
+  /**
+   * Process adapter update directives received from cloud.
+   * Downloads bundles, verifies integrity, and hot-loads new adapter versions.
+   */
+  private async processAdapterUpdates(directives: AdapterUpdateDirective[]): Promise<void> {
+    log.info({ count: directives.length }, 'Processing adapter updates from cloud');
+
+    for (const directive of directives) {
+      const result: import('@edgeruntime/sync-engine').AdapterUpdateResult = {
+        adapterId: directive.adapterId,
+        targetVersion: directive.targetVersion,
+        status: 'failed',
+        appliedAt: new Date().toISOString(),
+      };
+
+      try {
+        // Check runtime compatibility
+        if (directive.minRuntimeVersion) {
+          const pkgJson = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8'));
+          const runtimeVersion = pkgJson.version || '0.0.0';
+          // Simple check — skip if our version is older
+          const rv = runtimeVersion.split('.').map(Number);
+          const mv = directive.minRuntimeVersion.split('.').map(Number);
+          if (rv[0]! < mv[0]! || (rv[0] === mv[0] && rv[1]! < mv[1]!)) {
+            log.warn({ id: directive.adapterId, requires: directive.minRuntimeVersion, runtime: runtimeVersion }, 'Skipping adapter update — runtime too old');
+            result.error = `Runtime ${runtimeVersion} < required ${directive.minRuntimeVersion}`;
+            this.adapterUpdateResults.push(result);
+            continue;
+          }
+        }
+
+        // Download bundle
+        const localPath = await this.adapterDownloader!.download(directive);
+
+        // Hot-load the new version
+        await this.adapterHotLoader!.replaceAdapter(
+          directive.adapterId,
+          localPath,
+          directive.targetVersion,
+          directive.bundleHash,
+        );
+
+        result.status = 'success';
+        log.info({ id: directive.adapterId, version: directive.targetVersion }, 'Adapter updated successfully');
+      } catch (err) {
+        result.status = 'failed';
+        result.error = (err as Error).message;
+        log.error({ id: directive.adapterId, err: (err as Error).message }, 'Adapter update failed');
+      }
+
+      this.adapterUpdateResults.push(result);
+    }
+
+    // Update sync engine with new adapter versions and results
+    if (this.syncEngine && this.adapterInventory) {
+      this.syncEngine.setInstalledAdapters(this.adapterInventory.getVersionMap());
+      this.syncEngine.setAdapterUpdateResults(this.adapterUpdateResults);
+      this.adapterUpdateResults = []; // Clear after pushing to sync engine
+    }
   }
 
   /**

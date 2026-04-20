@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guard Tour Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.header-badge { font-size: 11px; padding: 4px 10px; background: var(--accent-dim); color: var(--accent); border-radius: 12px; font-weight: 600; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); }
+.val-accent { color: var(--accent); }
+.val-amber { color: var(--amber); }
+.val-red { color: var(--red); }
+.val-blue { color: var(--blue); }
+.val-purple { color: var(--purple); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+.card-body { padding: 0; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.badge-accent { background: var(--accent-dim); color: var(--accent); }
+.checkpoint-list { padding: 12px 16px; }
+.checkpoint { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.checkpoint:last-child { border-bottom: none; }
+.cp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.cp-dot.scanned { background: var(--green); }
+.cp-dot.missed { background: var(--red); }
+.cp-dot.pending { background: var(--text3); }
+.cp-name { flex: 1; }
+.cp-time { color: var(--text2); font-size: 11px; }
+.cp-status { font-size: 11px; font-weight: 600; }
+.progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.loading { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+.refresh-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading guard tour data...</div></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  function fmtTime(ts) {
+    if (!ts) return '--';
+    try { var d = new Date(ts); return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e) { return '--'; }
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return '--';
+    try { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e) { return '--'; }
+  }
+
+  // Demo data for fallback
+  var DEMO_TOURS = [
+    { id: 'T-001', name: 'Building A Perimeter', guard: 'Officer Rodriguez', status: 'in-progress', startTime: new Date(Date.now() - 45*60000).toISOString(), checkpoints: [
+      { name: 'Main Entrance', location: 'Building A - Floor 1', scanTime: new Date(Date.now() - 42*60000).toISOString(), status: 'scanned' },
+      { name: 'East Wing Corridor', location: 'Building A - Floor 1', scanTime: new Date(Date.now() - 35*60000).toISOString(), status: 'scanned' },
+      { name: 'Server Room', location: 'Building A - Basement', scanTime: new Date(Date.now() - 28*60000).toISOString(), status: 'scanned' },
+      { name: 'Loading Dock', location: 'Building A - Rear', scanTime: null, status: 'pending' },
+      { name: 'Parking Garage B2', location: 'Garage - Level B2', scanTime: null, status: 'pending' },
+      { name: 'Emergency Exit 3', location: 'Building A - Floor 2', scanTime: null, status: 'pending' },
+    ]},
+    { id: 'T-002', name: 'ICU Night Patrol', guard: 'Officer Chen', status: 'in-progress', startTime: new Date(Date.now() - 90*60000).toISOString(), checkpoints: [
+      { name: 'ICU Nurse Station', location: 'Building C - Floor 3', scanTime: new Date(Date.now() - 88*60000).toISOString(), status: 'scanned' },
+      { name: 'Medication Storage', location: 'Building C - Floor 3', scanTime: new Date(Date.now() - 80*60000).toISOString(), status: 'scanned' },
+      { name: 'Emergency Stairwell C', location: 'Building C', scanTime: new Date(Date.now() - 72*60000).toISOString(), status: 'scanned' },
+      { name: 'Radiology Wing', location: 'Building C - Floor 1', scanTime: new Date(Date.now() - 60*60000).toISOString(), status: 'scanned' },
+      { name: 'Pharmacy Lock-up', location: 'Building C - Floor 1', scanTime: null, status: 'missed' },
+      { name: 'Loading Dock C', location: 'Building C - Rear', scanTime: new Date(Date.now() - 15*60000).toISOString(), status: 'scanned' },
+    ]},
+    { id: 'T-003', name: 'Parking Structure Sweep', guard: 'Officer Williams', status: 'completed', startTime: new Date(Date.now() - 180*60000).toISOString(), checkpoints: [
+      { name: 'Garage Level 1', location: 'Parking - L1', scanTime: new Date(Date.now() - 175*60000).toISOString(), status: 'scanned' },
+      { name: 'Garage Level 2', location: 'Parking - L2', scanTime: new Date(Date.now() - 168*60000).toISOString(), status: 'scanned' },
+      { name: 'Garage Level 3', location: 'Parking - L3', scanTime: new Date(Date.now() - 160*60000).toISOString(), status: 'scanned' },
+      { name: 'Roof Level', location: 'Parking - Roof', scanTime: new Date(Date.now() - 152*60000).toISOString(), status: 'scanned' },
+    ]},
+  ];
+
+  var DEMO_GUARDS = [
+    { id: 'G-001', name: 'Officer Rodriguez', status: 'on-tour', zone: 'Building A', lastSeen: new Date(Date.now() - 5*60000).toISOString(), shift: 'Night (22:00-06:00)' },
+    { id: 'G-002', name: 'Officer Chen', status: 'on-tour', zone: 'Building C - ICU', lastSeen: new Date(Date.now() - 15*60000).toISOString(), shift: 'Night (22:00-06:00)' },
+    { id: 'G-003', name: 'Officer Williams', status: 'available', zone: 'Security Office', lastSeen: new Date(Date.now() - 2*60000).toISOString(), shift: 'Night (22:00-06:00)' },
+    { id: 'G-004', name: 'Officer Patel', status: 'break', zone: 'Break Room', lastSeen: new Date(Date.now() - 20*60000).toISOString(), shift: 'Night (22:00-06:00)' },
+    { id: 'G-005', name: 'Sgt. Thompson', status: 'available', zone: 'Command Center', lastSeen: new Date(Date.now() - 1*60000).toISOString(), shift: 'Night (22:00-06:00)' },
+  ];
+
+  var DEMO_STATS = { completed: 12, inProgress: 2, missed: 1, avgDuration: 47, complianceRate: 92 };
+
+  var tours = [], guards = [], stats = {}, shifts = [];
+
+  function loadData() {
+    var loaded = 0;
+    var total = 4;
+    function done() { loaded++; if (loaded >= total) render(); }
+
+    api('GET', '/api/v1/guards/tours/active').then(function(data) {
+      if (data && Array.isArray(data.tours || data)) tours = data.tours || data || [];
+      else tours = DEMO_TOURS;
+      done();
+    }).catch(function() { tours = DEMO_TOURS; done(); });
+
+    api('GET', '/api/v1/guards/tours/stats').then(function(data) {
+      if (data && typeof data === 'object' && (data.completed !== undefined || data.stats)) stats = data.stats || data;
+      else stats = DEMO_STATS;
+      done();
+    }).catch(function() { stats = DEMO_STATS; done(); });
+
+    api('GET', '/api/v1/guards/status').then(function(data) {
+      if (data && Array.isArray(data.guards || data)) guards = data.guards || data || [];
+      else guards = DEMO_GUARDS;
+      done();
+    }).catch(function() { guards = DEMO_GUARDS; done(); });
+
+    api('GET', '/api/v1/guards/shifts?status=active&limit=50').then(function(data) {
+      if (data && Array.isArray(data.shifts || data)) shifts = data.shifts || data || [];
+      else shifts = [];
+      done();
+    }).catch(function() { shifts = []; done(); });
+  }
+
+  function render() {
+    var s = stats || {};
+    var completed = s.completed || 0;
+    var inProgress = s.inProgress || 0;
+    var missed = s.missed || 0;
+    var compliance = s.complianceRate || 0;
+    var avgDur = s.avgDuration || 0;
+
+    // Count active/on-tour guards
+    var onTour = (guards || []).filter(function(g) { return g && g.status === 'on-tour'; }).length;
+    var totalGuards = (guards || []).length;
+
+    var html = '';
+
+    // Header
+    html += '<div class="header">';
+    html += '<h1><span>&#128722;</span> Guard Tour Management</h1>';
+    html += '<div style="display:flex;gap:8px;align-items:center">';
+    html += '<span class="header-badge">Live</span>';
+    html += '<button class="refresh-btn" id="refreshBtn">&#8635; Refresh</button>';
+    html += '</div></div>';
+
+    // Stats row
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Completed Today</div><div class="value val-green">' + completed + '</div><div class="sub">Tours finished on schedule</div></div>';
+    html += '<div class="stat-card"><div class="label">In Progress</div><div class="value val-accent">' + inProgress + '</div><div class="sub">' + onTour + ' of ' + totalGuards + ' guards on tour</div></div>';
+    html += '<div class="stat-card"><div class="label">Missed / Late</div><div class="value val-red">' + missed + '</div><div class="sub">Requires supervisor review</div></div>';
+    html += '<div class="stat-card"><div class="label">Compliance Rate</div><div class="value val-blue">' + compliance + '%</div><div class="progress-bar"><div class="progress-fill" style="width:' + compliance + '%;background:var(--blue)"></div></div></div>';
+    html += '<div class="stat-card"><div class="label">Avg Duration</div><div class="value val-purple">' + avgDur + '<span style="font-size:14px;color:var(--text2)"> min</span></div><div class="sub">Per tour cycle</div></div>';
+    html += '</div>';
+
+    // Active Tours section
+    html += '<div class="card" style="margin-bottom:24px">';
+    html += '<div class="card-head"><h2>Active Tours</h2><span class="count">' + (tours || []).length + ' tours</span></div>';
+    html += '<div class="card-body">';
+
+    if ((tours || []).length === 0) {
+      html += '<div class="loading">No active tours</div>';
+    } else {
+      (tours || []).forEach(function(tour) {
+        if (!tour) return;
+        var cps = tour.checkpoints || [];
+        var scanned = cps.filter(function(c) { return c && c.status === 'scanned'; }).length;
+        var missedCp = cps.filter(function(c) { return c && c.status === 'missed'; }).length;
+        var pct = cps.length ? Math.round((scanned / cps.length) * 100) : 0;
+
+        var statusCls = tour.status === 'completed' ? 'badge-green' : tour.status === 'in-progress' ? 'badge-accent' : 'badge-amber';
+
+        html += '<div style="padding:16px 20px;border-bottom:1px solid var(--border)">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+        html += '<div><strong>' + esc(tour.name || tour.id) + '</strong> <span style="color:var(--text2);font-size:12px">&mdash; ' + esc(tour.guard || 'Unassigned') + '</span></div>';
+        html += '<div style="display:flex;gap:8px;align-items:center">';
+        html += '<span class="badge ' + statusCls + '">' + esc(tour.status || 'unknown') + '</span>';
+        html += '<span style="font-size:11px;color:var(--text3)">Started ' + fmtTime(tour.startTime) + '</span>';
+        html += '</div></div>';
+
+        // Progress
+        html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+        html += '<div class="progress-bar" style="flex:1"><div class="progress-fill" style="width:' + pct + '%;background:' + (missedCp > 0 ? 'var(--amber)' : 'var(--green)') + '"></div></div>';
+        html += '<span style="font-size:12px;color:var(--text2)">' + scanned + '/' + cps.length + ' checkpoints</span>';
+        html += '</div>';
+
+        // Checkpoints
+        html += '<div class="checkpoint-list" style="padding:0">';
+        cps.forEach(function(cp) {
+          if (!cp) return;
+          var dotCls = cp.status === 'scanned' ? 'scanned' : cp.status === 'missed' ? 'missed' : 'pending';
+          var statusColor = cp.status === 'scanned' ? 'var(--green)' : cp.status === 'missed' ? 'var(--red)' : 'var(--text3)';
+          html += '<div class="checkpoint">';
+          html += '<div class="cp-dot ' + dotCls + '"></div>';
+          html += '<div class="cp-name">' + esc(cp.name || 'Checkpoint') + ' <span style="color:var(--text3);font-size:11px">' + esc(cp.location || '') + '</span></div>';
+          html += '<div class="cp-time">' + fmtTime(cp.scanTime) + '</div>';
+          html += '<div class="cp-status" style="color:' + statusColor + '">' + esc(cp.status || 'pending') + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '</div>';
+      });
+    }
+    html += '</div></div>';
+
+    // Guard Status + Shift Schedule
+    html += '<div class="grid-2">';
+
+    // Guard Status
+    html += '<div class="card">';
+    html += '<div class="card-head"><h2>Guard Status</h2><span class="count">' + totalGuards + ' guards</span></div>';
+    html += '<div class="card-body"><table>';
+    html += '<tr><th>Name</th><th>Status</th><th>Zone</th><th>Last Seen</th></tr>';
+    (guards || []).forEach(function(g) {
+      if (!g) return;
+      var sCls = g.status === 'on-tour' ? 'badge-green' : g.status === 'available' ? 'badge-blue' : g.status === 'break' ? 'badge-amber' : 'badge-gray';
+      html += '<tr>';
+      html += '<td><strong>' + esc(g.name || g.id) + '</strong></td>';
+      html += '<td><span class="badge ' + sCls + '">' + esc(g.status || '--') + '</span></td>';
+      html += '<td>' + esc(g.zone || '--') + '</td>';
+      html += '<td style="color:var(--text2);font-size:12px">' + fmtTime(g.lastSeen) + '</td>';
+      html += '</tr>';
+    });
+    html += '</table></div></div>';
+
+    // Shift Schedule
+    html += '<div class="card">';
+    html += '<div class="card-head"><h2>Active Shifts</h2><span class="count">' + (shifts.length || totalGuards) + ' on duty</span></div>';
+    html += '<div class="card-body"><table>';
+    html += '<tr><th>Guard</th><th>Shift</th><th>Status</th></tr>';
+    if (shifts.length > 0) {
+      shifts.forEach(function(sh) {
+        if (!sh) return;
+        html += '<tr>';
+        html += '<td>' + esc(sh.guardName || sh.guard || '--') + '</td>';
+        html += '<td style="font-size:12px;color:var(--text2)">' + esc(sh.shift || sh.time || '--') + '</td>';
+        html += '<td><span class="badge badge-green">Active</span></td>';
+        html += '</tr>';
+      });
+    } else {
+      // Fall back to guard data
+      (guards || []).forEach(function(g) {
+        if (!g) return;
+        html += '<tr>';
+        html += '<td>' + esc(g.name || g.id) + '</td>';
+        html += '<td style="font-size:12px;color:var(--text2)">' + esc(g.shift || 'Night (22:00-06:00)') + '</td>';
+        html += '<td><span class="badge badge-green">Active</span></td>';
+        html += '</tr>';
+      });
+    }
+    html += '</table></div></div>';
+
+    html += '</div>'; // end grid-2
+
+    document.getElementById('app').innerHTML = html;
+
+    // Bind refresh
+    var btn = document.getElementById('refreshBtn');
+    if (btn) btn.addEventListener('click', function() { loadData(); });
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

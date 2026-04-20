@@ -61,14 +61,31 @@ export class ConnectorEventBuffer {
   private readonly maxSize: number;
   private listeners: ConnectorEventListener[] = [];
 
+  /**
+   * @param maxSize - Maximum number of events to retain in the ring buffer.
+   *                  Oldest events are evicted when this limit is exceeded.
+   */
   constructor(maxSize = 1000) {
     this.maxSize = maxSize;
   }
 
+  /**
+   * Register a listener that fires whenever new events are pushed.
+   * Used by FederationManager to forward connector events to peer VMs.
+   * @param listener - Callback receiving the connector name and new events.
+   */
   onPush(listener: ConnectorEventListener): void {
     this.listeners.push(listener);
   }
 
+  /**
+   * Append events from a connector into the ring buffer.
+   * Each event is tagged with `_connector` (source name) and `_receivedAt` (ISO timestamp).
+   * If the buffer exceeds `maxSize`, the oldest event is evicted (FIFO).
+   * All registered listeners are notified after insertion.
+   * @param connectorName - Identifier of the connector that produced the events.
+   * @param events - Array of raw event objects from the connector.
+   */
   push(connectorName: string, events: Record<string, unknown>[]): void {
     for (const event of events) {
       this.events.push({ ...event, _connector: connectorName, _receivedAt: new Date().toISOString() });
@@ -81,14 +98,21 @@ export class ConnectorEventBuffer {
     }
   }
 
+  /** Return all events currently in the buffer (oldest first). */
   getAll(): Record<string, unknown>[] {
     return this.events;
   }
 
+  /**
+   * Return events received at or after the given ISO timestamp.
+   * Comparison is lexicographic on the `_receivedAt` field.
+   * @param since - ISO 8601 timestamp lower bound (inclusive).
+   */
   getSince(since: string): Record<string, unknown>[] {
     return this.events.filter(e => (e._receivedAt as string) >= since);
   }
 
+  /** Current number of events stored in the buffer. */
   get count(): number {
     return this.events.length;
   }
@@ -100,10 +124,38 @@ export interface ApiServerResult {
 }
 
 // ─── Simple JWT (HMAC-SHA256) ──────────────────────────────────────────────
+// Lightweight JWT implementation for dashboard auth. Uses a server-side secret
+// (EDGERUNTIME_JWT_SECRET env var) or generates a random one per process start.
+// This avoids pulling in a full JWT library for the minimal claims we need.
 
-const JWT_SECRET = process.env.EDGERUNTIME_JWT_SECRET || randomBytes(32).toString('hex');
+/** HMAC secret used for signing/verifying JWTs.
+ * In production, EDGERUNTIME_JWT_SECRET MUST be set — otherwise multiple pods
+ * each generate their own random secret and tokens fail to verify across pods.
+ * Dev/test fall back to a random per-process secret.
+ */
+const JWT_SECRET: string = (() => {
+  if (process.env.EDGERUNTIME_JWT_SECRET) return process.env.EDGERUNTIME_JWT_SECRET;
+  const env = (process.env.NODE_ENV || '').toLowerCase();
+  const isProd = env === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+  if (isProd) {
+    throw new Error(
+      'EDGERUNTIME_JWT_SECRET is required in production (horizontal scaling breaks otherwise).'
+    );
+  }
+  return randomBytes(32).toString('hex');
+})();
+/** JWT token lifetime in seconds (24 hours). */
 const JWT_EXPIRY_S = 86400; // 24 hours
 
+/**
+ * Sign a JWT token with HMAC-SHA256.
+ *
+ * Creates a compact JWS (header.payload.signature) with `iat` and `exp` claims
+ * automatically injected. Used for dashboard login tokens and inter-service auth.
+ *
+ * @param payload - Arbitrary claims to include (e.g. `sub`, `username`, `role`, `orgId`).
+ * @returns Compact JWT string (base64url-encoded header.payload.signature).
+ */
 function signJwt(payload: Record<string, unknown>): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const body = Buffer.from(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + JWT_EXPIRY_S })).toString('base64url');
@@ -111,6 +163,16 @@ function signJwt(payload: Record<string, unknown>): string {
   return `${header}.${body}.${signature}`;
 }
 
+/**
+ * Verify and decode a JWT token signed with HMAC-SHA256.
+ *
+ * Performs timing-safe signature comparison to prevent timing attacks,
+ * then checks the `exp` claim for expiry. Returns null on any failure
+ * (bad format, invalid signature, expired) rather than throwing.
+ *
+ * @param token - Compact JWT string to verify.
+ * @returns Decoded payload object, or null if verification fails.
+ */
 function verifyJwt(token: string): Record<string, unknown> | null {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -118,6 +180,7 @@ function verifyJwt(token: string): Record<string, unknown> | null {
   const [header, body, signature] = parts;
   const expected = createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
 
+  // Timing-safe comparison prevents side-channel attacks on signature
   if (!timingSafeEqual(Buffer.from(signature!), Buffer.from(expected))) return null;
 
   const payload = JSON.parse(Buffer.from(body!, 'base64url').toString());
@@ -130,22 +193,86 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
   const app = Fastify({ logger: false });
   let realtimeChannel: RealtimeChannel | undefined;
 
-  // CORS — allow product frontends to call cloud API
+  // ─── CORS Configuration ──────────────────────────────────────────────
+  // CORS must be permissive enough for three access patterns:
+  //   1. Product frontends on custom domains (safeschoolos.org, safeschoolos.org, etc.)
+  //   2. Railway staging/preview deployments (*.up.railway.app)
+  //   3. Edge appliance dashboards accessed by LAN IP (192.168.x.x, 10.x.x.x)
+  // Override the default allowlist via CORS_ALLOWED_ORIGINS env var (comma-separated).
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
     ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim())
-    : ['https://safeschoolos.org', 'https://edge.safeschool.org'];
+    : ['https://safeschoolos.org', 'https://edge.safeschool.org',
+       'https://safeschoolos.org', 'https://safeschoolos.org', 'https://safeschoolos.org'];
+  // Trusted Railway subdomains for first-party deploys. Anything else under
+  // *.up.railway.app is another Railway tenant and must NOT be trusted with
+  // credentials. Override via env when a new deploy is added.
+  const trustedRailwaySubs = new Set(
+    (process.env.CORS_RAILWAY_ALLOW ||
+      'api-production-5f06.up.railway.app,safeschool.up.railway.app,jubilant-alignment-production-d240.up.railway.app'
+    ).split(',').map(s => s.trim()).filter(Boolean)
+  );
   await app.register(fastifyCors, {
     origin: (origin, cb) => {
-      // Allow requests with no origin (server-to-server, curl, etc.)
+      // No origin = server-to-server call, curl, or same-origin — always allow
       if (!origin) return cb(null, true);
-      // Allow localhost in development
+      // Localhost = local development (Vite dev server, etc.)
       if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return cb(null, true);
+      // Trusted Railway subdomains only — do NOT blanket-allow *.up.railway.app,
+      // since every other Railway tenant would then be trusted with credentials.
+      try {
+        const u = new URL(origin);
+        if (u.hostname.endsWith('.up.railway.app') && trustedRailwaySubs.has(u.hostname)) {
+          return cb(null, true);
+        }
+        // Raw IP address = edge appliance on LAN (Mini PC accessed via 192.168.x.x).
+        // Only accept RFC1918 ranges; block public IPs to prevent open-origin credential riding.
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(u.hostname)) {
+          if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.)/.test(u.hostname)) {
+            return cb(null, true);
+          }
+        }
+      } catch { /* fall through */ }
+      // Explicit allowlist (production domains or env override)
       if (allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error('CORS: origin not allowed'), false);
     },
-    credentials: true,
+    credentials: true,  // Required for JWT cookie-based auth flows
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // X-Sync-* headers are used by edge device HMAC authentication
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id', 'X-Sync-Key', 'X-Sync-Timestamp', 'X-Sync-Signature'],
+  });
+
+  // ─── Security Headers ──────────────────────────────────────────────
+  // Conservative CSP: dashboard HTML pages use inline script/style tags and load
+  // some CDN assets, so we allow 'unsafe-inline' for scripts/styles but restrict
+  // framing, object/base URIs, and default-src. Opt out of CSP entirely for the
+  // video-wall/kiosk routes that embed third-party iframes by setting
+  // NO_CSP_PATHS env var (comma-separated path prefixes).
+  const noCspPrefixes = (process.env.NO_CSP_PATHS || '/wall,/kiosk').split(',').map(s => s.trim()).filter(Boolean);
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+    "style-src 'self' 'unsafe-inline' https:",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https:",
+    "connect-src 'self' https: wss: ws:",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ].join('; ');
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'SAMEORIGIN');
+    reply.header('X-XSS-Protection', '1; mode=block');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('Permissions-Policy', 'geolocation=(self), camera=(self), microphone=(self), payment=()');
+    const url = request.url;
+    if (!noCspPrefixes.some(p => url.startsWith(p))) {
+      reply.header('Content-Security-Policy', csp);
+    }
+    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT) {
+      reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
   });
 
   // Health endpoint
@@ -218,6 +345,8 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
   });
 
   // ─── Auth endpoints (edge mode, when user accounts are synced from cloud) ──
+  // On edge devices, user accounts are synced from the cloud via SyncEngine.
+  // The UserAccountStore holds local copies (SQLite) so login works offline.
   if (deps.userAccountStore) {
     const uaStore = deps.userAccountStore;
 
@@ -255,7 +384,27 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       });
     });
 
-    // Auth middleware for protected routes — mount on /api/* except /api/auth/*
+    // ─── Auth Middleware ─────────────────────────────────────────────────
+    // Global preHandler hook that gates /api/* routes behind JWT auth.
+    // Certain paths are exempted: health probes, login, HMAC-authed sync routes,
+    // public kiosk/panic endpoints, and device-key-authed ingest endpoints.
+    //
+    // Demo mode handling: when DEMO_MODE env var is set and the request includes
+    // the X-Demo-Mode header, a synthetic read-only "demo" user is injected.
+    // This lets the public /demo page browse dashboard data without credentials
+    // while blocking all write operations (POST/PUT/PATCH/DELETE → 403).
+    // Demo mode is for public sandbox deploys only. In production it effectively
+    // removes auth on GET endpoints, so we refuse the combination unless the
+    // operator has explicitly opted in via ALLOW_DEMO_IN_PROD=1.
+    const demoModeRequested = process.env.DEMO_MODE === 'true' || process.env.DEMO_MODE === '1';
+    const isProd = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+    const allowDemoInProd = process.env.ALLOW_DEMO_IN_PROD === '1' || process.env.ALLOW_DEMO_IN_PROD === 'true';
+    if (demoModeRequested && isProd && !allowDemoInProd) {
+      throw new Error('DEMO_MODE is enabled in a production/Railway environment without ALLOW_DEMO_IN_PROD=1. Refusing to start.');
+    }
+    const demoModeEnabled = demoModeRequested;
+    const demoOrgId = process.env.DEMO_ORG_ID || process.env.DASHBOARD_ADMIN_ORG || 'demo';
+
     app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
       const url = request.url;
 
@@ -269,13 +418,36 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         url.startsWith('/api/v1/sync') ||
         url.startsWith('/api/v1/connector-events') ||
         url.startsWith('/api/v1/federation') ||
-        url.startsWith('/api/v1/kiosk/')
+        url.startsWith('/api/v1/kiosk/') ||
+        url.startsWith('/api/v1/public/panic/') ||
+        url.startsWith('/api/v1/alarms/ingest') ||
+        url.startsWith('/api/v1/vms/') ||
+        url.startsWith('/api/v1/widget/') ||
+        url.startsWith('/api/v1/pairing/') ||
+        url.startsWith('/api/v1/adapters') ||
+        url.startsWith('/api/v1/telephony/voice/')
       ) {
         return;
       }
 
       // Only protect /api/* routes
       if (!url.startsWith('/api/')) return;
+
+      // Demo mode: accept X-Demo-Mode header when DEMO_MODE is enabled on server
+      if (demoModeEnabled && request.headers['x-demo-mode'] === 'true') {
+        (request as any).user = {
+          sub: 'demo',
+          username: 'demo',
+          orgId: demoOrgId,
+          role: 'viewer',
+          demo: true,
+        };
+        // Demo users are read-only
+        if (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS') {
+          return reply.code(403).send({ error: 'Demo mode is read-only' });
+        }
+        return;
+      }
 
       const authHeader = request.headers.authorization;
       if (!authHeader?.startsWith('Bearer ')) {
@@ -320,7 +492,7 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       return { accepted: body.events.length, timestamp: new Date().toISOString() };
     });
 
-    // Return federated analytics (from peers like BadgeGuard)
+    // Return federated analytics (from peers like SafeSchool)
     app.get('/api/v1/federation/analytics', async (request: FastifyRequest) => {
       const query = request.query as { since?: string };
       const events = fm.getAnalytics(query.since);
@@ -335,9 +507,12 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
     log.info('Federation endpoints registered');
   }
 
-  // ─── CLOUD mode: mount cloud-sync routes ────────────────────────
-  if (deps.operatingMode === 'CLOUD' && deps.cloudOptions) {
-    const { syncRoutes, fleetRoutes, entityRoutes, userRoutes, licenseRoutes, dashboardRoutes, deviceConfigRoutes, RealtimeChannel: RealtimeChannelClass } = await import('@edgeruntime/cloud-sync');
+  // ─── CLOUD/MIRROR mode: mount cloud-sync routes ────────────────────────
+  // CLOUD = full cloud backend (Railway-deployed, serves product dashboards)
+  // MIRROR = edge device with local dashboard (runs EDGE sync + CLOUD routes backed by local SQLite/Postgres)
+  // Both modes mount the full set of cloud-sync route modules (~44 route files).
+  if ((deps.operatingMode === 'CLOUD' || deps.operatingMode === 'MIRROR') && deps.cloudOptions) {
+    const { syncRoutes, fleetRoutes, entityRoutes, userRoutes, licenseRoutes, dashboardRoutes, deviceConfigRoutes, backupRoutes, visitorRoutes, panicRoutes, incidentRoutes, alarmRoutes, alarmIngestRoute, drillRoutes, guardRoutes, notificationRoutes, tipRoutes, contractorRoutes, caseRoutes, channelRoutes, reunificationRoutes, threatRoutes, sensorRoutes, sensorIngestRoute, riskRoutes, hallpassRoutes, grantRoutes, tenantRoutes, passRoutes, buildingRoutes, agencyRoutes, webhookRoutes, apiDocsRoute, startDemoResetCron, startPacEmulator, generateDemoSeed, RealtimeChannel: RealtimeChannelClass, healthRoutes, healthIngestRoute, analyticsRoutes, analyticsIngestRoute, uebaRoutes, nlqueryRoutes, postureRoutes, siemRoutes, briefingRoutes, multisiteRoutes, widgetRoutes, ticketRoutes, auditRoutes, floorplanRoutes, signinFlowRoutes, vmsRoutes, accountRoutes, gsocEnterpriseRoutes, pairingRoutes, recipeRoutes, adapterRegistryRoutes, telephonyVoiceRoutes, telephonyRoutes, badgeRoutes, packageRoutes, cardholderSyncRoutes, aiInsightsRoutes, configuratorRoutes } = await import('@edgeruntime/cloud-sync');
     const opts = deps.cloudOptions;
 
     // Register WebSocket plugin (required for RealtimeChannel)
@@ -345,6 +520,9 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
 
     // JWT auth middleware for fleet API (dashboard calls these)
     const fleetAuthHook = async (request: FastifyRequest, reply: FastifyReply) => {
+      // Skip if already authenticated (e.g., demo mode set by global preHandler)
+      if ((request as any).user) return;
+
       const authHeader = request.headers.authorization;
       if (!authHeader?.startsWith('Bearer ')) {
         return reply.code(401).send({ error: 'Missing or invalid authorization header' });
@@ -361,12 +539,30 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       return (request as any).user?.orgId as string | undefined;
     };
 
+    // ── Sync & Pairing Routes (HMAC-authenticated, edge device communication) ──
+
     // Edge device sync endpoints (push/pull/heartbeat) — HMAC-authed, no JWT
     await app.register(syncRoutes, {
       prefix: '/api/v1/sync',
       syncKey: opts.syncKey,
       adapter: opts.syncAdapter,
     });
+
+    // Device pairing endpoints — mixed auth: /request and /status are unauthenticated,
+    // /claim and /unclaim use dashboard session (JWT)
+    await app.register(pairingRoutes, {
+      prefix: '/api/v1/pairing',
+      adapter: opts.syncAdapter,
+      getOrgId: getOrgIdFromJwt,
+      authHook: fleetAuthHook,
+    });
+
+    // Adapter registry — edge devices discover & download adapter bundles (no JWT)
+    await app.register(adapterRegistryRoutes, {
+      prefix: '/api/v1/adapters',
+    });
+
+    // ── JWT-Protected Dashboard Routes (org-scoped, ~40 route modules) ──
 
     // Admin fleet management endpoints (JWT-protected, org-scoped)
     await app.register(async (scope) => {
@@ -381,6 +577,7 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         prefix: '/api/v1/data',
         adapter: opts.syncAdapter,
         getOrgId: getOrgIdFromJwt,
+        getRealtimeChannel: () => realtimeChannel,
       });
       // User management endpoints
       await scope.register(userRoutes, {
@@ -393,7 +590,311 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         prefix: '/api/v1',
         adapter: opts.syncAdapter,
       });
+      // Backup & restore management
+      await scope.register(backupRoutes, {
+        prefix: '/api/v1/admin',
+      });
+      // Visitor management (pre-registration, check-in/out, watchlist)
+      await scope.register(visitorRoutes, {
+        prefix: '/api/v1',
+      });
+      // Incident management (GSOC incident lifecycle + SOPs)
+      await scope.register(incidentRoutes, {
+        prefix: '/api/v1',
+      });
+      // Panic alert management (JWT-protected dashboard routes — Alyssa's Law)
+      // Wrapped in try/catch so a table-migration failure here cannot take down
+      // the 40+ sibling routes registered in this scope.
+      try {
+        await scope.register(panicRoutes, {
+          prefix: '/api/v1/panic',
+        });
+        log.info('Panic routes registered at /api/v1/panic');
+      } catch (err) {
+        log.error({ err }, 'Failed to register panic routes — /api/v1/panic will 404 until fixed');
+      }
+      // Alarm queue management (GSOC alarm triage — priority-based)
+      await scope.register(alarmRoutes, {
+        prefix: '/api/v1/alarms',
+      });
+      // Drill management (SafeSchool — federal/state compliance tracking)
+      await scope.register(drillRoutes, {
+        prefix: '/api/v1',
+      });
+      // Guard tour management (SafeSchool/GSOC — NFC/QR checkpoint patrols)
+      await scope.register(guardRoutes, {
+        prefix: '/api/v1/guards',
+      });
+      // Notification system (SafeSchool/GSOC — emergency notifications)
+      await scope.register(notificationRoutes, {
+        prefix: '/api/v1',
+      });
+      // Notification channels (mass notification integration — Twilio, SendGrid, Slack, Teams, PA)
+      await scope.register(channelRoutes, {
+        prefix: '/api/v1',
+      });
+      // Anonymous tip line (SafeSchool — student/staff safety tip submission)
+      await scope.register(tipRoutes, {
+        prefix: '/api/v1',
+      });
+      // Contractor management (SafeSchool — contractor access & credential tracking)
+      await scope.register(contractorRoutes, {
+        prefix: '/api/v1',
+      });
+      // Case management (GSOC — investigation case tracking with evidence)
+      await scope.register(caseRoutes, {
+        prefix: '/api/v1',
+      });
+      // Reunification system (SafeSchool — emergency parent-student reunification)
+      await scope.register(reunificationRoutes, {
+        prefix: '/api/v1',
+      });
+      // Behavioral threat assessment (SafeSchool — CSTAG/NTAC models)
+      await scope.register(threatRoutes, {
+        prefix: '/api/v1',
+      });
+      // Environmental sensor integration (SafeSchool/SafeSchool — vape, gunshot, noise, etc.)
+      await scope.register(sensorRoutes, {
+        prefix: '/api/v1',
+      });
+      // Risk scoring (SafeSchool/SafeSchool — predictive threat scoring)
+      await scope.register(riskRoutes, {
+        prefix: '/api/v1',
+      });
+      // Digital hall passes (SafeSchool — student movement tracking)
+      await scope.register(hallpassRoutes, {
+        prefix: '/api/v1',
+      });
+      // Grant application helper (SafeSchool — grant tracking & compliance)
+      await scope.register(grantRoutes, {
+        prefix: '/api/v1',
+      });
+      // Tenant experience platform (SafeSchool — multi-tenant building management)
+      await scope.register(tenantRoutes, {
+        prefix: '/api/v1',
+      });
+      // PASS Guidelines compliance checker (SafeSchool — Partner Alliance for Safer Schools)
+      await scope.register(passRoutes, {
+        prefix: '/api/v1/pass',
+      });
+      // Building systems management (SafeSchool — energy/building management)
+      await scope.register(buildingRoutes, {
+        prefix: '/api/v1/building-systems',
+      });
+      // Inter-agency coordination (SafeSchool — police, fire, EMS coordination)
+      await scope.register(agencyRoutes, {
+        prefix: '/api/v1/agencies',
+      });
+      // Webhook management (all products — outbound event delivery)
+      await scope.register(webhookRoutes, {
+        prefix: '/api/v1/webhooks',
+      });
+      // System health monitoring (SafeSchool/SafeSchool — ADRM Defender-style)
+      await scope.register(healthRoutes, {
+        prefix: '/api/v1',
+      });
+      // PACS Analytics Engine (SafeSchool — Splunk for physical access control)
+      await scope.register(analyticsRoutes, {
+        prefix: '/api/v1',
+      });
+      // Physical Security UEBA (SafeSchool — behavior analytics)
+      await scope.register(uebaRoutes, {
+        prefix: '/api/v1',
+      });
+      // Natural Language Log Query (SafeSchool — plain English search)
+      await scope.register(nlqueryRoutes, {
+        prefix: '/api/v1',
+      });
+      // Physical Security Posture Score (all products — A-F security grade)
+      await scope.register(postureRoutes, {
+        prefix: '/api/v1',
+      });
+      // SIEM/SOC Export (SafeSchool — push events to Splunk/Sentinel)
+      await scope.register(siemRoutes, {
+        prefix: '/api/v1',
+      });
+      // Executive & Shift Handoff Briefings (SafeSchool — auto-generated reports)
+      await scope.register(briefingRoutes, {
+        prefix: '/api/v1',
+      });
+      // Multi-Site Command View (SafeSchool — cross-site management)
+      await scope.register(multisiteRoutes, {
+        prefix: '/api/v1',
+      });
+      // Ticket Auto-Creation (all products — ServiceNow/Jira integration)
+      await scope.register(ticketRoutes, {
+        prefix: '/api/v1',
+      });
+      // Audit trail & compliance reports (all products)
+      await scope.register(auditRoutes, {
+        prefix: '/api/v1',
+      });
+      // Interactive floor plans (SafeSchool/GSOC — device/zone mapping)
+      await scope.register(floorplanRoutes, {
+        prefix: '/api/v1',
+      });
+      // Sign-in flows (SafeSchool — visitor/contractor sign-in workflows)
+      await scope.register(signinFlowRoutes, {
+        prefix: '/api/v1',
+      });
+      // Automation recipes (all products — trigger/action automation workflows)
+      await scope.register(recipeRoutes, {
+        prefix: '/api/v1/recipes',
+        adapter: opts.syncAdapter as any,
+      });
+      // Badge printing (all products — badge designer print queue)
+      await scope.register(badgeRoutes, {
+        prefix: '/api/v1/badges',
+      });
+      // Telephony call log & config (JWT-protected — IVR management)
+      await scope.register(telephonyRoutes, {
+        prefix: '/api/v1/telephony',
+      });
+      // Package room management (SafeSchool — package tracking & tenant notification)
+      try {
+        await scope.register(packageRoutes, {
+          prefix: '/api/v1/packages',
+        });
+        log.info('Package routes registered at /api/v1/packages');
+      } catch (err) {
+        log.error({ err }, 'Failed to register package routes');
+      }
+      // Cardholder bidirectional PAC sync (all products — cardholder dedup + conflict resolution)
+      try {
+        await scope.register(cardholderSyncRoutes, {
+          prefix: '/api/v1/sync/cardholders',
+        });
+        log.info('Cardholder sync routes registered at /api/v1/sync/cardholders');
+      } catch (err) {
+        log.error({ err }, 'Failed to register cardholder sync routes');
+      }
+      // AI Insights routes (customer-facing — anomalies, visitor risk, NL commands, compliance)
+      try {
+        await scope.register(aiInsightsRoutes, {
+          prefix: '/api/v1',
+        });
+        log.info('AI insights routes registered at /api/v1/ai/* and /api/v1/compliance/*');
+      } catch (err) {
+        log.error({ err }, 'Failed to register AI insights routes');
+      }
+      // System Configurator routes (admin-only — system builder, pricing, compliance docs)
+      try {
+        await scope.register(configuratorRoutes, {
+          prefix: '/api/v1',
+        });
+        log.info('Configurator routes registered at /api/v1/configurator/*');
+      } catch (err) {
+        log.error({ err }, 'Failed to register configurator routes');
+      }
     });
+
+    // ── Public Routes (no JWT — device-key or open access) ──
+
+    // Public API docs endpoint (no JWT)
+    await app.register(apiDocsRoute, {});
+
+    // Public sensor ingest endpoint (no JWT — device-key auth)
+    await app.register(sensorIngestRoute, {});
+
+    // Public tip submission endpoint (no JWT — anonymous tips)
+    await app.register(async (scope) => {
+      scope.post('/api/v1/public/tips/submit', async (request: FastifyRequest, reply: FastifyReply) => {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/api/v1/tips/submit',
+          headers: { 'content-type': 'application/json' },
+          payload: request.body as any,
+        });
+        reply.code(res.statusCode).send(JSON.parse(res.body));
+      });
+    });
+
+    // Public alarm ingest endpoint (device key auth, no JWT)
+    await app.register(alarmIngestRoute, {});
+
+    // Public health heartbeat ingest endpoint (device key auth, no JWT)
+    await app.register(healthIngestRoute, {});
+
+    // Public access event ingest endpoint (device key auth, no JWT)
+    await app.register(analyticsIngestRoute, {});
+
+    // Public Twilio voice webhook endpoints (no JWT — Twilio calls these directly)
+    await app.register(telephonyVoiceRoutes, { prefix: '/api/v1/telephony' });
+
+    // Public panic trigger endpoint (no JWT — uses PANIC_TOKEN env var for auth)
+    // Allows panic buttons/devices to trigger alerts without dashboard login.
+    // Rate-limited per-IP to prevent flooding the DB even if PANIC_TOKEN leaks.
+    const panicRateBuckets = new Map<string, { count: number; resetAt: number }>();
+    const PANIC_WINDOW_MS = 60_000;
+    const PANIC_MAX_PER_WINDOW = Number(process.env.PANIC_RATE_LIMIT || 30);
+    const panicRateCleanup = setInterval(() => {
+      const now = Date.now();
+      for (const [k, v] of panicRateBuckets) {
+        if (v.resetAt < now) panicRateBuckets.delete(k);
+      }
+    }, PANIC_WINDOW_MS);
+    panicRateCleanup.unref?.();
+    await app.register(async (scope) => {
+      scope.post('/api/v1/public/panic/trigger', async (request: FastifyRequest, reply: FastifyReply) => {
+        // Rate-limit by client IP
+        const ip = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || request.ip || 'unknown';
+        const now = Date.now();
+        const bucket = panicRateBuckets.get(ip);
+        if (!bucket || bucket.resetAt < now) {
+          panicRateBuckets.set(ip, { count: 1, resetAt: now + PANIC_WINDOW_MS });
+        } else {
+          bucket.count += 1;
+          if (bucket.count > PANIC_MAX_PER_WINDOW) {
+            return reply.code(429).send({ error: 'Rate limit exceeded. Slow down.' });
+          }
+        }
+
+        const panicToken = process.env.PANIC_TOKEN;
+        const panicHeader = request.headers['x-panic-token'] as string | undefined;
+        const authHeader = request.headers.authorization;
+        const provided = panicHeader || (authHeader?.startsWith('PanicToken ') ? authHeader.slice(11) : null);
+
+        if (!panicToken) {
+          // In production, refuse rather than expose an unauthenticated panic
+          // trigger. In dev this is a warning so local testing still works.
+          const runningInProd = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
+          if (runningInProd) {
+            return reply.code(503).send({
+              error: 'Public panic endpoint disabled: PANIC_TOKEN is not configured on this deployment.',
+            });
+          }
+          log.warn('PANIC_TOKEN not set — public panic endpoint is unauthenticated (dev only)');
+        } else {
+          let ok = false;
+          if (provided) {
+            try {
+              const a = Buffer.from(panicToken);
+              const b = Buffer.from(provided);
+              ok = a.length === b.length && timingSafeEqual(a, b);
+            } catch { ok = false; }
+          }
+          if (!ok) {
+            return reply.code(401).send({ error: 'Invalid or missing panic token. Set X-Panic-Token header.' });
+          }
+        }
+
+        // Proxy to the registered panic routes via internal inject. The
+        // downstream handler does its own token compare against PANIC_TOKEN,
+        // so we forward the verified token verbatim (never a 'open' sentinel).
+        const res = await app.inject({
+          method: 'POST',
+          url: '/api/v1/panic/trigger',
+          headers: {
+            'content-type': 'application/json',
+            ...(panicToken ? { 'x-panic-token': panicToken } : {}),
+          },
+          payload: request.body as any,
+        });
+        reply.code(res.statusCode).send(JSON.parse(res.body));
+      });
+    });
+
+    // ── Entity Unwrap Proxies & Account Routes (frontend compatibility) ──
 
     // Entity routes also at /api/v1 (without /data/ prefix) for product frontend compatibility
     // SafeSchoolOS dashboard expects raw arrays (Camera[], Event[], Door[]) not wrapped objects
@@ -443,9 +944,30 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       unwrapProxy('cardholders');
       unwrapProxy('connectors');
       unwrapProxy('alerts');
-      unwrapProxy('visitors');
+      // visitors handled by visitorRoutes — don't duplicate here
 
+      // Account management (multi-tenancy: account CRUD, sites, user-site roles)
+      if ('pool' in opts.syncAdapter) {
+        await scope.register(accountRoutes, {
+          prefix: '/api/v1/accounts',
+          pool: (opts.syncAdapter as unknown as { pool: unknown }).pool as any,
+          getAccountId: getOrgIdFromJwt,
+        });
+      }
+
+      // GSOC Enterprise (regions, video walls, escalation chains, operator roles)
+      await scope.register(gsocEnterpriseRoutes, {
+        prefix: '/api/v1/gsoc',
+        getOrgId: getOrgIdFromJwt,
+        getUserId: (req: any) => req.user?.sub || req.user?.userId,
+      });
     });
+
+    // VMS emulator — synthetic camera snapshot/stream endpoints (no auth for img/iframe compat)
+    await app.register(vmsRoutes, { prefix: '/api/v1' });
+
+    // Widget (embeddable dashboard — no auth for iframe compat)
+    await app.register(widgetRoutes, { prefix: '/api/v1' });
 
     // Camera snapshot/stream proxy — requires JWT auth (via header or ?token= query param)
     // URL validation: only allow proxying to private/local network addresses
@@ -485,6 +1007,12 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       return true;
     }
 
+    // Helper: resolve camera URL — relative paths route internally via inject()
+    const resolveCameraUrl = (url: string): { internal: boolean; url: string } => {
+      if (url.startsWith('/')) return { internal: true, url };
+      return { internal: false, url };
+    };
+
     await app.register(async (scope) => {
       scope.get('/api/v1/cameras/:cameraId/snapshot', async (request: FastifyRequest, reply: FastifyReply) => {
         if (!verifyCameraAuth(request, reply)) return;
@@ -499,6 +1027,13 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         const snapshotUrl = cam?.snapshotUrl as string | undefined;
         if (!snapshotUrl) {
           return reply.code(404).send({ error: 'No snapshot URL for camera' });
+        }
+        const resolved = resolveCameraUrl(snapshotUrl);
+        if (resolved.internal) {
+          // Internal VMS route — use inject()
+          const res = await app.inject({ method: 'GET', url: resolved.url });
+          reply.header('Cache-Control', 'no-cache');
+          return reply.type(res.headers['content-type'] as string || 'image/svg+xml').send(res.rawPayload);
         }
         if (!isAllowedCameraUrl(snapshotUrl)) {
           log.warn({ snapshotUrl, cameraId }, 'Blocked camera snapshot proxy to disallowed URL');
@@ -530,6 +1065,36 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
         const streamUrl = cam?.streamUrl as string | undefined;
         if (!streamUrl) {
           return reply.code(404).send({ error: 'No stream URL for camera' });
+        }
+        // Internal VMS route — redirect to the VMS stream endpoint directly
+        const resolved = resolveCameraUrl(streamUrl);
+        if (resolved.internal) {
+          const port = deps.port || 8470;
+          const internalUrl = `http://127.0.0.1:${port}${resolved.url}`;
+          try {
+            const streamResp = await fetch(internalUrl, { signal: AbortSignal.timeout(30000) });
+            if (!streamResp.ok || !streamResp.body) {
+              return reply.code(502).send({ error: 'VMS stream failed' });
+            }
+            const contentType = streamResp.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=---cameraboundary';
+            reply.raw.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache', 'Connection': 'close' });
+            const reader = streamResp.body.getReader();
+            const pump = async () => {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done || reply.raw.destroyed) break;
+                  reply.raw.write(value);
+                }
+              } catch { /* stream closed */ }
+              reply.raw.end();
+            };
+            pump();
+            request.raw.on('close', () => { reader.cancel().catch(() => {}); });
+            return;
+          } catch {
+            return reply.code(502).send({ error: 'VMS stream failed' });
+          }
         }
         if (!isAllowedCameraUrl(streamUrl)) {
           log.warn({ streamUrl, cameraId }, 'Blocked camera stream proxy to disallowed URL');
@@ -571,6 +1136,8 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       });
     });
 
+    // ── Product Frontend Auth (cloud dashboard login/me) ──
+
     // Product frontend auth endpoints (/api/v1/auth/login + /api/v1/auth/me)
     // SafeSchoolOS dashboard posts { email, password } and expects { token, user }
     await app.register(async (scope) => {
@@ -591,7 +1158,11 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
           return reply.code(401).send({ error: 'Invalid credentials' });
         }
 
-        if (password !== adminPass) {
+        // Constant-time password comparison prevents timing-based credential guessing.
+        const expected = Buffer.from(adminPass);
+        const provided = Buffer.from(password);
+        const ok = expected.length === provided.length && timingSafeEqual(expected, provided);
+        if (!ok) {
           return reply.code(401).send({ error: 'Invalid credentials' });
         }
 
@@ -633,12 +1204,19 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       });
     });
 
-    // Customer-facing license/subscription endpoints
-    await app.register(licenseRoutes, {
-      prefix: '/api/v1/license',
-      adapter: opts.licenseAdapter,
-      getOrgId: opts.getOrgId ?? ((request: any) => request.headers['x-org-id'] as string),
+    // ── License & Subscription Routes ──
+
+    // Customer-facing license/subscription endpoints (JWT-protected)
+    await app.register(async (scope) => {
+      scope.addHook('preHandler', fleetAuthHook);
+      await scope.register(licenseRoutes, {
+        prefix: '/api/v1/license',
+        adapter: opts.licenseAdapter,
+        getOrgId: opts.getOrgId ?? ((request: any) => getOrgIdFromJwt(request) || ''),
+      });
     });
+
+    // ── Fleet Dashboard (HTML UI + OAuth + homepage) ──
 
     // Fleet dashboard (HTML + login endpoint + optional OAuth)
     const oauthBaseUrl = process.env.DASHBOARD_BASE_URL;
@@ -653,11 +1231,60 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       : undefined;
     const hasOAuth = oauthBaseUrl && (googleConfig || microsoftConfig || appleConfig);
 
+    // Wire up user account verification for dashboard login
+    // Edge/MIRROR mode: check local SQLite user account store (synced from cloud)
+    // CLOUD mode: check Postgres sync_users table directly
+    let verifyCredentials: ((username: string, password: string) => Promise<{ orgId: string; username: string; role: string } | null>) | undefined;
+
+    if (deps.userAccountStore) {
+      verifyCredentials = async (username: string, password: string) => {
+        // Try username first, then email (cloud creates users with email as primary identifier)
+        let valid = await deps.userAccountStore!.verifyPassword(username, password);
+        let account = valid ? await deps.userAccountStore!.getByUsername(username) : null;
+        if (!account) {
+          // Fallback: try looking up by email
+          const byEmail = await deps.userAccountStore!.getByEmail(username);
+          if (byEmail) {
+            const { compare } = await import('bcryptjs');
+            valid = await compare(password, byEmail.passwordHash);
+            account = valid ? byEmail : null;
+          }
+        }
+        if (!account) return null;
+        return { orgId: account.siteId || process.env.DASHBOARD_ADMIN_ORG || 'default', username: account.username, role: account.role };
+      };
+    } else if (opts.syncAdapter && 'pool' in opts.syncAdapter) {
+      // CLOUD mode with Postgres — verify against sync_users table
+      // Accept either username or email
+      verifyCredentials = async (username: string, password: string) => {
+        try {
+          const adapter = opts.syncAdapter as unknown as { pool: { query: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> } };
+          const { rows } = await adapter.pool.query(
+            'SELECT id, email, name, username, password_hash, role, org_id FROM sync_users WHERE email = $1 OR username = $1 LIMIT 1',
+            [username],
+          );
+          if (rows.length === 0 || !rows[0].password_hash) return null;
+          const { compare } = await import('bcryptjs');
+          const valid = await compare(password, String(rows[0].password_hash));
+          if (!valid) return null;
+          return {
+            orgId: String(rows[0].org_id || process.env.DASHBOARD_ADMIN_ORG || 'default'),
+            username: String(rows[0].username || rows[0].email),
+            role: String(rows[0].role || 'viewer'),
+          };
+        } catch (err) {
+          log.warn({ err }, 'Postgres user verification failed');
+          return null;
+        }
+      };
+    }
+
     await app.register(dashboardRoutes, {
       prefix: '/dashboard',
       signJwt,
       verifyJwt,
-      productName: process.env.DASHBOARD_PRODUCT,
+      verifyCredentials,
+      productName: process.env.DASHBOARD_PRODUCT || [...deps.moduleRegistry.getAll().keys()][0],
       userAdapter: hasOAuth ? opts.userAdapter : undefined,
       oauth: hasOAuth ? {
         baseUrl: oauthBaseUrl,
@@ -676,9 +1303,27 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
           return reply.type('text/html').send(opts.homepageHtml);
         });
       } else {
-        scope.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
-          return reply.redirect('/dashboard');
-        });
+        // If multiple products active, show a picker; otherwise redirect to dashboard
+        const activeProducts = [...deps.moduleRegistry.getAll().keys()];
+        if (activeProducts.length > 1) {
+          scope.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
+            const cards = activeProducts.map((p: string) => {
+              const labels: Record<string, { name: string; color: string; desc: string }> = {
+                'safeschool': { name: 'SafeSchool', color: '#f59e0b', desc: 'School safety & visitor management' },
+                'safeschool': { name: 'SafeSchool', color: '#3b82f6', desc: 'Badge printing & access control' },
+                'safeschool': { name: 'SafeSchool', color: '#10b981', desc: 'Global security operations center' },
+              };
+              const info = labels[p] || { name: p, color: '#6366f1', desc: '' };
+              return `<a href="/dashboard?product=${p}" style="display:block;background:#1e2030;border:2px solid ${info.color};border-radius:12px;padding:2rem;text-decoration:none;color:#e2e8f0;transition:transform 0.2s,box-shadow 0.2s" onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''"><div style="font-size:1.5rem;font-weight:700;color:${info.color}">${info.name}</div><div style="margin-top:0.5rem;color:#94a3b8;font-size:0.9rem">${info.desc}</div></a>`;
+            }).join('');
+            const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EdgeRuntime</title></head><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#141625;font-family:-apple-system,BlinkMacSystemFont,sans-serif"><div style="max-width:480px;width:100%;padding:2rem"><h1 style="color:#e2e8f0;text-align:center;margin-bottom:2rem">EdgeRuntime</h1><div style="display:grid;gap:1rem">${cards}</div></div></body></html>`;
+            return reply.type('text/html').send(html);
+          });
+        } else {
+          scope.get('/', async (_request: FastifyRequest, reply: FastifyReply) => {
+            return reply.redirect('/dashboard');
+          });
+        }
       }
 
       scope.get('/login', async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -689,11 +1334,154 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       scope.get('/demo', async (_request: FastifyRequest, reply: FastifyReply) => {
         return reply.redirect('/dashboard/demo');
       });
+
+      // /pricing — product pricing page
+      scope.get('/pricing', async (_request: FastifyRequest, reply: FastifyReply) => {
+        const productName = process.env.HOMEPAGE_NAME;
+        if (productName) {
+          try {
+            const { loadHomepageHtml: loadHtml } = await import('@edgeruntime/cloud-sync');
+            const html = loadHtml('pricing-' + productName);
+            if (html) return reply.type('text/html').send(html);
+          } catch { /* fallback below */ }
+        }
+        return reply.redirect('/dashboard');
+      });
     });
 
     // Real-time WebSocket channel for edge device commands
     realtimeChannel = new RealtimeChannelClass({ syncKey: opts.syncKey });
     realtimeChannel.register(app, '/api/v1/sync/ws');
+
+    // ─── Demo Admin API (status + runtime toggle) ────────────────
+    // Provides endpoints to query and toggle demo mode at runtime.
+    // When enabled, starts the PAC emulator (synthetic access events),
+    // recipe-driven demo emulator, and the demo-seed auto-reset cron.
+    let demoModeActive = process.env.DEMO_MODE === 'true' || process.env.DEMO_MODE === '1';
+    let pacEmulatorHandle: ReturnType<typeof startPacEmulator> | null = null;
+    let demoResetCronHandle: ReturnType<typeof startDemoResetCron> | null = null;
+
+    await app.register(async (scope) => {
+      scope.addHook('preHandler', fleetAuthHook);
+
+      // GET /api/v1/admin/demo-status — check demo mode state
+      scope.get('/api/v1/admin/demo-status', async () => {
+        const { existsSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const seedPath = join(process.cwd(), 'data', 'backups', 'demo-seed.json');
+        return {
+          demoMode: demoModeActive,
+          seedExists: existsSync(seedPath),
+          demoProduct: process.env.DEMO_PRODUCT || 'all',
+          pacEmulatorRunning: pacEmulatorHandle !== null,
+          demoResetCronRunning: demoResetCronHandle !== null,
+          demoResetIntervalMs: parseInt(process.env.DEMO_RESET_INTERVAL_MS || '1800000', 10),
+        };
+      });
+
+      // POST /api/v1/admin/demo-toggle — enable/disable demo mode at runtime
+      scope.post('/api/v1/admin/demo-toggle', async (request: FastifyRequest) => {
+        const body = request.body as { enabled?: boolean; regenerateSeed?: boolean; product?: string } || {};
+        const enable = body.enabled !== undefined ? body.enabled : !demoModeActive;
+        const product = body.product || process.env.DEMO_PRODUCT || 'all';
+
+        if (enable && !demoModeActive) {
+          // Enable demo mode
+          demoModeActive = true;
+          process.env.DEMO_MODE = 'true';
+
+          if (process.env.DATABASE_URL) {
+            // Generate seed if needed
+            const { existsSync: exists2, writeFileSync: write2, mkdirSync: mkdir2 } = await import('node:fs');
+            const { join: join2 } = await import('node:path');
+            const bDir = join2(process.cwd(), 'data', 'backups');
+            const sPath = join2(bDir, 'demo-seed.json');
+            if (!exists2(sPath) || body.regenerateSeed) {
+              mkdir2(bDir, { recursive: true });
+              const seed = generateDemoSeed(product) as any;
+              seed._createdAt = new Date().toISOString();
+              seed._name = 'demo-seed';
+              seed._description = 'Admin-generated demo seed — ' + product;
+              write2(sPath, JSON.stringify(seed, null, 2), 'utf-8');
+            }
+
+            // Start cron + emulator
+            const interval = parseInt(process.env.DEMO_RESET_INTERVAL_MS || '1800000', 10);
+            demoResetCronHandle = startDemoResetCron(interval);
+            startPacEmulator({ connectionString: process.env.DATABASE_URL, product, intervalMs: 15000 });
+            pacEmulatorHandle = {} as any; // flag as running
+          }
+
+          log.info({ product }, 'Demo mode ENABLED via admin API');
+          return { success: true, demoMode: true, product };
+
+        } else if (!enable && demoModeActive) {
+          // Disable demo mode
+          demoModeActive = false;
+          process.env.DEMO_MODE = '';
+
+          if (demoResetCronHandle) {
+            clearInterval(demoResetCronHandle);
+            demoResetCronHandle = null;
+          }
+          const { stopPacEmulator: stopPac, stopDemoEmulator } = await import('@edgeruntime/cloud-sync');
+          stopPac();
+          stopDemoEmulator();
+          pacEmulatorHandle = null;
+
+          log.info('Demo mode DISABLED via admin API');
+          return { success: true, demoMode: false };
+        }
+
+        return { success: true, demoMode: demoModeActive, message: 'No change' };
+      });
+    });
+
+    // Demo data auto-reset cron (restores demo-seed.json every 30 min)
+    const demoResetInterval = parseInt(process.env.DEMO_RESET_INTERVAL_MS || '1800000', 10); // default 30 min
+    if (demoModeActive && process.env.DATABASE_URL) {
+      // Auto-generate demo seed if it doesn't exist
+      const { existsSync, writeFileSync, mkdirSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const backupDir = join(process.cwd(), 'data', 'backups');
+      const seedPath = join(backupDir, 'demo-seed.json');
+      {
+        // Always regenerate seed on boot to pick up schema/data changes
+        const demoProduct = process.env.DEMO_PRODUCT || 'all';
+        log.info({ demoProduct }, 'Generating demo seed...');
+        mkdirSync(backupDir, { recursive: true });
+        const seed = generateDemoSeed(demoProduct) as any;
+        seed._createdAt = new Date().toISOString();
+        seed._name = 'demo-seed';
+        seed._description = 'Auto-generated demo seed — ' + demoProduct;
+        writeFileSync(seedPath, JSON.stringify(seed, null, 2), 'utf-8');
+        log.info({ demoProduct, events: (seed.access_events || []).length }, 'Demo seed generated');
+      }
+
+      demoResetCronHandle = startDemoResetCron(demoResetInterval);
+
+      // Start PAC emulator for continuous event generation (all products by default)
+      const emulatorProduct = process.env.DEMO_PRODUCT || 'all';
+      const emulatorInterval = parseInt(process.env.PAC_EMULATOR_INTERVAL_MS || '15000', 10);
+      startPacEmulator({
+        connectionString: process.env.DATABASE_URL,
+        product: emulatorProduct,
+        intervalMs: emulatorInterval,
+      });
+      pacEmulatorHandle = {} as any; // flag as running
+
+      // Start recipe-driven demo emulator (generates events from recipe definitions)
+      try {
+        const { startDemoEmulator } = await import('@edgeruntime/cloud-sync');
+        await startDemoEmulator({
+          connectionString: process.env.DATABASE_URL!,
+          product: emulatorProduct,
+        });
+        log.info({ product: emulatorProduct }, 'Recipe demo emulator started');
+      } catch (err) {
+        log.warn({ err }, 'Recipe demo emulator failed to start (non-fatal)');
+      }
+    }
 
     // ─── Video Wall & Kiosk pages ────────────────────────────────
     const __uiDirname = dirname(fileURLToPath(import.meta.url));
@@ -723,7 +1511,115 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       log.info('Kiosk page requested');
       return reply.type('text/html').send(loadUiHtml('kiosk.html'));
     });
-    log.info('Wall and kiosk routes registered');
+    app.get('/badge-designer', async (_req: FastifyRequest, reply: FastifyReply) => {
+      return reply.type('text/html').send(loadUiHtml('badge-designer.html'));
+    });
+    // Adapter UI pages — standalone components embedded via iframe in dashboard
+    const adapterPages = ['guard-tours', 'door-camera', 'asset-tracker', 'patient-flow', 'compliance', 'tenant-portal', 'package-room', 'ivr-doorrelease', 'property-analytics', 'amenity-booking', 'elevator-control', 'work-orders', 'move-inout', 'intercom', 'credentials', 'door-schedules', 'mobile-credentials', 'visitors', 'incidents', 'alerts', 'reports', 'floor-map', 'audit-trail', 'cameras', 'doors', 'events', 'cardholders', 'settings', 'connectors', 'travel-risk',
+      // Kiosk modes for Sicunet Android wall unit
+      'kiosk-visitor', 'kiosk-package', 'kiosk-directory', 'kiosk-amenity', 'kiosk-conference', 'kiosk-tardy',
+      'kiosk-guard', 'kiosk-contractor', 'kiosk-muster', 'kiosk-datacenter', 'kiosk-hotdesk', 'kiosk-timeclock',
+      'kiosk-patient-checkin', 'kiosk-hand-hygiene', 'kiosk-staff-id', 'kiosk-emergency-info',
+      'cardholder-sync', 'pac-explorer'];
+    for (const page of adapterPages) {
+      app.get(`/${page}`, async (_req: FastifyRequest, reply: FastifyReply) => {
+        return reply.type('text/html').send(loadUiHtml(`${page}.html`));
+      });
+    }
+    log.info('Adapter UI pages registered: badge-designer, %s', adapterPages.join(', '));
+
+    // ─── SiteSentrix landing page ─────────────────────────────────
+    app.get('/sitesentrix', async (_req: FastifyRequest, reply: FastifyReply) => {
+      return reply.type('text/html').send(loadUiHtml('sitesentrix.html'));
+    });
+
+    // ─── System Configurator (admin-only sales portal) ────────────
+    app.get('/configurator', async (_req: FastifyRequest, reply: FastifyReply) => {
+      return reply.type('text/html').send(loadUiHtml('configurator.html'));
+    });
+
+    // ─── Convenience proxy routes ─────────────────────────────────────────
+    // Dashboard recipes reference simplified paths. Proxy to actual routes.
+    app.get('/api/v1/lockdown/status', async (req: FastifyRequest, reply: FastifyReply) => {
+      const resp = await app.inject({ method: 'GET', url: '/api/v1/data/lockdown/status', headers: req.headers as any });
+      return reply.code(resp.statusCode).type(resp.headers['content-type'] as string || 'application/json').send(resp.body);
+    });
+    app.post('/api/v1/lockdown', async (req: FastifyRequest, reply: FastifyReply) => {
+      const resp = await app.inject({ method: 'POST', url: '/api/v1/data/lockdown', headers: req.headers as any, payload: req.body as any });
+      return reply.code(resp.statusCode).type(resp.headers['content-type'] as string || 'application/json').send(resp.body);
+    });
+    app.get('/api/v1/connectors/status', async (req: FastifyRequest, reply: FastifyReply) => {
+      const resp = await app.inject({ method: 'GET', url: '/api/v1/data/connectors', headers: req.headers as any });
+      return reply.code(resp.statusCode).type(resp.headers['content-type'] as string || 'application/json').send(resp.body);
+    });
+    app.get('/api/v1/dispatch/status', async (_req: FastifyRequest, reply: FastifyReply) => {
+      return reply.send({ status: 'standby', activeDispatches: 0, lastDispatch: null, provider: 'RapidSOS' });
+    });
+    log.info('Convenience proxy routes registered (lockdown, connectors, dispatch, panic)');
+
+    // ─── Static assets route (/assets/*) ────────────────────────────────
+    app.get('/assets/*', async (req: FastifyRequest, reply: FastifyReply) => {
+      const assetPath = (req.params as any)['*'];
+      if (!assetPath || assetPath.includes('..')) return reply.code(400).send('Invalid path');
+      const mimeTypes: Record<string, string> = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', ico: 'image/x-icon', css: 'text/css', js: 'application/javascript', json: 'application/json' };
+      const ext = assetPath.split('.').pop()?.toLowerCase() || '';
+      for (const base of [
+        join(__uiDirname, 'ui', 'assets'),
+        join(__uiDirname, '..', 'ui', 'assets'),
+        join(__uiDirname, '..', '..', 'cloud-sync', 'ui', 'assets'),
+        join(__uiDirname, '..', '..', 'cloud-sync', 'dist', 'ui', 'assets'),
+        join(__uiDirname, '..', '..', '..', 'packages', 'cloud-sync', 'ui', 'assets'),
+        join(__uiDirname, '..', '..', '..', 'packages', 'cloud-sync', 'dist', 'ui', 'assets'),
+      ]) {
+        try {
+          const data = readFileSync(join(base, assetPath));
+          return reply.type(mimeTypes[ext] || 'application/octet-stream').header('Cache-Control', 'public, max-age=86400').send(data);
+        } catch { /* next */ }
+      }
+      return reply.code(404).send('Asset not found');
+    });
+
+    // ─── Demo index routes (/:proxyIndex → demo by proxy table slot) ───
+    // Maps proxy table indices to product identifiers so that visiting
+    // e.g. /0 → SafeSchool demo, /3 → SafeSchool demo.
+    // These indices mirror the proxy table in packages/activation (PROXY_TABLE).
+    // Each slot injects DEMO_MODE + PRODUCT globals into the dashboard HTML,
+    // allowing a single cloud instance to serve demo dashboards for all products
+    // on the SiteSentrix landing page.
+    const DEMO_INDEX_MAP: Record<number, { product: string; name: string }> = {
+      0: { product: 'safeschool', name: 'SafeSchool' },
+      1: { product: 'safeschool', name: 'SafeSchool' },
+      2: { product: 'safeschool', name: 'SafeSchool' },
+      3: { product: 'safeschool', name: 'SafeSchool' },
+      4: { product: 'safeschool', name: 'SafeSchool' },
+      5: { product: 'healthcare', name: 'Healthcare' },
+      6: { product: 'property-guard', name: 'PropertyGuard' },
+      7: { product: 'datacenter', name: 'Nexus DataCenter' },
+      8: { product: 'lds-church', name: 'LDS Church MTC' },
+    };
+
+    app.get('/:proxyIndex', async (request: FastifyRequest, reply: FastifyReply) => {
+      const idx = parseInt((request.params as any).proxyIndex, 10);
+      if (isNaN(idx) || !(idx in DEMO_INDEX_MAP)) {
+        return reply.code(404).type('text/html').send(
+          '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Not Found</title></head>' +
+          '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#141625;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,sans-serif">' +
+          '<div style="text-align:center"><h1 style="font-size:4rem;margin:0;color:#f43f5e">404</h1>' +
+          '<p style="color:#94a3b8;margin-top:1rem">Demo slot not found</p>' +
+          '<a href="/" style="color:#818cf8;text-decoration:none;margin-top:1rem;display:inline-block">Back to SiteSentrix</a></div></body></html>'
+        );
+      }
+      const entry = DEMO_INDEX_MAP[idx];
+      let html = loadUiHtml('dashboard.html');
+      const inject = [
+        `window.DEMO_MODE=true;`,
+        `window.DEMO_ORG="demo";`,
+        `window.PRODUCT=${JSON.stringify(entry.product)};`,
+      ];
+      html = html.replace('// Early product branding', inject.join('\n') + '\n// Early product branding');
+      return reply.header('Cache-Control', 'no-store').type('text/html').send(html);
+    });
+    log.info('Demo index routes registered for slots 0-%d', Object.keys(DEMO_INDEX_MAP).length - 1);
 
     // ─── Wall WebSocket (dashboard push-to-wall) ─────────────────
     const wallClients = new Map<number, Set<import('ws').WebSocket>>();
@@ -872,7 +1768,9 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       });
     });
 
-    log.info('Cloud-sync routes mounted (sync, fleet, license, dashboard, wall, kiosk, realtime-ws)');
+    // Kiosk visitor routes already registered manually above (lines ~994-1050)
+
+    log.info('Cloud-sync routes mounted (sync, fleet, license, dashboard, wall, kiosk, visitors, realtime-ws)');
 
     // ─── Cloud self-registration + PAC emulator poller ──────────────
     // Register this cloud instance as a "device" so it appears in the

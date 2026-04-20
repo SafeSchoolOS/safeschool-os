@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Package Room Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+  --red-dim: rgba(239,68,68,0.12); --green-dim: rgba(34,197,94,0.12);
+  --amber-dim: rgba(245,158,11,0.12); --blue-dim: rgba(59,130,246,0.12);
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.header-right { display: flex; gap: 8px; align-items: center; }
+.header-badge { font-size: 11px; padding: 4px 10px; background: var(--accent-dim); color: var(--accent); border-radius: 12px; font-weight: 600; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab-btn { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--text3); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; font-family: inherit; transition: color 0.15s; }
+.tab-btn:hover { color: var(--text2); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-btn .tab-count { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--bg3); color: var(--text3); margin-left: 6px; font-weight: 700; }
+.tab-btn.active .tab-count { background: var(--accent-dim); color: var(--accent); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* Stats */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); } .val-accent { color: var(--accent); }
+.val-amber { color: var(--amber); } .val-red { color: var(--red); }
+.val-blue { color: var(--blue); } .val-purple { color: var(--purple); }
+
+/* Card */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+.card-body { padding: 0; }
+.card-body-padded { padding: 20px; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); position: sticky; top: 0; z-index: 1; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+tr.row-overdue td { background: rgba(239,68,68,0.06); }
+tr.row-overdue-warn td { background: rgba(245,158,11,0.06); }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-accent { background: var(--accent-dim); color: var(--accent); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.badge-purple { background: rgba(139,92,246,0.15); color: var(--purple); }
+
+/* Carrier icons */
+.carrier-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 5px; font-size: 10px; font-weight: 700; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
+.carrier-usps { background: #004B87; color: #fff; }
+.carrier-ups { background: #351C15; color: #FFB500; }
+.carrier-fedex { background: #4D148C; color: #FF6600; }
+.carrier-amazon { background: #FF9900; color: #232F3E; }
+.carrier-dhl { background: #FFCC00; color: #D40511; }
+.carrier-other { background: var(--bg3); color: var(--text2); }
+
+/* Buttons */
+.btn { padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-family: inherit; transition: all 0.15s; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #0f0f23; }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-success { border-color: rgba(34,197,94,0.4); color: var(--green); }
+.btn-success:hover { background: rgba(34,197,94,0.1); }
+.btn-warn { border-color: rgba(59,130,246,0.4); color: var(--blue); }
+.btn-warn:hover { background: rgba(59,130,246,0.1); }
+.btn-danger { border-color: rgba(239,68,68,0.4); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-lg { padding: 12px 28px; font-size: 14px; }
+
+/* Form */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.form-input { width: 100%; padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--text3); }
+.form-input-lg { font-size: 20px; padding: 16px 18px; letter-spacing: 0.03em; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.form-select { width: 100%; padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 14px; font-family: inherit; outline: none; cursor: pointer; }
+.form-select:focus { border-color: var(--accent); }
+
+/* Size selector */
+.size-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.size-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; background: var(--bg3); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.15s; }
+.size-opt:hover { border-color: var(--text3); }
+.size-opt.selected { border-color: var(--accent); background: var(--accent-dim); }
+.size-opt .size-icon { font-size: 24px; line-height: 1; }
+.size-opt .size-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.03em; }
+.size-opt.selected .size-label { color: var(--accent); }
+
+/* Carrier detection badge */
+.carrier-detect { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; min-height: 48px; transition: all 0.3s; }
+.carrier-detect.detected { border-color: var(--green); background: rgba(34,197,94,0.08); }
+.carrier-detect .cd-icon { font-size: 20px; }
+.carrier-detect .cd-text { font-size: 13px; color: var(--text3); }
+.carrier-detect.detected .cd-text { color: var(--green); font-weight: 600; }
+
+/* Toast */
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 14px 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; animation: toastIn 0.3s ease; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 380px; display: flex; align-items: flex-start; gap: 10px; }
+.toast-success { border-color: var(--green); }
+.toast-info { border-color: var(--blue); }
+.toast-warn { border-color: var(--amber); }
+.toast .toast-icon { font-size: 18px; flex-shrink: 0; }
+.toast .toast-body { flex: 1; }
+.toast .toast-title { font-weight: 700; margin-bottom: 2px; }
+.toast .toast-msg { color: var(--text2); font-size: 12px; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(40px); } }
+
+/* Filter bar */
+.filter-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filter-select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
+.filter-select:focus { outline: none; border-color: var(--accent); }
+.search-input { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 12px; width: 200px; font-family: inherit; }
+.search-input:focus { outline: none; border-color: var(--accent); }
+
+/* Pickup modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 8000; display: flex; align-items: center; justify-content: center; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 420px; max-width: 90vw; }
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+/* Chart bars */
+.chart-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.chart-bar-label { width: 70px; font-size: 12px; color: var(--text2); text-align: right; flex-shrink: 0; }
+.chart-bar-track { flex: 1; height: 28px; background: var(--bg3); border-radius: 6px; overflow: hidden; position: relative; }
+.chart-bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 10px; font-size: 11px; font-weight: 700; color: #fff; min-width: 30px; transition: width 0.5s ease; }
+.chart-bar-value { width: 40px; font-size: 12px; color: var(--text2); text-align: left; flex-shrink: 0; }
+
+/* Metric card */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.metric-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+.metric-card .mc-value { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+.metric-card .mc-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Notification log */
+.notif-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.notif-setting { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.notif-setting h4 { font-size: 13px; margin-bottom: 10px; }
+.notif-setting .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: 12px; color: var(--text2); }
+.toggle { width: 36px; height: 20px; background: var(--bg3); border-radius: 10px; position: relative; cursor: pointer; border: 1px solid var(--border); transition: background 0.2s; }
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--text); transition: transform 0.2s; }
+.toggle.on::after { transform: translateX(16px); }
+
+/* Success animation */
+.intake-success { text-align: center; padding: 40px 20px; }
+.intake-success .checkmark { font-size: 64px; margin-bottom: 16px; animation: popIn 0.4s ease; }
+.intake-success h3 { font-size: 18px; margin-bottom: 8px; color: var(--green); }
+.intake-success p { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+@keyframes popIn { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+@media (max-width: 768px) {
+  body { padding: 12px; }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .size-selector { grid-template-columns: repeat(2, 1fr); }
+  .notif-settings { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div id="app"><div style="text-align:center;padding:40px;color:var(--text3)">Loading package data...</div></div>
+<div id="toast-container" class="toast-container"></div>
+<div id="modal-root"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== Config =====
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; }
+  });
+
+  function apiHeaders() {
+    var h = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    else h['X-Demo-Mode'] = 'true';
+    return h;
+  }
+
+  var apiAvailable = false;
+  var preRegisteredCache = [];
+
+  function apiCall(method, path, body) {
+    var opts = { method: method, headers: apiHeaders() };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(path, opts).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+
+  function loadPackagesFromApi() {
+    apiCall('GET', '/api/v1/packages?limit=200').then(function(res) {
+      if (res && res.packages && res.packages.length > 0) {
+        apiAvailable = true;
+        packages = res.packages.map(function(p) {
+          return {
+            id: p.id,
+            tracking: p.trackingNumber || '',
+            carrier: p.carrier || 'Other',
+            unit: p.unitNumber || '',
+            recipient: p.tenantName || '',
+            phone: p.tenantPhone || '',
+            status: statusApiToDisplay(p.status),
+            size: p.size || 'Medium',
+            shelf: p.shelfLocation || '',
+            receivedAt: p.receivedAt || p.createdAt,
+            notifiedAt: p.notifiedAt || null,
+            pickedUpAt: p.pickedUpAt || null,
+            returnedAt: p.returnedAt || null,
+            notifCount: p.notifiedAt ? 1 : 0,
+            notes: p.notes || '',
+            preRegistered: p.preRegistered || false
+          };
+        });
+        packages.sort(function(a, b) { return new Date(b.receivedAt) - new Date(a.receivedAt); });
+        render();
+      }
+    });
+  }
+
+  function statusApiToDisplay(s) {
+    if (s === 'received') return 'Received';
+    if (s === 'notified') return 'Notified';
+    if (s === 'picked_up') return 'Picked Up';
+    if (s === 'returned') return 'Returned';
+    if (s === 'expired') return 'Expired';
+    return s || 'Received';
+  }
+
+  function loadPreRegistered() {
+    apiCall('GET', '/api/v1/packages/pre-registered').then(function(res) {
+      if (res && res.preRegistered) {
+        preRegisteredCache = res.preRegistered;
+      }
+    });
+  }
+
+  function checkPreRegisteredMatch(tracking) {
+    if (!tracking || !preRegisteredCache.length) return null;
+    var t = tracking.trim();
+    for (var i = 0; i < preRegisteredCache.length; i++) {
+      if (preRegisteredCache[i].trackingNumber === t && preRegisteredCache[i].status === 'waiting') {
+        return preRegisteredCache[i];
+      }
+    }
+    return null;
+  }
+
+  // ===== Utilities =====
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function randItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function genId() { return 'PKG-' + Date.now().toString(36).toUpperCase() + randInt(100,999); }
+
+  function timeAgo(ts) {
+    if (!ts) return '--';
+    var ms = Date.now() - new Date(ts).getTime();
+    if (ms < 0) ms = 0;
+    var mins = Math.floor(ms / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  function overdueText(ts) {
+    if (!ts) return '';
+    var hrs = (Date.now() - new Date(ts).getTime()) / 3600000;
+    if (hrs > 168) return Math.floor(hrs / 24) + 'd overdue';
+    if (hrs > 48) return Math.floor(hrs / 24) + 'd waiting';
+    return '';
+  }
+
+  function fmtDateTime(ts) {
+    if (!ts) return '--';
+    try { var d = new Date(ts); return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e) { return '--'; }
+  }
+
+  // ===== Carrier Detection =====
+  var CARRIERS = ['UPS','USPS','FedEx','Amazon','DHL'];
+  var CARRIER_CODES = { USPS: 'US', UPS: 'UP', FedEx: 'FX', Amazon: 'AZ', DHL: 'DH', Other: '??' };
+  var CARRIER_CLS = { USPS: 'carrier-usps', UPS: 'carrier-ups', FedEx: 'carrier-fedex', Amazon: 'carrier-amazon', DHL: 'carrier-dhl', Other: 'carrier-other' };
+  var CARRIER_COLORS = { UPS: '#8B6914', USPS: '#004B87', FedEx: '#4D148C', Amazon: '#FF9900', DHL: '#D40511', Other: '#555' };
+
+  function detectCarrier(tracking) {
+    if (!tracking || tracking.length < 3) return null;
+    var t = tracking.trim();
+    if (/^1Z/i.test(t)) return 'UPS';
+    if (/^TBA\d/i.test(t)) return 'Amazon';
+    if (/^\d{20,22}$/.test(t) || /^9[0-9]{15,21}$/.test(t)) return 'USPS';
+    if (/^\d{12,15}$/.test(t)) return 'FedEx';
+    if (/^\d{10}$/.test(t)) return 'DHL';
+    return null;
+  }
+
+  // ===== Demo Data =====
+  var FIRST_NAMES = ['James','Maria','Robert','Sarah','David','Jennifer','Michael','Lisa','William','Emily','Carlos','Priya','Wei','Fatima','Ahmed','Olivia','Noah','Sophia','Liam','Ava','Aiden','Mia','Ethan','Charlotte','Yuki','Raj','Ana','Hassan'];
+  var LAST_NAMES = ['Smith','Johnson','Garcia','Chen','Williams','Brown','Patel','Kim','Martinez','Anderson','Thompson','Lee','Nguyen','Davis','Hernandez','Wilson','Taylor','Moore','Jackson','White'];
+  var SHELF_LOCS = ['A-1','A-2','A-3','A-4','B-1','B-2','B-3','B-4','C-1','C-2','C-3','C-4','D-1','D-2','D-3','D-4','L-01','L-02','L-03','L-04','L-05','L-06','L-07','L-08','Floor-1','Floor-2','Floor-3'];
+  var PHONES = [];
+  for (var pi = 0; pi < 100; pi++) PHONES.push('(' + randInt(200,999) + ') ' + randInt(200,999) + '-' + String(randInt(1000,9999)));
+
+  function genTracking(carrier) {
+    if (carrier === 'USPS') return '9400' + randInt(1000000000, 9999999999) + randInt(1000000, 9999999);
+    if (carrier === 'UPS') return '1Z' + String.fromCharCode(65 + randInt(0,25)) + String.fromCharCode(65 + randInt(0,25)) + randInt(10000, 99999) + randInt(100000, 999999);
+    if (carrier === 'FedEx') return String(randInt(100000000000, 999999999999));
+    if (carrier === 'Amazon') return 'TBA' + randInt(100000000, 999999999);
+    if (carrier === 'DHL') return String(randInt(1000000000, 9999999999));
+    return String(randInt(100000000000, 999999999999));
+  }
+
+  // State
+  var packages = [];
+  var notifications = [];
+  var activeTab = 'intake';
+  var pendingSort = 'time-desc';
+  var allFilter = { status: '', carrier: '', search: '', dateRange: '' };
+  var intakeState = { tracking: '', carrier: '', unit: '', recipientName: '', size: 'Medium', shelf: '', showSuccess: false, successPkg: null };
+
+  // Tenants directory (simulated)
+  var tenants = {};
+  function ensureTenants() {
+    if (Object.keys(tenants).length > 0) return;
+    for (var i = 0; i < 80; i++) {
+      var unit = String(randInt(1, 20) * 100 + randInt(1, 30));
+      if (!tenants[unit]) {
+        var fn = randItem(FIRST_NAMES), ln = randItem(LAST_NAMES);
+        tenants[unit] = { name: fn + ' ' + ln, phone: randItem(PHONES), unit: unit };
+      }
+    }
+  }
+  ensureTenants();
+
+  function getTenantByUnit(unit) {
+    if (tenants[unit]) return tenants[unit];
+    // Fuzzy match
+    var keys = Object.keys(tenants);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i] === unit) return tenants[keys[i]];
+    }
+    return null;
+  }
+
+  function getTenantSuggestions(partial) {
+    if (!partial) return [];
+    var results = [];
+    var keys = Object.keys(tenants);
+    for (var i = 0; i < keys.length; i++) {
+      var t = tenants[keys[i]];
+      if (keys[i].indexOf(partial) === 0 || t.name.toLowerCase().indexOf(partial.toLowerCase()) >= 0) {
+        results.push(t);
+      }
+      if (results.length >= 6) break;
+    }
+    return results;
+  }
+
+  // Generate 100 demo packages
+  (function() {
+    var statusWeights = [];
+    for (var si = 0; si < 8; si++) statusWeights.push('Received');
+    for (var si = 0; si < 14; si++) statusWeights.push('Notified');
+    for (var si = 0; si < 60; si++) statusWeights.push('Picked Up');
+    for (var si = 0; si < 4; si++) statusWeights.push('Returned');
+    for (var si = 0; si < 4; si++) statusWeights.push('Expired');
+
+    for (var i = 0; i < 100; i++) {
+      var carrier = randItem(CARRIERS);
+      var status = randItem(statusWeights);
+      var unit = randItem(Object.keys(tenants));
+      var tenant = tenants[unit];
+      var receivedHoursAgo = status === 'Picked Up' ? randInt(2, 240) : status === 'Expired' ? randInt(192, 360) : status === 'Returned' ? randInt(168, 300) : randInt(0, 96);
+      var receivedTime = new Date(Date.now() - receivedHoursAgo * 3600000);
+      var notifiedAt = null, pickedUpAt = null, returnedAt = null;
+      var notifCount = 0;
+
+      if (status !== 'Received') {
+        notifiedAt = new Date(receivedTime.getTime() + randInt(2, 30) * 60000).toISOString();
+        notifCount = 1;
+      }
+      if (status === 'Notified' && receivedHoursAgo > 24) {
+        notifCount = receivedHoursAgo > 72 ? 3 : 2;
+      }
+      if (status === 'Picked Up') {
+        pickedUpAt = new Date(receivedTime.getTime() + randInt(1, Math.min(receivedHoursAgo, 72)) * 3600000).toISOString();
+      }
+      if (status === 'Returned') {
+        returnedAt = new Date(receivedTime.getTime() + randInt(168, 240) * 3600000).toISOString();
+      }
+
+      var pkg = {
+        id: 'PKG-' + String(1000 + i),
+        tracking: genTracking(carrier),
+        carrier: carrier,
+        unit: unit,
+        recipient: tenant.name,
+        phone: tenant.phone,
+        status: status,
+        size: randItem(['Small','Small','Small','Medium','Medium','Medium','Large','Large','Oversized']),
+        shelf: randItem(SHELF_LOCS),
+        receivedAt: receivedTime.toISOString(),
+        notifiedAt: notifiedAt,
+        pickedUpAt: pickedUpAt,
+        returnedAt: returnedAt,
+        notifCount: notifCount,
+        notes: ''
+      };
+      packages.push(pkg);
+
+      // Generate notification log entries
+      if (notifiedAt) {
+        notifications.push({
+          id: 'N-' + (2000 + notifications.length),
+          packageId: pkg.id,
+          timestamp: notifiedAt,
+          phone: tenant.phone,
+          unit: unit,
+          recipient: tenant.name,
+          message: 'You have a package (' + carrier + ') ready for pickup at the package room. Shelf: ' + pkg.shelf,
+          status: randItem(['Delivered','Delivered','Delivered','Delivered','Delivered','Failed']),
+          type: 'initial'
+        });
+        if (notifCount >= 2) {
+          notifications.push({
+            id: 'N-' + (2000 + notifications.length),
+            packageId: pkg.id,
+            timestamp: new Date(new Date(notifiedAt).getTime() + 24 * 3600000).toISOString(),
+            phone: tenant.phone,
+            unit: unit,
+            recipient: tenant.name,
+            message: 'Reminder: Your package is still waiting at the package room. Please pick up at your earliest convenience.',
+            status: 'Delivered',
+            type: 'reminder'
+          });
+        }
+        if (notifCount >= 3) {
+          notifications.push({
+            id: 'N-' + (2000 + notifications.length),
+            packageId: pkg.id,
+            timestamp: new Date(new Date(notifiedAt).getTime() + 72 * 3600000).toISOString(),
+            phone: tenant.phone,
+            unit: unit,
+            recipient: tenant.name,
+            message: 'FINAL NOTICE: Your package will be returned to carrier if not picked up within 48 hours.',
+            status: 'Delivered',
+            type: 'final'
+          });
+        }
+      }
+    }
+
+    packages.sort(function(a, b) { return new Date(b.receivedAt) - new Date(a.receivedAt); });
+    notifications.sort(function(a, b) { return new Date(b.timestamp) - new Date(a.timestamp); });
+  })();
+
+  // ===== Stats =====
+  function getStats() {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var pending = 0, notified = 0, overdue48 = 0, overdue7d = 0, todayCount = 0, pickedUp = 0, returned = 0;
+    var now = Date.now();
+    packages.forEach(function(p) {
+      if (new Date(p.receivedAt) >= today) todayCount++;
+      if (p.status === 'Received' || p.status === 'Notified') {
+        pending++;
+        var hrs = (now - new Date(p.receivedAt).getTime()) / 3600000;
+        if (hrs > 168) overdue7d++;
+        else if (hrs > 48) overdue48++;
+      }
+      if (p.status === 'Notified') notified++;
+      if (p.status === 'Picked Up') pickedUp++;
+      if (p.status === 'Returned') returned++;
+    });
+    return { today: todayCount, pending: pending, notified: notified, overdue48: overdue48, overdue7d: overdue7d, pickedUp: pickedUp, returned: returned };
+  }
+
+  // ===== Toast =====
+  function showToast(title, msg, type) {
+    var container = document.getElementById('toast-container');
+    var icons = { success: '\u2705', info: '\u2139\uFE0F', warn: '\u26A0\uFE0F' };
+    var el = document.createElement('div');
+    el.className = 'toast toast-' + (type || 'info');
+    el.innerHTML = '<span class="toast-icon">' + (icons[type] || icons.info) + '</span><div class="toast-body"><div class="toast-title">' + esc(title) + '</div><div class="toast-msg">' + esc(msg) + '</div></div>';
+    container.appendChild(el);
+    setTimeout(function() { el.style.animation = 'toastOut 0.3s ease forwards'; setTimeout(function() { el.remove(); }, 300); }, 4000);
+  }
+
+  // ===== Modal =====
+  function showPickupModal(pkg) {
+    var root = document.getElementById('modal-root');
+    root.innerHTML = '<div class="modal-overlay" id="modal-overlay"><div class="modal">' +
+      '<h3>Confirm Package Pickup</h3>' +
+      '<div style="margin-bottom:16px">' +
+        '<div style="font-size:13px;color:var(--text2);margin-bottom:8px">Package <strong style="color:var(--text)">' + esc(pkg.tracking.substring(0, 24)) + '</strong></div>' +
+        '<div style="font-size:13px;color:var(--text2)">Recipient: <strong style="color:var(--text)">' + esc(pkg.recipient) + '</strong> (Unit ' + esc(pkg.unit) + ')</div>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Picked up by (name or "tenant")</label>' +
+        '<input type="text" class="form-input" id="pickup-name" value="' + esc(pkg.recipient) + '" placeholder="Name of person collecting">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Signature / Confirmation</label>' +
+        '<div style="display:flex;gap:8px">' +
+          '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text2)"><input type="radio" name="sig" value="verbal" checked> Verbal</label>' +
+          '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text2)"><input type="radio" name="sig" value="id"> ID Verified</label>' +
+          '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text2)"><input type="radio" name="sig" value="signature"> Signature</label>' +
+        '</div>' +
+      '</div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn" id="modal-cancel">Cancel</button>' +
+        '<button class="btn btn-primary" id="modal-confirm">Confirm Pickup</button>' +
+      '</div>' +
+    '</div></div>';
+
+    document.getElementById('modal-cancel').onclick = function() { root.innerHTML = ''; };
+    document.getElementById('modal-overlay').onclick = function(e) { if (e.target === this) root.innerHTML = ''; };
+    document.getElementById('modal-confirm').onclick = function() {
+      var verMethod = 'verbal';
+      var radios = document.querySelectorAll('input[name="sig"]');
+      for (var ri = 0; ri < radios.length; ri++) {
+        if (radios[ri].checked) { verMethod = radios[ri].value; break; }
+      }
+      var pickedUpBy = document.getElementById('pickup-name').value || pkg.recipient;
+
+      pkg.status = 'Picked Up';
+      pkg.pickedUpAt = new Date().toISOString();
+      root.innerHTML = '';
+
+      // Call API
+      apiCall('PUT', '/api/v1/packages/' + pkg.id + '/pickup', {
+        verificationMethod: verMethod,
+        verifiedBy: pickedUpBy
+      });
+
+      showToast('Package Picked Up', pkg.recipient + ' (Unit ' + pkg.unit + ') collected their package', 'success');
+      render();
+    };
+  }
+
+  function showReturnModal(pkg) {
+    var root = document.getElementById('modal-root');
+    root.innerHTML = '<div class="modal-overlay" id="modal-overlay"><div class="modal">' +
+      '<h3>Return to Carrier</h3>' +
+      '<div style="margin-bottom:16px;font-size:13px;color:var(--text2)">Return this package to <strong style="color:var(--text)">' + esc(pkg.carrier) + '</strong>?</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tracking: ' + esc(pkg.tracking) + '<br>Recipient: ' + esc(pkg.recipient) + ' (Unit ' + esc(pkg.unit) + ')</div>' +
+      '<div class="form-group"><label class="form-label">Reason</label><select class="form-select" id="return-reason">' +
+        '<option>Uncollected - exceeded hold period</option>' +
+        '<option>Tenant moved out</option>' +
+        '<option>Refused by tenant</option>' +
+        '<option>Wrong address</option>' +
+      '</select></div>' +
+      '<div class="modal-actions">' +
+        '<button class="btn" id="modal-cancel">Cancel</button>' +
+        '<button class="btn btn-danger" id="modal-confirm">Return Package</button>' +
+      '</div>' +
+    '</div></div>';
+
+    document.getElementById('modal-cancel').onclick = function() { root.innerHTML = ''; };
+    document.getElementById('modal-overlay').onclick = function(e) { if (e.target === this) root.innerHTML = ''; };
+    document.getElementById('modal-confirm').onclick = function() {
+      var reason = document.getElementById('return-reason').value || 'Uncollected - exceeded hold period';
+
+      pkg.status = 'Returned';
+      pkg.returnedAt = new Date().toISOString();
+      root.innerHTML = '';
+
+      // Call API
+      apiCall('PUT', '/api/v1/packages/' + pkg.id + '/return', {
+        reason: reason
+      });
+
+      showToast('Package Returned', 'Package marked for return to ' + pkg.carrier, 'warn');
+      render();
+    };
+  }
+
+  // ===== Intake Logic =====
+  function doLogPackage() {
+    var t = intakeState.tracking.trim();
+    var u = intakeState.unit.trim();
+    if (!t) { showToast('Error', 'Enter a tracking number', 'warn'); return; }
+    if (!u) { showToast('Error', 'Enter a unit number', 'warn'); return; }
+
+    var carrier = intakeState.carrier || detectCarrier(t) || 'Other';
+    var tenant = getTenantByUnit(u);
+    var recipientName = intakeState.recipientName || (tenant ? tenant.name : 'Unit ' + u);
+    var phone = tenant ? tenant.phone : '';
+
+    var pkg = {
+      id: genId(),
+      tracking: t,
+      carrier: carrier,
+      unit: u,
+      recipient: recipientName,
+      phone: phone,
+      status: 'Received',
+      size: intakeState.size || 'Medium',
+      shelf: intakeState.shelf || randItem(SHELF_LOCS),
+      receivedAt: new Date().toISOString(),
+      notifiedAt: null,
+      pickedUpAt: null,
+      returnedAt: null,
+      notifCount: 0,
+      notes: '',
+      preRegistered: false
+    };
+
+    // Call the package API
+    apiCall('POST', '/api/v1/packages', {
+      trackingNumber: t,
+      carrier: carrier,
+      unitNumber: u,
+      size: pkg.size,
+      shelfLocation: pkg.shelf,
+      recipientName: recipientName,
+      phone: phone,
+      notes: ''
+    }).then(function(res) {
+      if (res && res.id) {
+        pkg.id = res.id;
+        if (res.tenant) pkg.recipient = res.tenant;
+        if (res.preRegistered) pkg.preRegistered = true;
+        // Auto-notify via API
+        apiCall('PUT', '/api/v1/packages/' + res.id + '/notify').then(function(notifRes) {
+          if (notifRes && notifRes.ok) {
+            pkg.status = 'Notified';
+            pkg.notifiedAt = new Date().toISOString();
+            pkg.notifCount = 1;
+          }
+        });
+      }
+    });
+
+    packages.unshift(pkg);
+
+    // Create local notification entry
+    pkg.status = 'Notified';
+    pkg.notifiedAt = new Date().toISOString();
+    pkg.notifCount = 1;
+
+    notifications.unshift({
+      id: 'N-' + Date.now(),
+      packageId: pkg.id,
+      timestamp: new Date().toISOString(),
+      phone: phone || '(unknown)',
+      unit: u,
+      recipient: recipientName,
+      message: 'You have a package (' + carrier + ') ready for pickup at the package room. Shelf: ' + pkg.shelf,
+      status: 'Delivered',
+      type: 'initial'
+    });
+
+    intakeState.showSuccess = true;
+    intakeState.successPkg = pkg;
+    render();
+
+    showToast('Package Logged', 'SMS sent to ' + recipientName + ' (Unit ' + u + ')', 'success');
+
+    // Reset after delay
+    setTimeout(function() {
+      intakeState = { tracking: '', carrier: '', unit: '', recipientName: '', size: 'Medium', shelf: '', showSuccess: false, successPkg: null };
+      render();
+    }, 3000);
+  }
+
+  // ===== Render =====
+  function render() {
+    var st = getStats();
+    var html = '';
+
+    // Header
+    html += '<div class="header">';
+    html += '<h1><span>\u{1F4E6}</span> Package Room Management</h1>';
+    html += '<div class="header-right">';
+    html += '<span class="header-badge">Live Tracking</span>';
+    html += '<button class="btn" id="refreshBtn">\u21BB Refresh</button>';
+    html += '</div></div>';
+
+    // Tabs
+    html += '<div class="tabs">';
+    var tabDefs = [
+      { id: 'intake', label: 'Intake', icon: '\u{1F4E5}' },
+      { id: 'pending', label: 'Pending Pickup', icon: '\u{1F4CB}', count: st.pending },
+      { id: 'all', label: 'All Packages', icon: '\u{1F4E6}', count: packages.length },
+      { id: 'notifications', label: 'Notifications', icon: '\u{1F4F1}', count: notifications.length },
+      { id: 'analytics', label: 'Analytics', icon: '\u{1F4CA}' }
+    ];
+    tabDefs.forEach(function(tab) {
+      html += '<button class="tab-btn' + (activeTab === tab.id ? ' active' : '') + '" data-tab="' + tab.id + '">';
+      html += tab.icon + ' ' + tab.label;
+      if (tab.count !== undefined) html += '<span class="tab-count">' + tab.count + '</span>';
+      html += '</button>';
+    });
+    html += '</div>';
+
+    // Tab panes
+    html += renderIntakeTab(st);
+    html += renderPendingTab(st);
+    html += renderAllTab(st);
+    html += renderNotificationsTab();
+    html += renderAnalyticsTab(st);
+
+    document.getElementById('app').innerHTML = html;
+    bindEvents();
+  }
+
+  // ----- Intake Tab -----
+  function renderIntakeTab(st) {
+    var html = '<div class="tab-pane' + (activeTab === 'intake' ? ' active' : '') + '" id="tab-intake">';
+
+    if (intakeState.showSuccess && intakeState.successPkg) {
+      var sp = intakeState.successPkg;
+      html += '<div class="intake-success">';
+      html += '<div class="checkmark">\u2705</div>';
+      html += '<h3>Package Logged Successfully</h3>';
+      html += '<p>SMS notification sent to <strong>' + esc(sp.recipient) + '</strong> (Unit ' + esc(sp.unit) + ')</p>';
+      html += '<div style="display:inline-flex;gap:12px;flex-wrap:wrap;justify-content:center">';
+      html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px"><span style="color:var(--text3)">Tracking</span><br><strong style="font-family:monospace">' + esc(sp.tracking.substring(0,24)) + '</strong></div>';
+      html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px"><span style="color:var(--text3)">Carrier</span><br><span class="carrier-icon ' + (CARRIER_CLS[sp.carrier] || 'carrier-other') + '">' + (CARRIER_CODES[sp.carrier] || '??') + '</span> <strong>' + esc(sp.carrier) + '</strong></div>';
+      html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:12px"><span style="color:var(--text3)">Shelf</span><br><strong>' + esc(sp.shelf) + '</strong></div>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    html += '<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start">';
+
+    // Left: intake form
+    html += '<div class="card"><div class="card-head"><h2>\u{1F4E5} Log New Package</h2><span class="count">Scan or type tracking number</span></div>';
+    html += '<div class="card-body-padded">';
+
+    // Tracking number - large input
+    html += '<div class="form-group">';
+    html += '<label class="form-label">Tracking Number</label>';
+    html += '<input type="text" class="form-input form-input-lg" id="intake-tracking" placeholder="Scan barcode or type tracking number..." value="' + esc(intakeState.tracking) + '" autofocus autocomplete="off" spellcheck="false">';
+    // Carrier detection badge
+    var detected = intakeState.tracking.length >= 3 ? detectCarrier(intakeState.tracking) : null;
+    html += '<div class="carrier-detect' + (detected ? ' detected' : '') + '">';
+    if (detected) {
+      html += '<span class="carrier-icon ' + CARRIER_CLS[detected] + '" style="width:32px;height:32px;font-size:13px">' + CARRIER_CODES[detected] + '</span>';
+      html += '<span class="cd-text">' + detected + ' detected</span>';
+    } else if (intakeState.tracking.length > 0) {
+      html += '<span class="cd-icon">\u{1F50D}</span>';
+      html += '<span class="cd-text">Analyzing tracking format...</span>';
+    } else {
+      html += '<span class="cd-icon">\u{1F4F7}</span>';
+      html += '<span class="cd-text">Waiting for barcode scan or manual entry</span>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    // Unit + Recipient row
+    html += '<div class="form-row">';
+    html += '<div class="form-group">';
+    html += '<label class="form-label">Unit Number</label>';
+    html += '<input type="text" class="form-input" id="intake-unit" placeholder="e.g. 1205" value="' + esc(intakeState.unit) + '" autocomplete="off">';
+    html += '<div id="unit-suggestions" style="position:relative"></div>';
+    html += '</div>';
+    html += '<div class="form-group">';
+    html += '<label class="form-label">Recipient Name</label>';
+    html += '<input type="text" class="form-input" id="intake-recipient" placeholder="Auto-filled from unit lookup" value="' + esc(intakeState.recipientName) + '">';
+    html += '</div>';
+    html += '</div>';
+
+    // Carrier override + Shelf
+    html += '<div class="form-row">';
+    html += '<div class="form-group">';
+    html += '<label class="form-label">Carrier' + (detected ? ' (auto-detected)' : '') + '</label>';
+    html += '<select class="form-select" id="intake-carrier">';
+    var selCarrier = intakeState.carrier || detected || '';
+    html += '<option value=""' + (!selCarrier ? ' selected' : '') + '>Auto-detect</option>';
+    CARRIERS.forEach(function(c) {
+      html += '<option value="' + c + '"' + (selCarrier === c ? ' selected' : '') + '>' + c + '</option>';
+    });
+    html += '<option value="Other"' + (selCarrier === 'Other' ? ' selected' : '') + '>Other</option>';
+    html += '</select>';
+    html += '</div>';
+    html += '<div class="form-group">';
+    html += '<label class="form-label">Shelf / Locker Location</label>';
+    html += '<input type="text" class="form-input" id="intake-shelf" placeholder="e.g. A-3, L-05" value="' + esc(intakeState.shelf) + '">';
+    html += '</div>';
+    html += '</div>';
+
+    // Size selector
+    html += '<div class="form-group">';
+    html += '<label class="form-label">Package Size</label>';
+    html += '<div class="size-selector">';
+    var sizes = [
+      { id: 'Small', icon: '\u{1F4E8}', label: 'Small' },
+      { id: 'Medium', icon: '\u{1F4E6}', label: 'Medium' },
+      { id: 'Large', icon: '\u{1F6F2}', label: 'Large' },
+      { id: 'Oversized', icon: '\u{1F3CB}\uFE0F', label: 'Oversized' }
+    ];
+    sizes.forEach(function(s) {
+      html += '<div class="size-opt' + (intakeState.size === s.id ? ' selected' : '') + '" data-size="' + s.id + '">';
+      html += '<span class="size-icon">' + s.icon + '</span>';
+      html += '<span class="size-label">' + s.label + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+
+    // Submit button
+    html += '<div style="margin-top:8px">';
+    html += '<button class="btn btn-primary btn-lg" id="intake-submit" style="width:100%">\u{1F4E5} Log Package & Notify Tenant</button>';
+    html += '</div>';
+
+    html += '</div></div>';
+
+    // Right: quick stats + recent
+    html += '<div>';
+    html += '<div class="card"><div class="card-head"><h2>Today\'s Summary</h2></div><div class="card-body-padded">';
+    html += '<div style="display:grid;gap:12px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--text2)">Received Today</span><span style="font-size:20px;font-weight:700;color:var(--accent)">' + st.today + '</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--text2)">Pending Pickup</span><span style="font-size:20px;font-weight:700;color:var(--amber)">' + st.pending + '</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--text2)">Overdue >48h</span><span style="font-size:20px;font-weight:700;color:var(--red)">' + st.overdue48 + '</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0"><span style="font-size:12px;color:var(--text2)">Overdue >7 days</span><span style="font-size:20px;font-weight:700;color:var(--red)">' + st.overdue7d + '</span></div>';
+    html += '</div>';
+    html += '</div></div>';
+
+    // Recent packages
+    html += '<div class="card"><div class="card-head"><h2>Recently Logged</h2></div><div class="card-body">';
+    var recent = packages.slice(0, 5);
+    recent.forEach(function(p) {
+      html += '<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">';
+      html += '<span class="carrier-icon ' + (CARRIER_CLS[p.carrier] || 'carrier-other') + '">' + (CARRIER_CODES[p.carrier] || '??') + '</span>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(p.recipient) + ' <span style="color:var(--text3)">Unit ' + esc(p.unit) + '</span></div>';
+      html += '<div style="font-size:11px;color:var(--text3);font-family:monospace">' + esc(p.tracking.substring(0, 18)) + '...</div>';
+      html += '</div>';
+      html += '<span style="font-size:11px;color:var(--text3);white-space:nowrap">' + timeAgo(p.receivedAt) + '</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    html += '</div>'; // end right column
+    html += '</div>'; // end grid
+    html += '</div>';
+    return html;
+  }
+
+  // ----- Pending Tab -----
+  function renderPendingTab(st) {
+    var html = '<div class="tab-pane' + (activeTab === 'pending' ? ' active' : '') + '" id="tab-pending">';
+
+    // Stats
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Total Pending</div><div class="value val-amber">' + st.pending + '</div><div class="sub">Awaiting pickup</div></div>';
+    html += '<div class="stat-card"><div class="label">Notified</div><div class="value val-blue">' + st.notified + '</div><div class="sub">SMS sent to tenant</div></div>';
+    html += '<div class="stat-card"><div class="label">Overdue &gt;48h</div><div class="value val-amber">' + st.overdue48 + '</div><div class="sub">Needs follow-up</div></div>';
+    html += '<div class="stat-card"><div class="label">Overdue &gt;7 days</div><div class="value val-red">' + st.overdue7d + '</div><div class="sub">Consider return</div></div>';
+    html += '</div>';
+
+    // Pending table
+    var pendingPkgs = packages.filter(function(p) { return p.status === 'Received' || p.status === 'Notified'; });
+    pendingPkgs.sort(function(a, b) { return new Date(a.receivedAt) - new Date(b.receivedAt); }); // longest waiting first
+
+    html += '<div class="card">';
+    html += '<div class="card-head"><h2>Packages Awaiting Pickup</h2><span class="count">' + pendingPkgs.length + ' packages</span></div>';
+    html += '<div class="card-body"><div style="overflow-x:auto;max-height:600px;overflow-y:auto"><table>';
+    html += '<tr><th>Tracking #</th><th>Carrier</th><th>Recipient</th><th>Unit</th><th>Size</th><th>Shelf</th><th>Received</th><th>Waiting</th><th>Notif.</th><th>Actions</th></tr>';
+
+    pendingPkgs.forEach(function(p) {
+      var hrs = (Date.now() - new Date(p.receivedAt).getTime()) / 3600000;
+      var rowClass = hrs > 168 ? ' class="row-overdue"' : hrs > 48 ? ' class="row-overdue-warn"' : '';
+      var szCls = p.size === 'Oversized' ? 'badge-purple' : p.size === 'Large' ? 'badge-accent' : p.size === 'Medium' ? 'badge-blue' : 'badge-gray';
+      var sCls = p.status === 'Notified' ? 'badge-blue' : 'badge-amber';
+      var waitText = hrs < 1 ? '<1h' : hrs < 24 ? Math.floor(hrs) + 'h' : Math.floor(hrs / 24) + 'd ' + Math.floor(hrs % 24) + 'h';
+      var waitColor = hrs > 168 ? 'var(--red)' : hrs > 48 ? 'var(--amber)' : 'var(--text2)';
+
+      html += '<tr' + rowClass + '>';
+      html += '<td style="font-family:monospace;font-size:11px;color:var(--text2)">' + esc(p.tracking.length > 22 ? p.tracking.substring(0, 22) + '...' : p.tracking) + '</td>';
+      html += '<td><span class="carrier-icon ' + (CARRIER_CLS[p.carrier] || 'carrier-other') + '">' + (CARRIER_CODES[p.carrier] || '??') + '</span>' + esc(p.carrier) + '</td>';
+      html += '<td>' + esc(p.recipient) + '</td>';
+      html += '<td><strong>' + esc(p.unit) + '</strong></td>';
+      html += '<td><span class="badge ' + szCls + '">' + esc(p.size) + '</span></td>';
+      html += '<td style="font-family:monospace;font-size:12px">' + esc(p.shelf) + '</td>';
+      html += '<td style="font-size:12px;color:var(--text2);white-space:nowrap">' + fmtDateTime(p.receivedAt) + '</td>';
+      html += '<td style="font-weight:600;color:' + waitColor + ';white-space:nowrap">' + waitText + '</td>';
+      html += '<td style="text-align:center"><span class="badge ' + sCls + '">' + p.notifCount + '</span></td>';
+      html += '<td style="white-space:nowrap">';
+      html += '<button class="btn btn-sm btn-success pkg-action" data-id="' + p.id + '" data-action="pickup">Picked Up</button> ';
+      html += '<button class="btn btn-sm btn-warn pkg-action" data-id="' + p.id + '" data-action="renotify">Re-Notify</button> ';
+      if (hrs > 120) {
+        html += '<button class="btn btn-sm btn-danger pkg-action" data-id="' + p.id + '" data-action="return">Return</button>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    if (pendingPkgs.length === 0) {
+      html += '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3)">No packages pending pickup</td></tr>';
+    }
+
+    html += '</table></div></div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  // ----- All Packages Tab -----
+  function renderAllTab() {
+    var html = '<div class="tab-pane' + (activeTab === 'all' ? ' active' : '') + '" id="tab-all">';
+
+    // Carrier summary strip
+    html += '<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">';
+    CARRIERS.forEach(function(c) {
+      var cnt = packages.filter(function(p) { return p.carrier === c; }).length;
+      html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:8px">';
+      html += '<span class="carrier-icon ' + CARRIER_CLS[c] + '">' + CARRIER_CODES[c] + '</span>';
+      html += '<span style="font-size:13px;font-weight:600">' + cnt + '</span>';
+      html += '<span style="font-size:11px;color:var(--text3)">' + c + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // Filters
+    var filtered = packages.filter(function(p) {
+      if (allFilter.status && p.status !== allFilter.status) return false;
+      if (allFilter.carrier && p.carrier !== allFilter.carrier) return false;
+      if (allFilter.search) {
+        var q = allFilter.search.toLowerCase();
+        if (p.unit.toLowerCase().indexOf(q) < 0 && p.tracking.toLowerCase().indexOf(q) < 0 && p.recipient.toLowerCase().indexOf(q) < 0 && p.id.toLowerCase().indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+
+    html += '<div class="card">';
+    html += '<div class="card-head">';
+    html += '<h2>All Packages</h2>';
+    html += '<div class="filter-bar">';
+    html += '<input type="text" class="search-input" id="all-search" placeholder="Search tracking, name, unit..." value="' + esc(allFilter.search) + '">';
+    html += '<select class="filter-select" id="all-filter-status"><option value="">All Status</option>';
+    ['Received','Notified','Picked Up','Returned','Expired'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (allFilter.status === s ? ' selected' : '') + '>' + s + '</option>';
+    });
+    html += '</select>';
+    html += '<select class="filter-select" id="all-filter-carrier"><option value="">All Carriers</option>';
+    CARRIERS.forEach(function(c) {
+      html += '<option value="' + c + '"' + (allFilter.carrier === c ? ' selected' : '') + '>' + c + '</option>';
+    });
+    html += '</select>';
+    html += '<span class="count">' + filtered.length + ' packages</span>';
+    html += '</div></div>';
+
+    html += '<div class="card-body"><div style="overflow-x:auto;max-height:600px;overflow-y:auto"><table>';
+    html += '<tr><th>ID</th><th>Tracking #</th><th>Carrier</th><th>Unit</th><th>Recipient</th><th>Size</th><th>Shelf</th><th>Status</th><th>Received</th><th>Picked Up</th><th>Actions</th></tr>';
+
+    filtered.forEach(function(p) {
+      var sCls = p.status === 'Picked Up' ? 'badge-green' : p.status === 'Notified' ? 'badge-blue' : p.status === 'Received' ? 'badge-amber' : p.status === 'Returned' ? 'badge-purple' : 'badge-red';
+      var szCls = p.size === 'Oversized' ? 'badge-purple' : p.size === 'Large' ? 'badge-accent' : p.size === 'Medium' ? 'badge-blue' : 'badge-gray';
+
+      html += '<tr>';
+      html += '<td style="font-size:11px;color:var(--text3)">' + esc(p.id) + '</td>';
+      html += '<td style="font-family:monospace;font-size:11px;color:var(--text2)">' + esc(p.tracking.length > 20 ? p.tracking.substring(0, 20) + '...' : p.tracking) + '</td>';
+      html += '<td><span class="carrier-icon ' + (CARRIER_CLS[p.carrier] || 'carrier-other') + '">' + (CARRIER_CODES[p.carrier] || '??') + '</span>' + esc(p.carrier) + '</td>';
+      html += '<td><strong>' + esc(p.unit) + '</strong></td>';
+      html += '<td>' + esc(p.recipient) + '</td>';
+      html += '<td><span class="badge ' + szCls + '">' + esc(p.size) + '</span></td>';
+      html += '<td style="font-family:monospace;font-size:12px">' + esc(p.shelf) + '</td>';
+      html += '<td><span class="badge ' + sCls + '">' + esc(p.status) + '</span></td>';
+      html += '<td style="font-size:12px;color:var(--text2);white-space:nowrap">' + fmtDateTime(p.receivedAt) + '</td>';
+      html += '<td style="font-size:12px;color:var(--text2);white-space:nowrap">' + fmtDateTime(p.pickedUpAt) + '</td>';
+      html += '<td style="white-space:nowrap">';
+      if (p.status === 'Received') {
+        html += '<button class="btn btn-sm btn-warn pkg-action" data-id="' + p.id + '" data-action="notify">Notify</button> ';
+        html += '<button class="btn btn-sm btn-success pkg-action" data-id="' + p.id + '" data-action="pickup">Pickup</button>';
+      } else if (p.status === 'Notified') {
+        html += '<button class="btn btn-sm btn-success pkg-action" data-id="' + p.id + '" data-action="pickup">Pickup</button>';
+      } else if (p.status === 'Picked Up') {
+        html += '<span style="font-size:11px;color:var(--text3)">Complete</span>';
+      } else if (p.status === 'Returned') {
+        html += '<span style="font-size:11px;color:var(--text3)">Returned</span>';
+      } else {
+        html += '<button class="btn btn-sm btn-danger pkg-action" data-id="' + p.id + '" data-action="return">Return</button>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    html += '</table></div></div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  // ----- Notifications Tab -----
+  function renderNotificationsTab() {
+    var html = '<div class="tab-pane' + (activeTab === 'notifications' ? ' active' : '') + '" id="tab-notifications">';
+
+    // Settings
+    html += '<div class="notif-settings">';
+    html += '<div class="notif-setting"><h4>\u{1F514} Notification Rules</h4>';
+    html += '<div class="setting-row"><span>Auto-notify on package receive</span><div class="toggle on" data-setting="auto-notify"></div></div>';
+    html += '<div class="setting-row"><span>Reminder after 24 hours</span><div class="toggle on" data-setting="remind-24"></div></div>';
+    html += '<div class="setting-row"><span>Final notice after 72 hours</span><div class="toggle on" data-setting="final-72"></div></div>';
+    html += '<div class="setting-row"><span>Email notification (backup)</span><div class="toggle" data-setting="email-backup"></div></div>';
+    html += '</div>';
+
+    html += '<div class="notif-setting"><h4>\u{1F4DD} SMS Templates</h4>';
+    html += '<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Initial Notification</label>';
+    html += '<textarea class="form-input" rows="2" style="font-size:12px;resize:vertical" readonly>You have a package ({carrier}) ready for pickup at the package room. Shelf: {shelf}</textarea></div>';
+    html += '<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">24h Reminder</label>';
+    html += '<textarea class="form-input" rows="2" style="font-size:12px;resize:vertical" readonly>Reminder: Your package is still waiting at the package room. Please pick up at your earliest convenience.</textarea></div>';
+    html += '<div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">72h Final Notice</label>';
+    html += '<textarea class="form-input" rows="2" style="font-size:12px;resize:vertical" readonly>FINAL NOTICE: Your package will be returned to carrier if not picked up within 48 hours.</textarea></div>';
+    html += '</div>';
+    html += '</div>';
+
+    // Notification log
+    html += '<div class="card">';
+    html += '<div class="card-head"><h2>SMS Notification Log</h2><span class="count">' + notifications.length + ' messages</span></div>';
+    html += '<div class="card-body"><div style="overflow-x:auto;max-height:500px;overflow-y:auto"><table>';
+    html += '<tr><th>Timestamp</th><th>Recipient</th><th>Unit</th><th>Phone</th><th>Type</th><th>Message</th><th>Status</th></tr>';
+
+    var dispNotifs = notifications.slice(0, 50);
+    dispNotifs.forEach(function(n) {
+      var typeCls = n.type === 'initial' ? 'badge-blue' : n.type === 'reminder' ? 'badge-amber' : 'badge-red';
+      var statusCls = n.status === 'Delivered' ? 'badge-green' : n.status === 'Failed' ? 'badge-red' : 'badge-gray';
+      html += '<tr>';
+      html += '<td style="font-size:12px;color:var(--text2);white-space:nowrap">' + fmtDateTime(n.timestamp) + '</td>';
+      html += '<td>' + esc(n.recipient) + '</td>';
+      html += '<td><strong>' + esc(n.unit) + '</strong></td>';
+      html += '<td style="font-size:12px;color:var(--text2);font-family:monospace">' + esc(n.phone) + '</td>';
+      html += '<td><span class="badge ' + typeCls + '">' + esc(n.type) + '</span></td>';
+      html += '<td style="font-size:12px;color:var(--text2);max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(n.message) + '</td>';
+      html += '<td><span class="badge ' + statusCls + '">' + esc(n.status) + '</span></td>';
+      html += '</tr>';
+    });
+
+    html += '</table></div></div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  // ----- Analytics Tab -----
+  function renderAnalyticsTab(st) {
+    var html = '<div class="tab-pane' + (activeTab === 'analytics' ? ' active' : '') + '" id="tab-analytics">';
+
+    // Metric cards
+    var totalPicked = packages.filter(function(p) { return p.status === 'Picked Up' && p.pickedUpAt && p.receivedAt; });
+    var avgPickupHrs = 0;
+    if (totalPicked.length > 0) {
+      var totalMs = 0;
+      totalPicked.forEach(function(p) { totalMs += new Date(p.pickedUpAt).getTime() - new Date(p.receivedAt).getTime(); });
+      avgPickupHrs = Math.round(totalMs / totalPicked.length / 3600000);
+    }
+    var occupiedShelves = packages.filter(function(p) { return p.status === 'Received' || p.status === 'Notified'; }).length;
+    var totalCapacity = 50;
+    var utilPct = Math.min(100, Math.round(occupiedShelves / totalCapacity * 100));
+
+    html += '<div class="metric-grid">';
+    html += '<div class="metric-card"><div class="mc-value val-accent">' + packages.length + '</div><div class="mc-label">Total Packages (All Time)</div></div>';
+    html += '<div class="metric-card"><div class="mc-value val-blue">' + avgPickupHrs + 'h</div><div class="mc-label">Avg Pickup Time</div></div>';
+    html += '<div class="metric-card"><div class="mc-value val-green">' + totalPicked.length + '</div><div class="mc-label">Picked Up</div></div>';
+    html += '<div class="metric-card"><div class="mc-value' + (utilPct > 80 ? ' val-red' : utilPct > 50 ? ' val-amber' : ' val-accent') + '">' + utilPct + '%</div><div class="mc-label">Storage Utilization (' + occupiedShelves + '/' + totalCapacity + ')</div></div>';
+    html += '</div>';
+
+    // Packages by day of week
+    var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var dayCounts = [0,0,0,0,0,0,0];
+    packages.forEach(function(p) { var d = new Date(p.receivedAt).getDay(); dayCounts[d]++; });
+    var dayMax = Math.max.apply(null, dayCounts) || 1;
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">';
+
+    html += '<div class="card"><div class="card-head"><h2>Packages by Day of Week</h2></div><div class="card-body-padded">';
+    var barColors = ['#6366f1','#0891b2','#22c55e','#f59e0b','#ef4444','#8b5cf6','#6366f1'];
+    for (var di = 1; di <= 6; di++) { // Mon-Sat
+      var idx = di % 7;
+      html += '<div class="chart-bar-row">';
+      html += '<div class="chart-bar-label">' + dayNames[idx].substring(0,3) + '</div>';
+      html += '<div class="chart-bar-track"><div class="chart-bar-fill" style="width:' + Math.round(dayCounts[idx] / dayMax * 100) + '%;background:' + barColors[idx] + '">' + dayCounts[idx] + '</div></div>';
+      html += '</div>';
+    }
+    // Sunday
+    html += '<div class="chart-bar-row">';
+    html += '<div class="chart-bar-label">Sun</div>';
+    html += '<div class="chart-bar-track"><div class="chart-bar-fill" style="width:' + Math.round(dayCounts[0] / dayMax * 100) + '%;background:#6366f1">' + dayCounts[0] + '</div></div>';
+    html += '</div>';
+    html += '</div></div>';
+
+    // Packages by carrier
+    var carrierCounts = {};
+    CARRIERS.forEach(function(c) { carrierCounts[c] = 0; });
+    packages.forEach(function(p) { if (carrierCounts[p.carrier] !== undefined) carrierCounts[p.carrier]++; });
+    var carrierMax = 1;
+    CARRIERS.forEach(function(c) { if (carrierCounts[c] > carrierMax) carrierMax = carrierCounts[c]; });
+
+    var carrierBarColors = { UPS: '#8B6914', USPS: '#004B87', FedEx: '#4D148C', Amazon: '#FF9900', DHL: '#D40511' };
+
+    html += '<div class="card"><div class="card-head"><h2>Packages by Carrier</h2></div><div class="card-body-padded">';
+    CARRIERS.forEach(function(c) {
+      html += '<div class="chart-bar-row">';
+      html += '<div class="chart-bar-label">' + c + '</div>';
+      html += '<div class="chart-bar-track"><div class="chart-bar-fill" style="width:' + Math.round(carrierCounts[c] / carrierMax * 100) + '%;background:' + carrierBarColors[c] + '">' + carrierCounts[c] + '</div></div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    html += '</div>'; // end grid
+
+    // Peak hours
+    var hourCounts = [];
+    for (var hi = 0; hi < 24; hi++) hourCounts.push(0);
+    packages.forEach(function(p) { var h = new Date(p.receivedAt).getHours(); hourCounts[h]++; });
+    var hourMax = Math.max.apply(null, hourCounts) || 1;
+
+    html += '<div class="card" style="margin-top:24px"><div class="card-head"><h2>Peak Delivery Hours</h2></div><div class="card-body-padded">';
+    html += '<div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding:0 10px">';
+    for (var hi = 6; hi <= 20; hi++) {
+      var pct = Math.round(hourCounts[hi] / hourMax * 100);
+      var barColor = hourCounts[hi] === hourMax ? 'var(--accent)' : pct > 60 ? 'var(--blue)' : 'var(--bg3)';
+      html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">';
+      html += '<div style="font-size:10px;color:var(--text3)">' + hourCounts[hi] + '</div>';
+      html += '<div style="width:100%;height:' + Math.max(pct, 4) + '%;background:' + barColor + ';border-radius:4px 4px 0 0;min-height:3px"></div>';
+      html += '<div style="font-size:10px;color:var(--text3)">' + (hi > 12 ? (hi - 12) + 'p' : hi + 'a') + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '</div></div>';
+
+    // Storage utilization
+    html += '<div class="card" style="margin-top:24px"><div class="card-head"><h2>Storage Utilization</h2></div><div class="card-body-padded">';
+    html += '<div style="display:flex;align-items:center;gap:20px;margin-bottom:16px">';
+    html += '<div style="flex:1;height:24px;background:var(--bg3);border-radius:12px;overflow:hidden">';
+    html += '<div style="height:100%;width:' + utilPct + '%;background:' + (utilPct > 80 ? 'var(--red)' : utilPct > 50 ? 'var(--amber)' : 'var(--green)') + ';border-radius:12px;transition:width 0.5s"></div>';
+    html += '</div>';
+    html += '<span style="font-size:18px;font-weight:700;' + (utilPct > 80 ? 'color:var(--red)' : '') + '">' + utilPct + '%</span>';
+    html += '</div>';
+
+    // Shelf breakdown
+    var shelfGroups = { 'A': 0, 'B': 0, 'C': 0, 'D': 0, 'L (Lockers)': 0, 'Floor': 0 };
+    packages.filter(function(p) { return p.status === 'Received' || p.status === 'Notified'; }).forEach(function(p) {
+      if (p.shelf.charAt(0) === 'A') shelfGroups['A']++;
+      else if (p.shelf.charAt(0) === 'B') shelfGroups['B']++;
+      else if (p.shelf.charAt(0) === 'C') shelfGroups['C']++;
+      else if (p.shelf.charAt(0) === 'D') shelfGroups['D']++;
+      else if (p.shelf.charAt(0) === 'L') shelfGroups['L (Lockers)']++;
+      else shelfGroups['Floor']++;
+    });
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px">';
+    Object.keys(shelfGroups).forEach(function(k) {
+      var cap = k.indexOf('Locker') >= 0 ? 8 : k === 'Floor' ? 6 : 4;
+      var sgPct = Math.min(100, Math.round(shelfGroups[k] / cap * 100));
+      html += '<div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center">';
+      html += '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Section ' + k + '</div>';
+      html += '<div style="font-size:18px;font-weight:700;' + (sgPct > 80 ? 'color:var(--red)' : '') + '">' + shelfGroups[k] + '/' + cap + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    html += '</div></div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  // ===== Event Binding =====
+  function bindEvents() {
+    // Refresh
+    var refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.onclick = function() { render(); };
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        activeTab = btn.getAttribute('data-tab');
+        render();
+        // Focus tracking input on intake tab
+        if (activeTab === 'intake') {
+          var trackInput = document.getElementById('intake-tracking');
+          if (trackInput) setTimeout(function() { trackInput.focus(); }, 50);
+        }
+      });
+    });
+
+    // Intake form
+    var trackingInput = document.getElementById('intake-tracking');
+    if (trackingInput) {
+      trackingInput.addEventListener('input', function() {
+        intakeState.tracking = trackingInput.value;
+        // Check pre-registered match
+        var preReg = checkPreRegisteredMatch(trackingInput.value);
+        if (preReg) {
+          var unitInput = document.getElementById('intake-unit');
+          var recipientInput = document.getElementById('intake-recipient');
+          if (unitInput && preReg.unitNumber) { unitInput.value = preReg.unitNumber; intakeState.unit = preReg.unitNumber; }
+          if (recipientInput && preReg.tenantName) { recipientInput.value = preReg.tenantName; intakeState.recipientName = preReg.tenantName; }
+          var cdEl = document.querySelector('.carrier-detect');
+          if (cdEl) {
+            cdEl.className = 'carrier-detect detected';
+            cdEl.innerHTML = '<span class="cd-icon" style="font-size:20px">&#9989;</span>' +
+              '<span class="cd-text" style="color:var(--green);font-weight:600">Pre-registered by tenant (' + esc(preReg.tenantName || preReg.unitNumber) + ')</span>';
+          }
+        }
+        var detected = detectCarrier(trackingInput.value);
+        if (detected && !intakeState.carrier && !preReg) {
+          // Update carrier detect display without full re-render
+          var cdEl = document.querySelector('.carrier-detect');
+          if (cdEl) {
+            cdEl.className = 'carrier-detect detected';
+            cdEl.innerHTML = '<span class="carrier-icon ' + CARRIER_CLS[detected] + '" style="width:32px;height:32px;font-size:13px">' + CARRIER_CODES[detected] + '</span>' +
+              '<span class="cd-text">' + detected + ' detected</span>';
+          }
+          // Also update carrier select
+          var carrierSel = document.getElementById('intake-carrier');
+          if (carrierSel && !intakeState.carrier) carrierSel.value = detected;
+        } else {
+          var cdEl = document.querySelector('.carrier-detect');
+          if (cdEl) {
+            if (trackingInput.value.length > 0) {
+              cdEl.className = 'carrier-detect';
+              cdEl.innerHTML = '<span class="cd-icon">\u{1F50D}</span><span class="cd-text">Analyzing tracking format...</span>';
+            } else {
+              cdEl.className = 'carrier-detect';
+              cdEl.innerHTML = '<span class="cd-icon">\u{1F4F7}</span><span class="cd-text">Waiting for barcode scan or manual entry</span>';
+            }
+          }
+        }
+      });
+      // Simulate barcode scanner: Enter key = submit
+      trackingInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          var unitInput = document.getElementById('intake-unit');
+          if (unitInput && !unitInput.value) {
+            unitInput.focus();
+          } else {
+            doLogPackage();
+          }
+        }
+      });
+    }
+
+    var unitInput = document.getElementById('intake-unit');
+    if (unitInput) {
+      unitInput.addEventListener('input', function() {
+        intakeState.unit = unitInput.value;
+        var suggestions = getTenantSuggestions(unitInput.value);
+        var sugDiv = document.getElementById('unit-suggestions');
+        if (suggestions.length > 0 && unitInput.value.length > 0) {
+          var sugHtml = '<div style="position:absolute;top:0;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)">';
+          suggestions.forEach(function(t) {
+            sugHtml += '<div class="unit-sug" data-unit="' + esc(t.unit) + '" data-name="' + esc(t.name) + '" style="padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">';
+            sugHtml += '<strong>Unit ' + esc(t.unit) + '</strong> <span style="color:var(--text3)">' + esc(t.name) + '</span>';
+            sugHtml += '</div>';
+          });
+          sugHtml += '</div>';
+          sugDiv.innerHTML = sugHtml;
+          sugDiv.querySelectorAll('.unit-sug').forEach(function(s) {
+            s.addEventListener('click', function() {
+              intakeState.unit = s.getAttribute('data-unit');
+              intakeState.recipientName = s.getAttribute('data-name');
+              sugDiv.innerHTML = '';
+              render();
+            });
+            s.addEventListener('mouseenter', function() { s.style.background = 'var(--bg3)'; });
+            s.addEventListener('mouseleave', function() { s.style.background = 'none'; });
+          });
+        } else {
+          sugDiv.innerHTML = '';
+        }
+        // Auto-fill recipient
+        var tenant = getTenantByUnit(unitInput.value);
+        var recipientInput = document.getElementById('intake-recipient');
+        if (tenant && recipientInput && !intakeState.recipientName) {
+          recipientInput.value = tenant.name;
+          intakeState.recipientName = tenant.name;
+        }
+      });
+      unitInput.addEventListener('blur', function() {
+        setTimeout(function() {
+          var sugDiv = document.getElementById('unit-suggestions');
+          if (sugDiv) sugDiv.innerHTML = '';
+        }, 200);
+      });
+    }
+
+    var recipientInput = document.getElementById('intake-recipient');
+    if (recipientInput) {
+      recipientInput.addEventListener('input', function() { intakeState.recipientName = recipientInput.value; });
+    }
+
+    var carrierSel = document.getElementById('intake-carrier');
+    if (carrierSel) {
+      carrierSel.addEventListener('change', function() { intakeState.carrier = carrierSel.value; });
+    }
+
+    var shelfInput = document.getElementById('intake-shelf');
+    if (shelfInput) {
+      shelfInput.addEventListener('input', function() { intakeState.shelf = shelfInput.value; });
+    }
+
+    // Size selector
+    document.querySelectorAll('.size-opt').forEach(function(opt) {
+      opt.addEventListener('click', function() {
+        intakeState.size = opt.getAttribute('data-size');
+        document.querySelectorAll('.size-opt').forEach(function(o) { o.classList.remove('selected'); });
+        opt.classList.add('selected');
+      });
+    });
+
+    // Submit
+    var submitBtn = document.getElementById('intake-submit');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function() { doLogPackage(); });
+    }
+
+    // All packages filters
+    var allSearch = document.getElementById('all-search');
+    if (allSearch) {
+      allSearch.addEventListener('input', function() { allFilter.search = allSearch.value; render(); });
+    }
+    var allStatusFilter = document.getElementById('all-filter-status');
+    if (allStatusFilter) {
+      allStatusFilter.addEventListener('change', function() { allFilter.status = allStatusFilter.value; render(); });
+    }
+    var allCarrierFilter = document.getElementById('all-filter-carrier');
+    if (allCarrierFilter) {
+      allCarrierFilter.addEventListener('change', function() { allFilter.carrier = allCarrierFilter.value; render(); });
+    }
+
+    // Package action buttons (all tabs)
+    document.querySelectorAll('.pkg-action').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var pkgId = btn.getAttribute('data-id');
+        var action = btn.getAttribute('data-action');
+        var pkg = packages.find(function(p) { return p.id === pkgId; });
+        if (!pkg) return;
+
+        if (action === 'pickup') {
+          showPickupModal(pkg);
+        } else if (action === 'notify') {
+          pkg.status = 'Notified';
+          pkg.notifiedAt = new Date().toISOString();
+          pkg.notifCount = (pkg.notifCount || 0) + 1;
+          notifications.unshift({
+            id: 'N-' + Date.now(),
+            packageId: pkg.id,
+            timestamp: new Date().toISOString(),
+            phone: pkg.phone || '(unknown)',
+            unit: pkg.unit,
+            recipient: pkg.recipient,
+            message: 'You have a package (' + pkg.carrier + ') ready for pickup at the package room. Shelf: ' + pkg.shelf,
+            status: 'Delivered',
+            type: 'initial'
+          });
+          // Call API
+          apiCall('PUT', '/api/v1/packages/' + pkg.id + '/notify');
+          showToast('Notification Sent', 'SMS sent to ' + pkg.recipient + ' (Unit ' + pkg.unit + ')', 'success');
+          render();
+        } else if (action === 'renotify') {
+          pkg.notifCount = (pkg.notifCount || 0) + 1;
+          var type = pkg.notifCount >= 3 ? 'final' : 'reminder';
+          var msg = type === 'final'
+            ? 'FINAL NOTICE: Your package will be returned to carrier if not picked up within 48 hours.'
+            : 'Reminder: Your package is still waiting at the package room. Please pick up at your earliest convenience.';
+          notifications.unshift({
+            id: 'N-' + Date.now(),
+            packageId: pkg.id,
+            timestamp: new Date().toISOString(),
+            phone: pkg.phone || '(unknown)',
+            unit: pkg.unit,
+            recipient: pkg.recipient,
+            message: msg,
+            status: 'Delivered',
+            type: type
+          });
+          showToast('Reminder Sent', (type === 'final' ? 'Final notice' : 'Reminder') + ' sent to ' + pkg.recipient, 'info');
+          render();
+        } else if (action === 'return') {
+          showReturnModal(pkg);
+        }
+      });
+    });
+
+    // Toggle switches
+    document.querySelectorAll('.toggle').forEach(function(tog) {
+      tog.addEventListener('click', function() {
+        tog.classList.toggle('on');
+      });
+    });
+
+    // Restore focus for search fields
+    if (allFilter.search && allSearch) {
+      allSearch.focus();
+      allSearch.setSelectionRange(allSearch.value.length, allSearch.value.length);
+    }
+  }
+
+  // Initial render
+  render();
+
+  // Load packages from API (falls back to demo data if empty)
+  loadPackagesFromApi();
+  loadPreRegistered();
+
+  // Auto-focus tracking input
+  setTimeout(function() {
+    var trackInput = document.getElementById('intake-tracking');
+    if (trackInput) trackInput.focus();
+  }, 100);
+})();
+</script>
+</body>
+</html>

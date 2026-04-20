@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visitor Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+.tab { padding: 0.6rem 1.25rem; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text2); cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 220px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { background: #16a34a; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-active { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-checkedout { background: rgba(107,114,128,0.15); color: #6b7280; }
+.badge-preregistered { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-watchlist { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-denied { background: rgba(239,68,68,0.15); color: var(--red); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.form-row { margin-bottom: 0.75rem; }
+.form-label { display: block; font-size: 0.8rem; color: var(--text3); margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--bg3); display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-right: 0.5rem; vertical-align: middle; }
+.photo-placeholder { width: 80px; height: 80px; border-radius: 8px; background: var(--bg3); border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 0.7rem; cursor: pointer; }
+.photo-placeholder:hover { border-color: var(--accent); color: var(--accent); }
+.watchlist-flag { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 0.375rem; animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // State
+  var currentTab = 'active';
+  var searchText = '';
+  var statusFilter = '';
+  var showModal = false;
+  var visitors = [];
+
+  // Demo Data
+  var FIRST = ['James','Mary','Robert','Patricia','John','Jennifer','Michael','Linda','David','Elizabeth','William','Barbara','Chris','Sarah','Daniel','Nancy','Matt','Emily','Andrew','Lisa','Kevin','Amanda','Brian','Donna','Steven','Michelle','Jason','Carol','Ryan','Rebecca'];
+  var LAST = ['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Wilson','Anderson','Thomas','Taylor','Moore','Jackson','Martin','Lee','Thompson','White'];
+  var COMPANIES = ['Acme Corp','TechStart Inc','Delta Solutions','Summit Consulting','Vertex Labs','Pinnacle Group','Atlas Industries','Beacon Software','Cascade Media','Dynamo Systems','EverGreen LLC','Falcon Security','Granite Partners','Horizon Digital','Ironside Co'];
+  var PURPOSES = ['Meeting','Interview','Delivery','Maintenance','Contractor','Site Visit','Audit','Training','Vendor Demo','Guest Speaker','Tour','Client Visit','Inspection','IT Support','Consultation'];
+  var HOSTS = ['Sarah Connor','John Reese','Alice Zhang','Bob Martinez','Carol White','David Kim','Elena Ruiz','Frank Moore','Grace Chen','Henry Wilson'];
+
+  function genVisitors() {
+    var v = [];
+    for (var i = 0; i < 30; i++) {
+      var fn = FIRST[i % FIRST.length];
+      var ln = LAST[i % LAST.length];
+      var now = Date.now();
+      var checkedIn = i < 12;
+      var preReg = !checkedIn && i >= 20 && i < 26;
+      var watchlist = i === 5 || i === 18;
+      var minsAgo = Math.floor(Math.random() * 480) + 10;
+      var checkInTime = new Date(now - minsAgo * 60000);
+      var checkOutTime = checkedIn ? null : new Date(checkInTime.getTime() + (Math.floor(Math.random() * 180) + 30) * 60000);
+
+      var status = 'CHECKED_OUT';
+      if (checkedIn) status = 'CHECKED_IN';
+      if (preReg) status = 'PRE_REGISTERED';
+      if (watchlist) status = 'WATCHLIST';
+
+      v.push({
+        id: 'vis-' + String(i + 1).padStart(4, '0'),
+        firstName: fn,
+        lastName: ln,
+        name: fn + ' ' + ln,
+        company: COMPANIES[i % COMPANIES.length],
+        host: HOSTS[i % HOSTS.length],
+        purpose: PURPOSES[i % PURPOSES.length],
+        badgeNumber: checkedIn ? 'V-' + String(100 + i) : (preReg ? '' : 'V-' + String(100 + i)),
+        checkInTime: preReg ? null : checkInTime.toISOString(),
+        checkOutTime: checkOutTime ? checkOutTime.toISOString() : null,
+        status: status,
+        watchlist: watchlist,
+        watchlistReason: watchlist ? (i === 5 ? 'Previously banned - trespassing' : 'Flagged - identity mismatch') : null,
+        photoUrl: null,
+        phone: '(' + String(200 + i) + ') 555-' + String(1000 + i),
+        email: fn.toLowerCase() + '.' + ln.toLowerCase() + '@' + COMPANIES[i % COMPANIES.length].toLowerCase().replace(/[^a-z]/g, '') + '.com',
+      });
+    }
+    return v;
+  }
+
+  visitors = genVisitors();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/visitors/active');
+      if (res && res.visitors && res.visitors.length > 0) {
+        visitors = res.visitors;
+      } else {
+        var res2 = await api('GET', '/api/v1/data/visitors?limit=50');
+        if (res2 && (res2.visitors || res2.entities) && (res2.visitors || res2.entities).length > 0) {
+          visitors = (res2.visitors || res2.entities).map(function(v) {
+            var d = v.data || v;
+            return {
+              id: d.id || v.id,
+              firstName: d.firstName || '',
+              lastName: d.lastName || '',
+              name: d.name || ((d.firstName || '') + ' ' + (d.lastName || '')),
+              company: d.company || '',
+              host: d.host || '',
+              purpose: d.purpose || 'Visit',
+              badgeNumber: d.badgeNumber || '',
+              checkInTime: d.checkInTime || d.createdAt || null,
+              checkOutTime: d.checkOutTime || null,
+              status: d.status || 'CHECKED_IN',
+              watchlist: d.watchlist || false,
+              watchlistReason: d.watchlistReason || null,
+              photoUrl: d.photoUrl || null,
+              phone: d.phone || '',
+              email: d.email || '',
+            };
+          });
+        }
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function filtered() {
+    return visitors.filter(function(v) {
+      if (currentTab === 'active' && v.status !== 'CHECKED_IN') return false;
+      if (currentTab === 'today' && v.status === 'PRE_REGISTERED') return false;
+      if (currentTab === 'preregistered' && v.status !== 'PRE_REGISTERED') return false;
+      if (currentTab === 'watchlist' && !v.watchlist) return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (v.name.toLowerCase().indexOf(s) < 0 && v.company.toLowerCase().indexOf(s) < 0 && v.host.toLowerCase().indexOf(s) < 0 && (v.badgeNumber || '').toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return '-';
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '-';
+    var d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function initials(name) {
+    var parts = (name || '').split(' ');
+    return ((parts[0] || '')[0] || '') + ((parts[1] || '')[0] || '');
+  }
+
+  function render() {
+    var data = filtered();
+    var activeCount = visitors.filter(function(v) { return v.status === 'CHECKED_IN'; }).length;
+    var todayCount = visitors.filter(function(v) { return v.status !== 'PRE_REGISTERED'; }).length;
+    var preRegCount = visitors.filter(function(v) { return v.status === 'PRE_REGISTERED'; }).length;
+    var watchlistCount = visitors.filter(function(v) { return v.watchlist; }).length;
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Visitor Management</div>';
+    html += '<div class="subtitle">Track visitors, pre-registrations, and watchlist alerts. VisitorManagementAdapter interface.</div></div>';
+    html += '<button class="btn btn-accent" id="btnCheckIn">+ Check In Visitor</button></div>';
+
+    // Stats
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Active Visitors</div><div class="stat-value green">' + activeCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Checked In Today</div><div class="stat-value blue">' + todayCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Pre-Registered</div><div class="stat-value purple">' + preRegCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Watchlist Alerts</div><div class="stat-value red">' + watchlistCount + '</div></div>';
+    html += '</div>';
+
+    // Tabs
+    html += '<div class="tabs">';
+    var tabs = [
+      { key: 'active', label: 'Active', count: activeCount },
+      { key: 'today', label: 'All Today', count: todayCount },
+      { key: 'preregistered', label: 'Pre-Registered', count: preRegCount },
+      { key: 'watchlist', label: 'Watchlist', count: watchlistCount }
+    ];
+    tabs.forEach(function(t) {
+      html += '<button class="tab' + (currentTab === t.key ? ' active' : '') + '" data-tab="' + t.key + '">' + t.label + ' (' + t.count + ')</button>';
+    });
+    html += '</div>';
+
+    // Toolbar
+    html += '<div class="toolbar">';
+    html += '<input class="search" id="searchInput" placeholder="Search name, company, host, badge..." value="' + esc(searchText) + '">';
+    html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + data.length + ' results</span>';
+    html += '</div>';
+
+    // Watchlist banner
+    if (currentTab !== 'watchlist' && watchlistCount > 0) {
+      html += '<div class="card" style="border-left:3px solid var(--red);margin-bottom:1rem;padding:0.75rem 1rem;display:flex;align-items:center;gap:0.75rem">';
+      html += '<span class="watchlist-flag"></span>';
+      html += '<div><div style="font-weight:600;color:var(--red);font-size:0.85rem">Watchlist Alert</div>';
+      html += '<div style="font-size:0.8rem;color:var(--text2)">' + watchlistCount + ' flagged visitor(s) detected today</div></div>';
+      html += '</div>';
+    }
+
+    // Table
+    html += '<table><thead><tr>';
+    html += '<th>Visitor</th><th>Company</th><th>Host</th><th>Purpose</th><th>Badge #</th><th>Check-in</th><th>Status</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    if (data.length === 0) {
+      html += '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:2rem">No visitors match your filters</td></tr>';
+    } else {
+      data.forEach(function(v) {
+        var statusBadge = v.status === 'CHECKED_IN' ? 'badge-active' : v.status === 'PRE_REGISTERED' ? 'badge-preregistered' : v.status === 'WATCHLIST' ? 'badge-watchlist' : 'badge-checkedout';
+        var statusLabel = v.status === 'CHECKED_IN' ? 'Checked In' : v.status === 'PRE_REGISTERED' ? 'Pre-Registered' : v.status === 'WATCHLIST' ? 'Flagged' : 'Checked Out';
+
+        html += '<tr>';
+        html += '<td><div style="display:flex;align-items:center">';
+        if (v.watchlist) html += '<span class="watchlist-flag"></span>';
+        html += '<span class="avatar">' + esc(initials(v.name)) + '</span>';
+        html += '<div><div style="font-weight:600">' + esc(v.name) + '</div>';
+        if (v.watchlistReason) html += '<div style="font-size:0.7rem;color:var(--red)">' + esc(v.watchlistReason) + '</div>';
+        html += '</div></div></td>';
+        html += '<td style="color:var(--text2)">' + esc(v.company) + '</td>';
+        html += '<td>' + esc(v.host) + '</td>';
+        html += '<td style="color:var(--text2)">' + esc(v.purpose) + '</td>';
+        html += '<td><code style="font-size:0.8rem">' + esc(v.badgeNumber || '-') + '</code></td>';
+        html += '<td style="font-size:0.8rem;color:var(--text2)">' + formatTime(v.checkInTime) + '</td>';
+        html += '<td><span class="badge ' + statusBadge + '">' + statusLabel + '</span></td>';
+        html += '<td>';
+        if (v.status === 'CHECKED_IN') {
+          html += '<button class="btn btn-sm btn-outline vis-action" data-id="' + v.id + '" data-action="checkout">Check Out</button>';
+        } else if (v.status === 'PRE_REGISTERED') {
+          html += '<button class="btn btn-sm btn-green vis-action" data-id="' + v.id + '" data-action="checkin">Check In</button>';
+        }
+        if (v.watchlist) {
+          html += ' <button class="btn btn-sm btn-danger vis-action" data-id="' + v.id + '" data-action="deny">Deny</button>';
+        }
+        html += '</td>';
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+
+    document.getElementById('app').innerHTML = html;
+
+    if (showModal) renderModal();
+
+    // Bind events
+    document.querySelectorAll('.tab').forEach(function(t) {
+      t.addEventListener('click', function() { currentTab = this.dataset.tab; render(); });
+    });
+    document.getElementById('searchInput').addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('btnCheckIn').addEventListener('click', function() { showModal = true; render(); });
+    document.querySelectorAll('.vis-action').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = this.dataset.id;
+        var action = this.dataset.action;
+        var vis = visitors.find(function(v) { return v.id === id; });
+        if (!vis) return;
+        if (action === 'checkout') { vis.status = 'CHECKED_OUT'; vis.checkOutTime = new Date().toISOString(); }
+        else if (action === 'checkin') { vis.status = 'CHECKED_IN'; vis.checkInTime = new Date().toISOString(); vis.badgeNumber = 'V-' + String(200 + Math.floor(Math.random() * 100)); }
+        else if (action === 'deny') { vis.status = 'CHECKED_OUT'; vis.checkOutTime = new Date().toISOString(); }
+        render();
+      });
+    });
+  }
+
+  function renderModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+    var html = '<h3>Check In Visitor</h3>';
+
+    html += '<div style="display:flex;gap:1rem;margin-bottom:1rem">';
+    html += '<div class="photo-placeholder" id="photoPlaceholder">Click to<br>add photo</div>';
+    html += '<div style="flex:1">';
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">First Name</label><input class="form-input" id="mFirstName" placeholder="Jane"></div>';
+    html += '<div class="form-row"><label class="form-label">Last Name</label><input class="form-input" id="mLastName" placeholder="Smith"></div>';
+    html += '</div></div></div>';
+
+    html += '<div class="form-row"><label class="form-label">Company</label><input class="form-input" id="mCompany" placeholder="Acme Corp"></div>';
+
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Purpose</label><select class="form-input" id="mPurpose">';
+    PURPOSES.forEach(function(p) { html += '<option>' + esc(p) + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Host</label><select class="form-input" id="mHost">';
+    HOSTS.forEach(function(h) { html += '<option>' + esc(h) + '</option>'; });
+    html += '</select></div>';
+    html += '</div>';
+
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Phone</label><input class="form-input" id="mPhone" placeholder="(555) 123-4567"></div>';
+    html += '<div class="form-row"><label class="form-label">Email</label><input class="form-input" id="mEmail" placeholder="jane@acme.com"></div>';
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    html += '<button class="btn btn-outline" id="mCancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="mSave">Check In</button>';
+    html += '</div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { showModal = false; render(); } });
+    document.getElementById('mCancel').addEventListener('click', function() { showModal = false; render(); });
+    document.getElementById('mSave').addEventListener('click', function() {
+      var fn = document.getElementById('mFirstName').value || 'Walk-in';
+      var ln = document.getElementById('mLastName').value || 'Visitor';
+      var newVis = {
+        id: 'vis-' + Date.now(),
+        firstName: fn,
+        lastName: ln,
+        name: fn + ' ' + ln,
+        company: document.getElementById('mCompany').value || '',
+        host: document.getElementById('mHost').value || '',
+        purpose: document.getElementById('mPurpose').value || 'Visit',
+        badgeNumber: 'V-' + String(300 + Math.floor(Math.random() * 100)),
+        checkInTime: new Date().toISOString(),
+        checkOutTime: null,
+        status: 'CHECKED_IN',
+        watchlist: false,
+        watchlistReason: null,
+        photoUrl: null,
+        phone: document.getElementById('mPhone').value || '',
+        email: document.getElementById('mEmail').value || '',
+      };
+      visitors.unshift(newVis);
+      showModal = false;
+      render();
+    });
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

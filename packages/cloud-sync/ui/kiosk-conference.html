@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Conference Room</title>
+<style>
+:root {
+  --bg: #0f0f23; --bg2: #1a1d2e; --bg3: #242840;
+  --border: #2e3348; --text: #e4e6f0; --text2: #8b8fa3;
+  --accent: #00ff88; --accent-hover: #33ffaa; --accent-dim: rgba(0,255,136,0.15);
+  --success: #22c55e; --danger: #ef4444; --warning: #f59e0b;
+  --radius: 12px; --radius-lg: 20px;
+  --avail: #22c55e; --busy: #ef4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
+}
+
+.ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.2); transform: scale(0); animation: ripple-anim 0.5s ease-out; pointer-events: none; }
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+/* Full layout */
+.conf-layout { display: flex; flex-direction: column; height: 100vh; }
+
+/* Status header - takes up ~40% of screen */
+.status-panel {
+  flex: 0 0 auto; padding: 2rem 2rem 1.5rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; transition: background 0.5s ease; min-height: 280px;
+}
+.status-panel.available { background: linear-gradient(180deg, rgba(34,197,94,0.12) 0%, var(--bg) 100%); }
+.status-panel.occupied { background: linear-gradient(180deg, rgba(239,68,68,0.12) 0%, var(--bg) 100%); }
+
+.room-name { font-size: 1rem; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 0.75rem; }
+.status-label {
+  font-size: 3rem; font-weight: 800; letter-spacing: 0.04em;
+  margin-bottom: 0.75rem; transition: color 0.3s;
+}
+.status-label.available { color: var(--avail); }
+.status-label.occupied { color: var(--busy); }
+
+.meeting-info { margin-bottom: 1rem; }
+.meeting-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.25rem; }
+.meeting-organizer { font-size: 0.95rem; color: var(--text2); }
+.meeting-time { font-size: 0.95rem; color: var(--text2); margin-top: 0.15rem; }
+
+.countdown {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 1.25rem; border-radius: 20px;
+  font-size: 1rem; font-weight: 600;
+}
+.countdown.ends { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid var(--danger); }
+.countdown.starts { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid var(--warning); }
+
+/* Quick book buttons */
+.quick-book { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; justify-content: center; }
+.qb-btn {
+  padding: 0.9rem 1.5rem; font-size: 1.05rem; font-weight: 600;
+  border: 2px solid var(--avail); border-radius: var(--radius);
+  background: rgba(34,197,94,0.1); color: var(--avail);
+  cursor: pointer; min-width: 90px; position: relative; overflow: hidden;
+  transition: all 0.15s;
+}
+.qb-btn:active { background: rgba(34,197,94,0.25); transform: scale(0.97); }
+
+/* Clock */
+.conf-clock { position: fixed; top: 1.25rem; right: 1.5rem; font-size: 1.4rem; font-weight: 600; color: var(--text2); z-index: 100; }
+
+/* Schedule section */
+.schedule-section {
+  flex: 1; padding: 0 2rem 1rem; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.schedule-header {
+  font-size: 0.85rem; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+/* Timeline */
+.timeline { position: relative; }
+.time-slot {
+  display: flex; align-items: stretch; gap: 1rem;
+  padding: 0.5rem 0; min-height: 56px;
+}
+.time-col {
+  width: 70px; flex-shrink: 0; text-align: right;
+  font-size: 0.85rem; color: var(--text2); padding-top: 0.3rem;
+  font-weight: 500;
+}
+.slot-bar {
+  flex: 1; border-radius: var(--radius); padding: 0.6rem 1rem;
+  min-height: 48px; display: flex; flex-direction: column; justify-content: center;
+}
+.slot-bar.booked { background: rgba(239,68,68,0.1); border-left: 3px solid var(--danger); }
+.slot-bar.free { background: rgba(34,197,94,0.05); border-left: 3px solid rgba(34,197,94,0.3); }
+.slot-bar.current { background: rgba(239,68,68,0.15); border-left: 3px solid var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.slot-title { font-weight: 600; font-size: 0.95rem; }
+.slot-sub { font-size: 0.8rem; color: var(--text2); margin-top: 0.1rem; }
+
+.help-bar { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 0.75rem; font-size: 0.85rem; color: var(--text2); background: rgba(15,15,35,0.8); z-index: 100; }
+
+/* Book overlay */
+.book-overlay {
+  position: fixed; inset: 0; background: rgba(15,15,35,0.95);
+  z-index: 200; display: none; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+.book-overlay.visible { display: flex; }
+.book-card {
+  background: var(--bg2); border: 2px solid var(--avail);
+  border-radius: var(--radius-lg); padding: 2rem; text-align: center;
+  width: 90%; max-width: 400px;
+}
+.book-card h2 { font-size: 1.4rem; margin-bottom: 0.5rem; color: var(--avail); }
+.book-card p { color: var(--text2); margin-bottom: 1.5rem; }
+.book-input {
+  width: 100%; padding: 0.9rem 1rem; font-size: 1.05rem;
+  background: var(--bg3); color: var(--text); border: 2px solid var(--border);
+  border-radius: var(--radius); outline: none; margin-bottom: 1rem;
+}
+.book-input:focus { border-color: var(--avail); }
+.book-input::placeholder { color: var(--text2); }
+.book-actions { display: flex; gap: 0.75rem; }
+.book-btn {
+  flex: 1; padding: 0.9rem; font-size: 1.05rem; font-weight: 600;
+  border-radius: var(--radius); cursor: pointer; border: 2px solid var(--border);
+  background: var(--bg3); color: var(--text); position: relative; overflow: hidden;
+}
+.book-btn:active { transform: scale(0.97); }
+.book-btn.confirm { background: var(--avail); color: #0f0f23; border-color: var(--avail); }
+</style>
+</head>
+<body>
+
+<div class="conf-clock" id="clock"></div>
+<div class="help-bar">Need Help? Call Front Desk</div>
+
+<div class="book-overlay" id="bookOverlay">
+  <div class="book-card">
+    <h2 id="bookTitle">Book for 30 minutes</h2>
+    <p id="bookTime">10:30 AM - 11:00 AM</p>
+    <input class="book-input" id="bookName" type="text" placeholder="Meeting title (optional)">
+    <input class="book-input" id="bookOrganizer" type="text" placeholder="Your name">
+    <div class="book-actions">
+      <button class="book-btn" onclick="cancelBook()">Cancel</button>
+      <button class="book-btn confirm" onclick="confirmBook()">Book Now</button>
+    </div>
+  </div>
+</div>
+
+<div class="conf-layout">
+  <div class="status-panel available" id="statusPanel">
+    <div class="room-name" id="roomName">Conference Room A</div>
+    <div class="status-label available" id="statusLabel">AVAILABLE</div>
+    <div class="meeting-info" id="meetingInfo" style="display:none">
+      <div class="meeting-title" id="meetingTitle"></div>
+      <div class="meeting-organizer" id="meetingOrganizer"></div>
+      <div class="meeting-time" id="meetingTime"></div>
+    </div>
+    <div class="countdown starts" id="countdown" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span id="countdownText"></span>
+    </div>
+    <div class="quick-book" id="quickBook">
+      <button class="qb-btn" onclick="quickBookRoom(15)">15 min</button>
+      <button class="qb-btn" onclick="quickBookRoom(30)">30 min</button>
+      <button class="qb-btn" onclick="quickBookRoom(60)">1 hr</button>
+      <button class="qb-btn" onclick="quickBookRoom(120)">2 hr</button>
+    </div>
+  </div>
+
+  <div class="schedule-section">
+    <div class="schedule-header">Today's Schedule</div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const product = params.get('product') || '';
+if (product === 'safeschool') {
+  document.documentElement.style.setProperty('--accent', '#f59e0b');
+  document.documentElement.style.setProperty('--accent-dim', 'rgba(245,158,11,0.15)');
+}
+
+const roomName = params.get('room') || 'Conference Room A';
+document.getElementById('roomName').textContent = roomName;
+
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+// Demo meetings for today
+const meetings = [
+  { title: 'Daily Standup', organizer: 'Sarah Chen', startH: 9, startM: 0, durMin: 30 },
+  { title: 'Product Review', organizer: 'James Miller', startH: 10, startM: 0, durMin: 60 },
+  { title: 'Client Presentation', organizer: 'Emily Rodriguez', startH: 13, startM: 0, durMin: 90 },
+  { title: 'Team Retrospective', organizer: 'David Park', startH: 15, startM: 0, durMin: 60 },
+  { title: 'Budget Planning', organizer: 'Lisa Thompson', startH: 16, startM: 30, durMin: 60 },
+];
+
+let pendingBookMin = 0;
+
+function timeStr(h, m) {
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  return hh + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+}
+
+function getMeetingAt(h, m) {
+  const mins = h * 60 + m;
+  return meetings.find(mt => {
+    const start = mt.startH * 60 + mt.startM;
+    const end = start + mt.durMin;
+    return mins >= start && mins < end;
+  });
+}
+
+function getNextMeeting(h, m) {
+  const mins = h * 60 + m;
+  let next = null;
+  meetings.forEach(mt => {
+    const start = mt.startH * 60 + mt.startM;
+    if (start > mins && (!next || start < next.startH * 60 + next.startM)) next = mt;
+  });
+  return next;
+}
+
+function updateStatus() {
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  const panel = document.getElementById('statusPanel');
+  const label = document.getElementById('statusLabel');
+  const info = document.getElementById('meetingInfo');
+  const qb = document.getElementById('quickBook');
+  const cd = document.getElementById('countdown');
+
+  const current = getMeetingAt(h, m);
+  const next = getNextMeeting(h, m);
+
+  if (current) {
+    panel.className = 'status-panel occupied';
+    label.className = 'status-label occupied';
+    label.textContent = 'IN USE';
+    info.style.display = '';
+    document.getElementById('meetingTitle').textContent = current.title;
+    document.getElementById('meetingOrganizer').textContent = current.organizer;
+    const endM = current.startH * 60 + current.startM + current.durMin;
+    const endH = Math.floor(endM / 60), endMm = endM % 60;
+    document.getElementById('meetingTime').textContent = timeStr(current.startH, current.startM) + ' - ' + timeStr(endH, endMm);
+    qb.style.display = 'none';
+
+    const remaining = endM - (h * 60 + m);
+    cd.style.display = '';
+    cd.className = 'countdown ends';
+    document.getElementById('countdownText').textContent = remaining + ' min remaining';
+  } else {
+    panel.className = 'status-panel available';
+    label.className = 'status-label available';
+    label.textContent = 'AVAILABLE';
+    info.style.display = 'none';
+    qb.style.display = 'flex';
+
+    if (next) {
+      const starts = (next.startH * 60 + next.startM) - (h * 60 + m);
+      cd.style.display = '';
+      cd.className = 'countdown starts';
+      document.getElementById('countdownText').textContent = 'Next meeting in ' + starts + ' min';
+    } else {
+      cd.style.display = 'none';
+    }
+  }
+}
+
+function renderTimeline() {
+  const container = document.getElementById('timeline');
+  let html = '';
+  // Show 8 AM to 6 PM
+  for (let h = 8; h < 18; h++) {
+    for (let half = 0; half < 2; half++) {
+      const m = half * 30;
+      const meeting = getMeetingAt(h, m);
+      const now2 = new Date();
+      const isCurrent = meeting && getMeetingAt(now2.getHours(), now2.getMinutes()) === meeting;
+
+      if (meeting) {
+        // Only render on the meeting's start slot
+        const isStart = (meeting.startH === h && meeting.startM === m);
+        if (!isStart) continue;
+        const endM = meeting.startH * 60 + meeting.startM + meeting.durMin;
+        const endH2 = Math.floor(endM / 60), endMm = endM % 60;
+        html += `<div class="time-slot">
+          <div class="time-col">${timeStr(h, m)}</div>
+          <div class="slot-bar ${isCurrent ? 'current' : 'booked'}">
+            <div class="slot-title">${meeting.title}</div>
+            <div class="slot-sub">${meeting.organizer} &middot; ${timeStr(h, m)} - ${timeStr(endH2, endMm)}</div>
+          </div>
+        </div>`;
+        // Skip the half-hours this meeting spans
+      } else {
+        html += `<div class="time-slot">
+          <div class="time-col">${timeStr(h, m)}</div>
+          <div class="slot-bar free">
+            <div class="slot-title" style="color:var(--text2);font-weight:400">Available</div>
+          </div>
+        </div>`;
+      }
+    }
+  }
+  container.innerHTML = html;
+}
+
+function quickBookRoom(min) {
+  pendingBookMin = min;
+  const now2 = new Date();
+  const startStr = timeStr(now2.getHours(), now2.getMinutes());
+  const endMs = now2.getHours() * 60 + now2.getMinutes() + min;
+  const endStr = timeStr(Math.floor(endMs / 60), endMs % 60);
+  document.getElementById('bookTitle').textContent = 'Book for ' + (min >= 60 ? (min / 60) + ' hour' + (min > 60 ? 's' : '') : min + ' minutes');
+  document.getElementById('bookTime').textContent = startStr + ' - ' + endStr;
+  document.getElementById('bookName').value = '';
+  document.getElementById('bookOrganizer').value = '';
+  document.getElementById('bookOverlay').classList.add('visible');
+}
+
+function cancelBook() {
+  document.getElementById('bookOverlay').classList.remove('visible');
+}
+
+function confirmBook() {
+  const now2 = new Date();
+  const title = document.getElementById('bookName').value || 'Ad-hoc Meeting';
+  const org = document.getElementById('bookOrganizer').value || 'Walk-in';
+  meetings.push({
+    title: title, organizer: org,
+    startH: now2.getHours(), startM: now2.getMinutes(),
+    durMin: pendingBookMin
+  });
+  document.getElementById('bookOverlay').classList.remove('visible');
+  updateStatus();
+  renderTimeline();
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+let fsReq = false;
+document.addEventListener('touchstart', () => {
+  if (!fsReq && document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(()=>{}); fsReq = true; }
+}, { once: true });
+
+updateClock();
+setInterval(updateClock, 10000);
+updateStatus();
+renderTimeline();
+// Refresh status every minute
+setInterval(() => { updateStatus(); renderTimeline(); }, 60000);
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.qb-btn, .book-btn');
+  if (!btn) return;
+  const r = document.createElement('span'); r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.width = r.style.height = size + 'px';
+  r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  r.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  btn.appendChild(r); setTimeout(() => r.remove(), 500);
+});
+</script>
+</body>
+</html>

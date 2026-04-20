@@ -57,6 +57,12 @@ export interface HeartbeatRequest {
   upgradeStatus?: string;
   upgradeError?: string;
   configVersion?: number;
+  /** Activation key — sent so cloud can auto-resolve account/org */
+  activationKey?: string;
+  /** Map of adapterId -> installed version (for update checking) */
+  installedAdapters?: Record<string, string>;
+  /** Results from previous adapter update attempts */
+  adapterUpdateResults?: AdapterUpdateResult[];
 }
 
 export interface UpgradeCommand {
@@ -102,6 +108,37 @@ export interface DeviceConfigPayload {
     peers: FederationPeerEntry[];
   };
   commands?: DeviceCommand[];
+  /** Adapter updates available for this device */
+  adapterUpdates?: AdapterUpdateDirective[];
+}
+
+// ─── Adapter Update Protocol ──────────────────────────────────────
+
+export interface AdapterUpdateDirective {
+  /** Adapter ID: 'access-control/lenel' */
+  adapterId: string;
+  /** Target semver version */
+  targetVersion: string;
+  /** Download URL for the adapter bundle (.mjs) */
+  bundleUrl: string;
+  /** SHA-256 hash of the bundle for integrity verification */
+  bundleHash: string;
+  /** Bundle file size in bytes */
+  bundleSize: number;
+  /** Update priority */
+  priority: 'critical' | 'normal' | 'low';
+  /** Minimum EdgeRuntime version required */
+  minRuntimeVersion?: string;
+  /** Deadline — update must be applied by this ISO date */
+  deadline?: string;
+}
+
+export interface AdapterUpdateResult {
+  adapterId: string;
+  targetVersion: string;
+  status: 'success' | 'failed' | 'rolled_back';
+  error?: string;
+  appliedAt?: string;
 }
 
 export interface HeartbeatResponse {
@@ -110,6 +147,8 @@ export interface HeartbeatResponse {
   upgrade?: UpgradeCommand;
   peers?: PeerInfo[];
   config?: DeviceConfigPayload;
+  /** If true, device has been unclaimed — should clear config and re-enter pairing mode. */
+  unclaimed?: boolean;
 }
 
 export class SyncClient {
@@ -136,6 +175,10 @@ export class SyncClient {
     if (config.tlsFingerprint) {
       this.tlsFingerprint = config.tlsFingerprint.toUpperCase().replace(/[^A-F0-9]/g, '');
     }
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   async verifyTlsCertificate(): Promise<void> {

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cardholder Sync</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+  --cyan: #06b6d4;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.header-actions { display: flex; gap: 0.5rem; align-items: center; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.stat-value.cyan { color: var(--cyan); }
+.stat-sub { font-size: 0.7rem; color: var(--text3); margin-top: 0.25rem; }
+.tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.tab { padding: 0.6rem 1.2rem; cursor: pointer; font-size: 0.85rem; color: var(--text2); border-bottom: 2px solid transparent; transition: all 0.15s; font-weight: 500; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-green { background: transparent; border: 1px solid var(--green); color: var(--green); }
+.btn-green:hover { background: rgba(34,197,94,0.1); }
+.btn-blue { background: transparent; border: 1px solid var(--blue); color: var(--blue); }
+.btn-blue:hover { background: rgba(59,130,246,0.1); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-synced { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-import { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-edge { background: rgba(139,92,246,0.15); color: var(--purple); }
+.badge-conflict { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-none { background: rgba(107,114,128,0.15); color: #6b7280; }
+.badge-match { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-mismatch { background: rgba(245,158,11,0.15); color: var(--amber); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.card-title { font-weight: 600; font-size: 0.95rem; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.online { background: var(--green); }
+.status-dot.offline { background: var(--red); }
+.status-dot.syncing { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 768px) { .overview-grid { grid-template-columns: 1fr; } }
+.info-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.info-row:last-child { border-bottom: none; }
+.info-label { color: var(--text3); font-size: 0.8rem; }
+.info-value { font-size: 0.85rem; font-weight: 500; }
+.conflict-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+.conflict-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.conflict-field { display: grid; grid-template-columns: 120px 1fr 1fr auto; gap: 0.5rem; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.conflict-field:last-child { border-bottom: none; }
+.conflict-label { font-weight: 600; color: var(--text2); font-size: 0.8rem; }
+.conflict-value { padding: 0.3rem 0.5rem; background: var(--bg); border-radius: 4px; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conflict-value.edge { border-left: 3px solid var(--purple); }
+.conflict-value.pac { border-left: 3px solid var(--blue); }
+.config-section { margin-bottom: 1.5rem; }
+.config-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem; }
+.config-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+.config-row:last-child { border-bottom: none; }
+.config-label { color: var(--text2); font-size: 0.85rem; }
+.config-input { padding: 0.3rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; min-width: 180px; }
+.config-input:focus { border-color: var(--accent); }
+select.config-input { appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg3); border-radius: 22px; transition: 0.2s; }
+.toggle-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: var(--text3); border-radius: 50%; transition: 0.2s; }
+.toggle input:checked + .toggle-slider { background: var(--accent-dim); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--accent); }
+.log-entry { display: grid; grid-template-columns: 160px 60px 60px 60px 60px 60px 1fr; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; align-items: center; }
+.log-entry:first-child { font-weight: 600; color: var(--text3); text-transform: uppercase; font-size: 0.7rem; }
+.log-count { text-align: center; }
+.log-count.green { color: var(--green); }
+.log-count.amber { color: var(--amber); }
+.log-count.red { color: var(--red); }
+.log-count.blue { color: var(--blue); }
+.empty { text-align: center; padding: 3rem; color: var(--text3); font-size: 0.9rem; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="title">Cardholder Sync</div>
+    <div class="subtitle">Bidirectional sync between EdgeRuntime and PAC systems</div>
+  </div>
+  <div class="header-actions">
+    <span id="syncStatus" style="font-size:0.8rem; color:var(--text3)"></span>
+    <button class="btn btn-accent" id="btnSync" onclick="triggerSync()">Sync Now</button>
+  </div>
+</div>
+
+<div class="stats" id="statsRow">
+  <div class="stat"><div class="stat-label">Total Mapped</div><div class="stat-value" id="statTotal">--</div></div>
+  <div class="stat"><div class="stat-label">Synced</div><div class="stat-value green" id="statSynced">--</div></div>
+  <div class="stat"><div class="stat-label">Edge Only</div><div class="stat-value purple" id="statEdgeOnly">--</div></div>
+  <div class="stat"><div class="stat-label">PAC Only</div><div class="stat-value blue" id="statPacOnly">--</div></div>
+  <div class="stat"><div class="stat-label">Conflicts</div><div class="stat-value red" id="statConflicts">--</div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="overview">Overview</div>
+  <div class="tab" data-tab="mappings">Mappings</div>
+  <div class="tab" data-tab="conflicts">Conflicts</div>
+  <div class="tab" data-tab="config">Config</div>
+  <div class="tab" data-tab="log">Sync Log</div>
+</div>
+
+<!-- ─── Overview Tab ──────────────────────────────────────────── -->
+<div class="tab-panel active" id="panel-overview">
+  <div class="overview-grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Sync Status</div>
+        <span id="overviewStatusBadge" class="badge badge-synced">IDLE</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Last Sync</span>
+        <span class="info-value" id="overviewLastSync">Never</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Next Sync</span>
+        <span class="info-value" id="overviewNextSync">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">PAC System</span>
+        <span class="info-value" id="overviewPacSystem">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Match Strategy</span>
+        <span class="info-value" id="overviewMatchStrategy">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Sync Interval</span>
+        <span class="info-value" id="overviewInterval">--</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Last Sync Result</div>
+      </div>
+      <div id="lastResultBody">
+        <div class="empty">No sync results yet. Click "Sync Now" to start.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 0.75rem;">
+    <div class="card-header">
+      <div class="card-title">Quick Actions</div>
+    </div>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+      <button class="btn btn-blue btn-sm" onclick="triggerImport()">Force Import from PAC</button>
+      <button class="btn btn-green btn-sm" onclick="triggerExport()">Force Export to PAC</button>
+      <button class="btn btn-outline btn-sm" onclick="refreshAll()">Refresh Status</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Mappings Tab ──────────────────────────────────────────── -->
+<div class="tab-panel" id="panel-mappings">
+  <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+    <input type="text" class="config-input" id="mappingSearch" placeholder="Search by name or ID..." oninput="filterMappings()" style="min-width:280px">
+    <select class="config-input" id="mappingFilter" onchange="filterMappings()">
+      <option value="">All Sources</option>
+      <option value="synced">Synced</option>
+      <option value="import">Imported</option>
+      <option value="edge">Edge Only</option>
+    </select>
+    <span style="color:var(--text3); font-size:0.8rem;" id="mappingCount">0 mappings</span>
+  </div>
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Edge ID</th>
+          <th>External ID</th>
+          <th>Source</th>
+          <th>Status</th>
+          <th>Hash Match</th>
+          <th>Last Sync</th>
+        </tr>
+      </thead>
+      <tbody id="mappingsBody">
+        <tr><td colspan="7" class="empty">Loading mappings...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── Conflicts Tab ─────────────────────────────────────────── -->
+<div class="tab-panel" id="panel-conflicts">
+  <div id="conflictsBody">
+    <div class="empty">Loading conflicts...</div>
+  </div>
+</div>
+
+<!-- ─── Config Tab ────────────────────────────────────────────── -->
+<div class="tab-panel" id="panel-config">
+  <div class="config-section">
+    <div class="config-title">Sync Settings</div>
+    <div class="card">
+      <div class="config-row">
+        <span class="config-label">Match Strategy</span>
+        <select class="config-input" id="cfgMatchStrategy">
+          <option value="badge_or_name">Badge Number or Name+Email</option>
+          <option value="badge_number">Badge Number Only</option>
+          <option value="name_email">Name + Email</option>
+          <option value="external_id">External ID Only</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <span class="config-label">Default Authority</span>
+        <select class="config-input" id="cfgDefaultAuthority">
+          <option value="pac">PAC Wins</option>
+          <option value="edge">Edge Wins</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <span class="config-label">Sync Interval</span>
+        <select class="config-input" id="cfgSyncInterval">
+          <option value="60000">1 minute</option>
+          <option value="300000">5 minutes</option>
+          <option value="900000">15 minutes</option>
+          <option value="3600000">1 hour</option>
+        </select>
+      </div>
+      <div class="config-row">
+        <span class="config-label">Auto-Resolve Conflicts</span>
+        <label class="toggle">
+          <input type="checkbox" id="cfgAutoResolve" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="config-section">
+    <div class="config-title">Field Authority Rules</div>
+    <div class="card">
+      <div style="font-size:0.8rem; color:var(--text3); margin-bottom:0.75rem;">
+        PAC Authority = PAC system always wins for these fields.<br>
+        Edge Authority = EdgeRuntime always wins for these fields.
+      </div>
+      <div class="config-row">
+        <span class="config-label">PAC Authority Fields</span>
+        <span class="info-value" id="cfgPacFields" style="font-size:0.8rem; color:var(--blue)">--</span>
+      </div>
+      <div class="config-row">
+        <span class="config-label">Edge Authority Fields</span>
+        <span class="info-value" id="cfgEdgeFields" style="font-size:0.8rem; color:var(--purple)">--</span>
+      </div>
+      <div class="config-row">
+        <span class="config-label">Merge Fields (Union)</span>
+        <span class="info-value" id="cfgMergeFields" style="font-size:0.8rem; color:var(--green)">--</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:0.5rem;">
+    <button class="btn btn-accent" onclick="saveConfig()">Save Config</button>
+    <button class="btn btn-outline" onclick="loadConfig()">Reset</button>
+  </div>
+</div>
+
+<!-- ─── Sync Log Tab ──────────────────────────────────────────── -->
+<div class="tab-panel" id="panel-log">
+  <div id="syncLogBody">
+    <div class="log-entry">
+      <span>Timestamp</span>
+      <span class="log-count">Import</span>
+      <span class="log-count">Export</span>
+      <span class="log-count">Update</span>
+      <span class="log-count">Conflict</span>
+      <span class="log-count">Error</span>
+      <span>Details</span>
+    </div>
+    <div class="empty" id="logEmpty">No sync history yet.</div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/api/v1/sync/cardholders';
+let allMappings = [];
+let syncLog = [];
+
+function getAuthHeaders() {
+  const token = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='));
+  const jwt = token ? token.split('=')[1] : '';
+  return { 'Content-Type': 'application/json', 'Authorization': jwt ? 'Bearer ' + jwt : '' };
+}
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API_BASE + path, { headers: getAuthHeaders(), ...opts });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || err.details || res.statusText);
+  }
+  return res.json();
+}
+
+// ─── Tab Navigation ──────────────────────────────────────────────
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ─── Load Status ─────────────────────────────────────────────────
+
+async function loadStatus() {
+  try {
+    const status = await apiFetch('/status');
+    document.getElementById('statTotal').textContent = status.totalMapped;
+    document.getElementById('statSynced').textContent = status.synced;
+    document.getElementById('statEdgeOnly').textContent = status.edgeOnly;
+    document.getElementById('statPacOnly').textContent = status.pacOnly;
+    document.getElementById('statConflicts').textContent = status.conflicts;
+
+    document.getElementById('overviewLastSync').textContent = status.lastSyncAt
+      ? new Date(status.lastSyncAt).toLocaleString() : 'Never';
+    document.getElementById('overviewNextSync').textContent = status.nextSyncAt
+      ? new Date(status.nextSyncAt).toLocaleString() : 'Not scheduled';
+
+    const statusBadge = document.getElementById('overviewStatusBadge');
+    if (status.running) {
+      statusBadge.textContent = 'SYNCING';
+      statusBadge.className = 'badge badge-conflict';
+      document.getElementById('syncStatus').innerHTML = '<span class="spinner"></span> Syncing...';
+    } else {
+      statusBadge.textContent = 'IDLE';
+      statusBadge.className = 'badge badge-synced';
+      document.getElementById('syncStatus').textContent = '';
+    }
+
+    if (status.lastResult) {
+      renderLastResult(status.lastResult);
+    }
+  } catch (err) {
+    console.error('Failed to load status:', err);
+  }
+}
+
+function renderLastResult(result) {
+  const el = document.getElementById('lastResultBody');
+  el.innerHTML = `
+    <div class="info-row"><span class="info-label">Imported (from PAC)</span><span class="info-value" style="color:var(--blue)">${result.imported}</span></div>
+    <div class="info-row"><span class="info-label">Exported (to PAC)</span><span class="info-value" style="color:var(--green)">${result.exported}</span></div>
+    <div class="info-row"><span class="info-label">Updated</span><span class="info-value" style="color:var(--cyan)">${result.updated}</span></div>
+    <div class="info-row"><span class="info-label">Conflicts</span><span class="info-value" style="color:var(--red)">${result.conflicts}</span></div>
+    <div class="info-row"><span class="info-label">Unchanged</span><span class="info-value">${result.unchanged}</span></div>
+    <div class="info-row"><span class="info-label">Errors</span><span class="info-value" style="color:var(--red)">${result.errors}</span></div>
+  `;
+}
+
+// ─── Load Mappings ───────────────────────────────────────────────
+
+async function loadMappings() {
+  try {
+    const data = await apiFetch('/mappings');
+    allMappings = data.mappings || [];
+    renderMappings(allMappings);
+  } catch (err) {
+    document.getElementById('mappingsBody').innerHTML = '<tr><td colspan="7" class="empty">Failed to load mappings: ' + err.message + '</td></tr>';
+  }
+}
+
+function renderMappings(mappings) {
+  document.getElementById('mappingCount').textContent = mappings.length + ' mappings';
+  if (mappings.length === 0) {
+    document.getElementById('mappingsBody').innerHTML = '<tr><td colspan="7" class="empty">No cardholder mappings found. Run a sync to populate.</td></tr>';
+    return;
+  }
+
+  const rows = mappings.map(m => {
+    const sourceBadge = m.source === 'synced' ? 'badge-synced' : m.source === 'import' ? 'badge-import' : 'badge-edge';
+    const conflictBadge = m.conflictStatus === 'pending' ? 'badge-conflict' : m.conflictStatus === 'resolved' ? 'badge-synced' : 'badge-none';
+    const hashBadge = m.hashMatch ? 'badge-match' : 'badge-mismatch';
+    const lastSync = m.lastSyncAt ? new Date(m.lastSyncAt).toLocaleString() : '--';
+    return `<tr>
+      <td>${esc(m.name || '--')}</td>
+      <td style="font-family:monospace;font-size:0.75rem">${esc(m.edgeId.slice(0,8))}...</td>
+      <td style="font-family:monospace;font-size:0.75rem">${m.externalId ? esc(m.externalId) : '<span style="color:var(--text3)">none</span>'}</td>
+      <td><span class="badge ${sourceBadge}">${m.source.toUpperCase()}</span></td>
+      <td><span class="badge ${conflictBadge}">${(m.conflictStatus || 'none').toUpperCase()}</span></td>
+      <td><span class="badge ${hashBadge}">${m.hashMatch ? 'MATCH' : 'CHANGED'}</span></td>
+      <td style="font-size:0.8rem;color:var(--text2)">${lastSync}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('mappingsBody').innerHTML = rows;
+}
+
+function filterMappings() {
+  const search = document.getElementById('mappingSearch').value.toLowerCase();
+  const source = document.getElementById('mappingFilter').value;
+  const filtered = allMappings.filter(m => {
+    if (source && m.source !== source) return false;
+    if (search) {
+      const hay = (m.name + ' ' + m.edgeId + ' ' + (m.externalId || '')).toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+  renderMappings(filtered);
+}
+
+// ─── Load Conflicts ──────────────────────────────────────────────
+
+async function loadConflicts() {
+  try {
+    const data = await apiFetch('/conflicts');
+    const conflicts = data.conflicts || [];
+
+    if (conflicts.length === 0) {
+      document.getElementById('conflictsBody').innerHTML = '<div class="empty">No unresolved conflicts. All cardholders are in sync.</div>';
+      return;
+    }
+
+    const html = conflicts.map(c => {
+      const name = c.edgeData ? (c.edgeData.firstName + ' ' + c.edgeData.lastName) : c.mapping.edgeId;
+      const resolutions = c.resolutions || [];
+
+      const fieldsHtml = resolutions.map(r => `
+        <div class="conflict-field">
+          <span class="conflict-label">${esc(r.field)}</span>
+          <span class="conflict-value edge" title="Edge value">${esc(String(r.edgeValue ?? '--'))}</span>
+          <span class="conflict-value pac" title="PAC value">${esc(String(r.pacValue ?? '--'))}</span>
+          <span>
+            <button class="btn btn-sm btn-outline" onclick="resolveField('${c.mapping.edgeId}','${r.field}','edge')">Edge</button>
+            <button class="btn btn-sm btn-blue" onclick="resolveField('${c.mapping.edgeId}','${r.field}','pac')">PAC</button>
+          </span>
+        </div>
+      `).join('');
+
+      return `<div class="conflict-card">
+        <div class="conflict-header">
+          <div><strong>${esc(name)}</strong> <span style="color:var(--text3);font-size:0.8rem">${c.mapping.edgeId.slice(0,8)}...</span></div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-sm btn-blue" onclick="resolveAll('${c.mapping.edgeId}','pac')">Accept All PAC</button>
+            <button class="btn btn-sm btn-outline" onclick="resolveAll('${c.mapping.edgeId}','edge')">Accept All Edge</button>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:120px 1fr 1fr auto; gap:0.5rem; padding:0.3rem 0; font-size:0.7rem; color:var(--text3); text-transform:uppercase;">
+          <span>Field</span><span>Edge Value</span><span>PAC Value</span><span>Action</span>
+        </div>
+        ${fieldsHtml}
+      </div>`;
+    }).join('');
+
+    document.getElementById('conflictsBody').innerHTML = html;
+  } catch (err) {
+    document.getElementById('conflictsBody').innerHTML = '<div class="empty">Failed to load conflicts: ' + err.message + '</div>';
+  }
+}
+
+// Store per-field resolutions for batch resolve
+const pendingResolutions = {};
+
+function resolveField(edgeId, field, winner) {
+  if (!pendingResolutions[edgeId]) pendingResolutions[edgeId] = {};
+  pendingResolutions[edgeId][field] = winner;
+  // Submit immediately for single field
+  submitResolve(edgeId, { [field]: winner });
+}
+
+async function resolveAll(edgeId, winner) {
+  try {
+    const data = await apiFetch('/conflicts');
+    const conflict = (data.conflicts || []).find(c => c.mapping.edgeId === edgeId);
+    if (!conflict) return;
+
+    const resolutions = {};
+    for (const r of conflict.resolutions) {
+      resolutions[r.field] = winner;
+    }
+    await submitResolve(edgeId, resolutions);
+  } catch (err) {
+    alert('Failed to resolve: ' + err.message);
+  }
+}
+
+async function submitResolve(edgeId, resolutions) {
+  try {
+    await apiFetch('/conflicts/' + edgeId + '/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ resolutions }),
+    });
+    loadConflicts();
+    loadStatus();
+    loadMappings();
+  } catch (err) {
+    alert('Failed to resolve conflict: ' + err.message);
+  }
+}
+
+// ─── Load Config ─────────────────────────────────────────────────
+
+async function loadConfig() {
+  try {
+    const config = await apiFetch('/config');
+    document.getElementById('cfgMatchStrategy').value = config.matchStrategy || 'badge_or_name';
+    document.getElementById('cfgDefaultAuthority').value = config.defaultAuthority || 'pac';
+    document.getElementById('cfgSyncInterval').value = String(config.syncIntervalMs || 300000);
+    document.getElementById('cfgAutoResolve').checked = config.autoResolve !== false;
+    document.getElementById('cfgPacFields').textContent = (config.pacAuthorityFields || []).join(', ');
+    document.getElementById('cfgEdgeFields').textContent = (config.edgeAuthorityFields || []).join(', ');
+    document.getElementById('cfgMergeFields').textContent = (config.mergeFields || []).join(', ');
+
+    document.getElementById('overviewPacSystem').textContent = config.pacSystem || 'default';
+    document.getElementById('overviewMatchStrategy').textContent = config.matchStrategy || 'badge_or_name';
+    const intervalMin = Math.round((config.syncIntervalMs || 300000) / 60000);
+    document.getElementById('overviewInterval').textContent = intervalMin + ' minutes';
+  } catch (err) {
+    console.error('Failed to load config:', err);
+  }
+}
+
+async function saveConfig() {
+  try {
+    const config = {
+      matchStrategy: document.getElementById('cfgMatchStrategy').value,
+      defaultAuthority: document.getElementById('cfgDefaultAuthority').value,
+      syncIntervalMs: parseInt(document.getElementById('cfgSyncInterval').value, 10),
+      autoResolve: document.getElementById('cfgAutoResolve').checked,
+    };
+    await apiFetch('/config', { method: 'PUT', body: JSON.stringify(config) });
+    loadConfig();
+    alert('Configuration saved.');
+  } catch (err) {
+    alert('Failed to save config: ' + err.message);
+  }
+}
+
+// ─── Sync Actions ────────────────────────────────────────────────
+
+async function triggerSync() {
+  const btn = document.getElementById('btnSync');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Syncing...';
+  document.getElementById('syncStatus').innerHTML = '<span class="spinner"></span> Syncing...';
+
+  try {
+    const data = await apiFetch('/', { method: 'POST' });
+    if (data.result) {
+      renderLastResult(data.result);
+      addSyncLogEntry(data.result);
+    }
+    refreshAll();
+  } catch (err) {
+    alert('Sync failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sync Now';
+    document.getElementById('syncStatus').textContent = '';
+  }
+}
+
+async function triggerImport() {
+  if (!confirm('Force import from PAC? This will overwrite edge cardholder data with PAC values.')) return;
+  try {
+    const data = await apiFetch('/import', { method: 'POST' });
+    if (data.result) addSyncLogEntry(data.result);
+    refreshAll();
+    alert('Import complete. Imported: ' + (data.result?.imported || 0));
+  } catch (err) {
+    alert('Import failed: ' + err.message);
+  }
+}
+
+async function triggerExport() {
+  if (!confirm('Force export to PAC? This will push all edge-only cardholders to the PAC system.')) return;
+  try {
+    const data = await apiFetch('/export', { method: 'POST' });
+    if (data.result) addSyncLogEntry(data.result);
+    refreshAll();
+    alert('Export complete. Exported: ' + (data.result?.exported || 0));
+  } catch (err) {
+    alert('Export failed: ' + err.message);
+  }
+}
+
+// ─── Sync Log ────────────────────────────────────────────────────
+
+function addSyncLogEntry(result) {
+  syncLog.unshift({ timestamp: new Date().toISOString(), ...result });
+  if (syncLog.length > 50) syncLog.pop();
+  renderSyncLog();
+}
+
+function renderSyncLog() {
+  const el = document.getElementById('logEmpty');
+  if (el) el.remove();
+
+  const container = document.getElementById('syncLogBody');
+  // Keep header row
+  while (container.children.length > 1) container.removeChild(container.lastChild);
+
+  if (syncLog.length === 0) {
+    container.insertAdjacentHTML('beforeend', '<div class="empty" id="logEmpty">No sync history yet.</div>');
+    return;
+  }
+
+  for (const entry of syncLog) {
+    const ts = new Date(entry.timestamp).toLocaleString();
+    const detailText = entry.details ? entry.details.length + ' records processed' : '';
+    container.insertAdjacentHTML('beforeend', `
+      <div class="log-entry">
+        <span style="color:var(--text2)">${ts}</span>
+        <span class="log-count blue">${entry.imported || 0}</span>
+        <span class="log-count green">${entry.exported || 0}</span>
+        <span class="log-count">${entry.updated || 0}</span>
+        <span class="log-count amber">${entry.conflicts || 0}</span>
+        <span class="log-count red">${entry.errors || 0}</span>
+        <span style="color:var(--text3);font-size:0.75rem">${detailText}</span>
+      </div>
+    `);
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function refreshAll() {
+  await Promise.all([loadStatus(), loadMappings(), loadConflicts(), loadConfig()]);
+}
+
+// ─── Init ────────────────────────────────────────────────────────
+
+refreshAll();
+</script>
+</body>
+</html>

@@ -28,6 +28,36 @@ export interface ConnectorStatus {
 
 export type EventHandler = (connectorName: string, events: Record<string, unknown>[]) => void;
 
+/**
+ * PAC capability descriptor — what commands this connector supports.
+ * Edge devices report these to the cloud so the dashboard knows
+ * what operations are available per connected PAC system.
+ */
+export interface PacCapabilities {
+  /** Connector type name (e.g., 'lenel-onguard', 'genetec', 'brivo') */
+  connectorType: string;
+  /** Vendor display name */
+  vendor: string;
+  /** Whether this PAC supports door lock/unlock commands */
+  doorControl: boolean;
+  /** Whether this PAC supports building/zone lockdown */
+  lockdown: boolean;
+  /** Lockdown scopes supported (e.g., 'FULL_SITE', 'BUILDING', 'ZONE') */
+  lockdownScopes: string[];
+  /** Whether this PAC supports credential management (create/revoke/suspend) */
+  credentialManagement: boolean;
+  /** Whether this PAC supports bulk credential suspend on lockdown */
+  credentialSuspend: boolean;
+  /** Whether this PAC supports cardholder import */
+  cardholderImport: boolean;
+  /** Whether this PAC streams events in real-time (vs polling) */
+  realtimeEvents: boolean;
+  /** List of supported commands (for command routing) */
+  supportedCommands: string[];
+  /** Additional vendor-specific features */
+  features: Record<string, boolean>;
+}
+
 export abstract class BaseConnector {
   readonly name: string;
   readonly config: ConnectorConfig;
@@ -150,6 +180,35 @@ export abstract class BaseConnector {
     this._errors++;
     this._lastError = error;
     this.log.error({ error }, 'Connector error');
+  }
+
+  /**
+   * Get PAC capabilities for this connector.
+   * Override in subclasses to report vendor-specific capabilities.
+   */
+  getCapabilities(): PacCapabilities {
+    return {
+      connectorType: 'unknown',
+      vendor: 'Unknown',
+      doorControl: false,
+      lockdown: false,
+      lockdownScopes: [],
+      credentialManagement: false,
+      credentialSuspend: false,
+      cardholderImport: false,
+      realtimeEvents: false,
+      supportedCommands: [],
+      features: {},
+    };
+  }
+
+  /**
+   * Execute a command from the cloud (lockdown, door_lock, etc.).
+   * Override in subclasses to handle vendor-specific commands.
+   * Returns result status and detail.
+   */
+  async executeCommand(command: string, payload: Record<string, unknown>): Promise<{ status: 'completed' | 'failed'; detail?: string }> {
+    return { status: 'failed', detail: `Command '${command}' not supported by ${this.name}` };
   }
 
   /**

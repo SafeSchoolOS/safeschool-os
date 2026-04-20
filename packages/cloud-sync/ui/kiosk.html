@@ -545,9 +545,13 @@ body {
   <h1>Welcome<span>.</span></h1>
   <div class="welcome-org" id="org-name">Visitor Check-In</div>
   <div class="welcome-actions">
-    <button class="btn-kiosk primary" onclick="showScreen('checkin')">
+    <button class="btn-kiosk primary" onclick="showScreen('qrscan')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="21" y2="21"/></svg>
+      Scan QR Code
+    </button>
+    <button class="btn-kiosk" onclick="showScreen('checkin')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-      Check In
+      Manual Check In
     </button>
     <button class="btn-kiosk" onclick="showScreen('checkout')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -557,6 +561,65 @@ body {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       Guard Sign In
     </button>
+  </div>
+</div>
+
+<!-- QR SCAN / CODE ENTRY SCREEN -->
+<div id="screen-qrscan" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('welcome')" aria-label="Back">&#8592;</button>
+    <h2>Scan QR Code or Enter Code</h2>
+  </div>
+  <div class="form-body" style="align-items:center;text-align:center">
+    <div style="font-size:1rem;color:var(--text-secondary);margin-bottom:1rem">Scan the QR code from your pre-registration email, or enter the code manually below.</div>
+    <div id="qr-camera-container" style="width:280px;height:280px;background:var(--bg-tertiary);border:3px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:0 auto 1.5rem;position:relative">
+      <video id="qr-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:none"></video>
+      <div id="qr-placeholder" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);font-size:0.9rem">Tap to start camera</div>
+    </div>
+    <button class="btn-kiosk" onclick="startQrCamera()" id="btn-start-qr-cam" style="max-width:300px;margin:0 auto 1.5rem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Start Camera
+    </button>
+    <div style="display:flex;align-items:center;gap:0.75rem;margin:1rem 0;color:var(--text-secondary);font-size:0.85rem;max-width:400px;width:100%">
+      <div style="flex:1;border-top:1px solid var(--border)"></div>
+      <span>or enter code manually</span>
+      <div style="flex:1;border-top:1px solid var(--border)"></div>
+    </div>
+    <div class="form-group" style="max-width:400px;width:100%">
+      <input type="text" id="qr-code-input" placeholder="Enter your QR code / registration code" autocomplete="off" style="text-align:center;font-family:monospace;letter-spacing:0.05em">
+    </div>
+    <button class="btn-kiosk primary" onclick="submitQrCode()" style="max-width:400px">Verify Code</button>
+    <div id="qr-error" style="color:var(--danger);font-size:0.9rem;margin-top:0.5rem;display:none"></div>
+  </div>
+</div>
+
+<!-- NDA / AGREEMENT SCREEN -->
+<div id="screen-nda" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('welcome')" aria-label="Back">&#8592;</button>
+    <h2>Visitor Agreement</h2>
+  </div>
+  <div class="form-body" style="max-width:700px">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;font-size:0.9rem;line-height:1.7;max-height:50vh;overflow-y:auto">
+      <h3 style="margin-bottom:0.75rem;font-size:1rem">Visitor Non-Disclosure Agreement</h3>
+      <p>By checking in as a visitor, you agree to the following terms:</p>
+      <ul style="padding-left:1.5rem;margin:0.75rem 0">
+        <li>You will comply with all facility rules and safety procedures.</li>
+        <li>You will not disclose any confidential information observed during your visit.</li>
+        <li>You will wear your visitor badge visibly at all times while on the premises.</li>
+        <li>You will remain in authorized areas only and be accompanied by your host.</li>
+        <li>You will return your visitor badge upon check-out.</li>
+        <li>Photography and recording are not permitted without prior authorization.</li>
+      </ul>
+      <p>Violation of these terms may result in immediate escort from the premises and potential legal action.</p>
+    </div>
+    <div style="text-align:center;margin-top:1rem">
+      <div style="font-size:1rem;margin-bottom:0.5rem;color:var(--text-secondary)" id="nda-visitor-name"></div>
+    </div>
+  </div>
+  <div class="form-footer">
+    <button class="btn-kiosk cancel" onclick="showScreen('welcome')">Decline</button>
+    <button class="btn-kiosk primary" onclick="signNdaAndCheckin()">I Agree &amp; Check In</button>
   </div>
 </div>
 
@@ -732,6 +795,9 @@ body {
     if (id === 'checkin') {
       setTimeout(function () { document.getElementById('ci-name').focus(); }, 400);
     }
+    if (id === 'qrscan') {
+      setTimeout(function () { document.getElementById('qr-code-input').focus(); }, 400);
+    }
     if (id === 'guard') {
       guardPin = '';
       renderPin();
@@ -803,10 +869,15 @@ body {
     document.getElementById('ci-phone').value = '';
     document.getElementById('checkout-search').value = '';
     document.getElementById('guard-badge').value = '';
+    document.getElementById('qr-code-input').value = '';
+    var qrErr = document.getElementById('qr-error');
+    if (qrErr) qrErr.style.display = 'none';
     guardPin = '';
     renderPin();
     stopCamera();
+    stopQrCamera();
     capturedPhoto = null;
+    pendingVisitor = null;
     var snap = document.getElementById('camera-snap');
     snap.style.display = 'none';
     document.getElementById('photo-preview').querySelector('.photo-icon').style.display = '';
@@ -879,7 +950,122 @@ body {
     document.getElementById('camera-video').style.display = 'none';
   }
 
-  // ---- Check-In Submit ----
+  // ---- QR Code Scan / Entry ----
+  let qrCameraStream = null;
+  let pendingVisitor = null; // visitor data awaiting NDA
+
+  window.startQrCamera = function() {
+    var video = document.getElementById('qr-video');
+    var placeholder = document.getElementById('qr-placeholder');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 640 } } })
+      .then(function (stream) {
+        qrCameraStream = stream;
+        video.srcObject = stream;
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+        document.getElementById('btn-start-qr-cam').style.display = 'none';
+      })
+      .catch(function () {
+        showToast('Camera not available. Please enter code manually.');
+      });
+  };
+
+  function stopQrCamera() {
+    if (qrCameraStream) {
+      qrCameraStream.getTracks().forEach(function (t) { t.stop(); });
+      qrCameraStream = null;
+    }
+    var video = document.getElementById('qr-video');
+    if (video) { video.style.display = 'none'; video.srcObject = null; }
+    var placeholder = document.getElementById('qr-placeholder');
+    if (placeholder) placeholder.style.display = 'flex';
+    var btn = document.getElementById('btn-start-qr-cam');
+    if (btn) btn.style.display = '';
+  }
+
+  window.submitQrCode = async function() {
+    var code = document.getElementById('qr-code-input').value.trim();
+    var errEl = document.getElementById('qr-error');
+    if (!code) { showToast('Please enter or scan a QR code'); document.getElementById('qr-code-input').focus(); return; }
+    errEl.style.display = 'none';
+
+    try {
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/qr/' + encodeURIComponent(code), { headers: authHeaders() });
+      var data = await res.json();
+
+      if (!res.ok || !data.valid) {
+        errEl.textContent = 'Invalid QR code. Please check and try again.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      if (data.already_checked_in) {
+        errEl.textContent = 'This visitor is already checked in.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      // Valid pre-registered visitor — show NDA screen
+      pendingVisitor = data.visitor;
+      pendingVisitor._qr_code = code;
+      stopQrCamera();
+      var nameEl = document.getElementById('nda-visitor-name');
+      nameEl.textContent = 'Visitor: ' + (pendingVisitor.first_name || '') + ' ' + (pendingVisitor.last_name || '');
+      showScreen('nda');
+    } catch (e) {
+      errEl.textContent = e.message || 'Failed to verify code';
+      errEl.style.display = 'block';
+    }
+  };
+
+  // ---- NDA Sign & Check-In ----
+  window.signNdaAndCheckin = async function() {
+    if (!pendingVisitor) { showScreen('welcome'); return; }
+
+    try {
+      // Sign NDA
+      await fetch(BASE + '/api/v1/kiosk/visitors/' + pendingVisitor.id + '/sign-nda', {
+        method: 'POST', headers: authHeaders()
+      });
+
+      // Check in
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/check-in', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ qr_code: pendingVisitor._qr_code })
+      });
+
+      if (!res.ok) {
+        var errData = await res.json();
+        if (errData.watchlist_matches) {
+          showMessage('\u26D4', 'Check-In Denied', 'Please see the front desk for assistance.', 6000);
+          return;
+        }
+        throw new Error(errData.error || 'Check-in failed');
+      }
+
+      var data = await res.json();
+      var name = (pendingVisitor.first_name || '') + ' ' + (pendingVisitor.last_name || '');
+      showBadge({
+        name: name,
+        company: pendingVisitor.company || '',
+        host: pendingVisitor.host_name || '',
+        photo: null,
+        badgeNumber: pendingVisitor.id
+      });
+
+      // Notify host
+      fetch(BASE + '/api/v1/kiosk/visitors/' + pendingVisitor.id + '/notify-host', {
+        method: 'POST', headers: authHeaders()
+      }).catch(function() {});
+
+      pendingVisitor = null;
+    } catch (e) {
+      showToast(e.message || 'Check-in failed');
+    }
+  };
+
+  // ---- Check-In Submit (Manual) ----
   window.submitCheckin = async function () {
     var name = document.getElementById('ci-name').value.trim();
     var company = document.getElementById('ci-company').value.trim();
@@ -894,15 +1080,51 @@ body {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
 
+    // Split name into first/last
+    var parts = name.split(' ');
+    var firstName = parts[0] || name;
+    var lastName = parts.slice(1).join(' ') || '';
+
     try {
-      var res = await fetch(BASE + '/api/v1/kiosk/visitors/checkin', {
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/check-in', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName || firstName,
+          company: company,
+          host_name: host,
+          purpose: reason.toLowerCase(),
+          phone: phone,
+          photo_url: capturedPhoto || null
+        })
+      });
+
+      var data = await res.json();
+
+      if (!res.ok) {
+        if (data.watchlist_matches) {
+          showMessage('\u26D4', 'Check-In Denied', 'Please see the front desk for assistance.', 6000);
+          return;
+        }
+        throw new Error(data.error || 'Check-in failed');
+      }
+
+      // Also try old kiosk endpoint for badge printing
+      fetch(BASE + '/api/v1/kiosk/visitors/checkin', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ name: name, company: company, host: host, reason: reason, phone: phone, photo: capturedPhoto || null })
-      });
-      if (!res.ok) throw new Error('Check-in failed (' + res.status + ')');
-      var data = await res.json();
-      showBadge({ name: name, company: company, host: host, photo: capturedPhoto, badgeNumber: data.badgeNumber || data.id || '' });
+      }).catch(function() {});
+
+      showBadge({ name: name, company: company, host: host, photo: capturedPhoto, badgeNumber: data.visitor ? data.visitor.id : '' });
+
+      // Notify host
+      if (data.visitor && data.visitor.id) {
+        fetch(BASE + '/api/v1/kiosk/visitors/' + data.visitor.id + '/notify-host', {
+          method: 'POST', headers: authHeaders()
+        }).catch(function() {});
+      }
     } catch (e) {
       showToast(e.message || 'Check-in failed. Please try again.');
     } finally {
@@ -918,10 +1140,15 @@ body {
     var list = document.getElementById('visitor-list');
     list.innerHTML = '<div class="empty-state">Loading visitors...</div>';
     try {
-      var res = await fetch(BASE + '/api/v1/kiosk/visitors?status=checked_in', { headers: authHeaders() });
+      // Try new visitor API first, fall back to old kiosk API
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/active', { headers: authHeaders() });
+      if (!res.ok) {
+        res = await fetch(BASE + '/api/v1/kiosk/visitors?status=checked_in', { headers: authHeaders() });
+      }
       if (!res.ok) throw new Error('Failed to load');
-      allVisitors = await res.json();
-      if (Array.isArray(allVisitors.visitors)) allVisitors = allVisitors.visitors;
+      var data = await res.json();
+      allVisitors = data.visitors || data;
+      if (!Array.isArray(allVisitors)) allVisitors = [];
       renderVisitors(allVisitors);
     } catch (e) {
       list.innerHTML = '<div class="empty-state">Could not load visitors</div>';
@@ -935,11 +1162,13 @@ body {
       return;
     }
     list.innerHTML = visitors.map(function (v) {
-      var initials = (v.name || '?').split(' ').map(function (w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
-      var meta = [v.company, v.host ? 'Visiting ' + v.host : ''].filter(Boolean).join(' \u2022 ');
-      return '<div class="visitor-item" onclick="checkoutVisitor(\'' + v.id + '\',\'' + escHtml(v.name) + '\')">' +
+      var displayName = v.name || ((v.first_name || '') + ' ' + (v.last_name || '')).trim() || '?';
+      var initials = displayName.split(' ').map(function (w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
+      var hostDisplay = v.host || v.host_name || '';
+      var meta = [v.company, hostDisplay ? 'Visiting ' + hostDisplay : ''].filter(Boolean).join(' \u2022 ');
+      return '<div class="visitor-item" onclick="checkoutVisitor(\'' + v.id + '\',\'' + escHtml(displayName) + '\')">' +
         '<div class="visitor-avatar">' + initials + '</div>' +
-        '<div class="visitor-info"><div class="vname">' + escHtml(v.name) + '</div><div class="vmeta">' + escHtml(meta) + '</div></div>' +
+        '<div class="visitor-info"><div class="vname">' + escHtml(displayName) + '</div><div class="vmeta">' + escHtml(meta) + '</div></div>' +
         '<div class="checkout-label">Tap to check out</div></div>';
     }).join('');
   }
@@ -956,10 +1185,17 @@ body {
 
   window.checkoutVisitor = async function (id, name) {
     try {
-      var res = await fetch(BASE + '/api/v1/kiosk/visitors/' + id + '/checkout', {
+      // Try new API first, fall back to old
+      var res = await fetch(BASE + '/api/v1/kiosk/visitors/' + id + '/check-out', {
         method: 'POST',
         headers: authHeaders()
       });
+      if (!res.ok) {
+        res = await fetch(BASE + '/api/v1/kiosk/visitors/' + id + '/checkout', {
+          method: 'POST',
+          headers: authHeaders()
+        });
+      }
       if (!res.ok) throw new Error('Checkout failed');
       showMessage(
         '\uD83D\uDC4B',
@@ -1010,13 +1246,13 @@ body {
     }
   };
 
-  // ---- Idle timeout: return to welcome after 2 min of inactivity ----
+  // ---- Idle timeout: return to welcome after 30 seconds of inactivity ----
   let idleTimer = null;
   function resetIdle() {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(function () {
       if (currentScreen !== 'welcome') showScreen('welcome');
-    }, 120000);
+    }, 30000);
   }
   ['touchstart', 'mousedown', 'keydown'].forEach(function (evt) {
     document.addEventListener(evt, resetIdle, { passive: true });

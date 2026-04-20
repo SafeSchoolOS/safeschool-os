@@ -12,17 +12,37 @@ import { createLogger, type EdgeRuntimeConfig, type OperatingMode, type Connecto
 
 const log = createLogger('config');
 
+/**
+ * Default configuration values used when neither env vars nor YAML config
+ * provide a value. These represent safe development defaults.
+ */
 const DEFAULTS: EdgeRuntimeConfig = {
+  /** Activation key (empty = boot will fail with ActivationError) */
   activationKey: '',
+  /** Unique identifier for this edge site (used in sync, fleet, and federation) */
   siteId: 'default-site',
+  /** Local directory for SQLite databases, sync queue, backups, and cache files */
   dataDir: './data',
+  /** Interval (ms) between cloud sync push/pull cycles */
   syncIntervalMs: 30000,
+  /** Interval (ms) between health check heartbeats to cloud */
   healthCheckIntervalMs: 15000,
+  /** HTTP API server listen port (Fastify + WebSocket) */
   apiPort: 8470,
 };
 
 /**
- * Load configuration from YAML + env vars.
+ * Load configuration from YAML file and environment variables.
+ *
+ * Resolution priority (highest wins):
+ *   1. Environment variables (EDGERUNTIME_* prefix)
+ *   2. YAML config file values
+ *   3. Built-in defaults (DEFAULTS constant above)
+ *
+ * The YAML path is resolved in order: `configPath` argument > `EDGERUNTIME_CONFIG` env > `./config.yaml`.
+ *
+ * @param configPath - Optional explicit path to a YAML config file. Overrides env and default.
+ * @returns Fully resolved EdgeRuntimeConfig with all fields populated.
  */
 export function loadConfig(configPath?: string): EdgeRuntimeConfig {
   let fileConfig: Partial<EdgeRuntimeConfig> = {};
@@ -42,49 +62,63 @@ export function loadConfig(configPath?: string): EdgeRuntimeConfig {
   }
 
   // Merge: env vars > YAML > defaults
+  // Each field follows the same pattern: check env var first, then YAML, then default.
   const config: EdgeRuntimeConfig = {
+    // EDGERUNTIME_ACTIVATION_KEY — license key string (or comma-separated for multi-key)
     activationKey:
       process.env.EDGERUNTIME_ACTIVATION_KEY ??
       fileConfig.activationKey ??
       DEFAULTS.activationKey,
+    // EDGERUNTIME_SITE_ID — unique site identifier for sync and fleet management
     siteId:
       process.env.EDGERUNTIME_SITE_ID ??
       fileConfig.siteId ??
       DEFAULTS.siteId,
+    // EDGERUNTIME_DATA_DIR — local storage directory for databases and cache
     dataDir:
       process.env.EDGERUNTIME_DATA_DIR ??
       fileConfig.dataDir ??
       DEFAULTS.dataDir,
+    // EDGERUNTIME_SYNC_INTERVAL_MS — cloud sync cycle frequency
     syncIntervalMs:
       envInt('EDGERUNTIME_SYNC_INTERVAL_MS') ??
       fileConfig.syncIntervalMs ??
       DEFAULTS.syncIntervalMs,
+    // EDGERUNTIME_HEALTH_CHECK_INTERVAL_MS — health heartbeat frequency
     healthCheckIntervalMs:
       envInt('EDGERUNTIME_HEALTH_CHECK_INTERVAL_MS') ??
       fileConfig.healthCheckIntervalMs ??
       DEFAULTS.healthCheckIntervalMs,
+    // EDGERUNTIME_API_PORT or PORT (Railway convention) — HTTP listen port
     apiPort:
       envInt('EDGERUNTIME_API_PORT') ??
       envInt('PORT') ??
       fileConfig.apiPort ??
       DEFAULTS.apiPort,
+    // OPERATING_MODE — EDGE, CLOUD, or MIRROR (auto-detected if not set)
     operatingMode:
       (process.env.OPERATING_MODE?.toUpperCase() as OperatingMode | undefined) ??
       fileConfig.operatingMode,
+    // EDGERUNTIME_CLOUD_SYNC_KEY — shared HMAC key for edge-cloud sync auth
     cloudSyncKey:
       process.env.EDGERUNTIME_CLOUD_SYNC_KEY ??
       fileConfig.cloudSyncKey,
+    // EDGERUNTIME_CLOUD_TLS_FINGERPRINT — optional TLS certificate pinning
     cloudTlsFingerprint:
       process.env.EDGERUNTIME_CLOUD_TLS_FINGERPRINT ??
       fileConfig.cloudTlsFingerprint,
+    // EDGERUNTIME_MODULE_DIRS — comma-separated module search directories
     moduleDirs:
       process.env.EDGERUNTIME_MODULE_DIRS?.split(',') ??
       fileConfig.moduleDirs ??
       ['./modules'],
+    // EDGERUNTIME_ORG_ID — organization/tenant identifier for multi-tenancy
     orgId:
       process.env.EDGERUNTIME_ORG_ID ??
       fileConfig.orgId,
+    // Connectors: loaded from YAML connectors section or ACCESS_CONTROL_*/CAMERA_* env vars
     connectors: loadConnectorConfig(fileConfig),
+    // Federation: only configurable via YAML (peer list with product/URL/key)
     federation: (fileConfig as any).federation as FederationConfig | undefined,
   };
 
@@ -151,6 +185,11 @@ function loadConnectorConfig(fileConfig: Partial<EdgeRuntimeConfig>): ConnectorD
   return connectors;
 }
 
+/**
+ * Parse an environment variable as an integer.
+ * Returns undefined if the variable is not set or not a valid integer,
+ * so the caller can fall through to YAML or default values.
+ */
 function envInt(key: string): number | undefined {
   const val = process.env[key];
   if (val === undefined) return undefined;

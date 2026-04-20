@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maintenance Work Orders</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); } .val-accent { color: var(--accent); } .val-amber { color: var(--amber); } .val-red { color: var(--red); } .val-blue { color: var(--blue); } .val-purple { color: var(--purple); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+tr.selected td { background: var(--accent-dim); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-accent { background: var(--accent-dim); color: var(--accent); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.badge-purple { background: rgba(139,92,246,0.15); color: var(--purple); }
+.btn { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--accent-hover); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filter-bar select, .filter-bar input { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+.filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: var(--accent); }
+.grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+@media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } }
+.detail-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; position: sticky; top: 24px; }
+.detail-panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: var(--text3); }
+.timeline { margin-top: 16px; }
+.timeline-item { display: flex; gap: 12px; padding: 8px 0; }
+.timeline-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.timeline-text { font-size: 12px; }
+.timeline-text .time { color: var(--text3); font-size: 11px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 500; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 500px; max-height: 80vh; overflow-y: auto; }
+.modal h2 { font-size: 16px; margin-bottom: 16px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.form-group select, .form-group input, .form-group textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: inherit; }
+.form-group textarea { min-height: 80px; resize: vertical; }
+.form-group select:focus, .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); }
+.form-row { display: flex; gap: 12px; }
+.form-row > * { flex: 1; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <h2>Create Work Order</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Unit</label><input id="woUnit" placeholder="e.g. 4B"></div>
+      <div class="form-group"><label>Tenant</label><input id="woTenant" placeholder="Tenant name"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label>
+        <select id="woCategory">
+          <option>Plumbing</option><option>Electrical</option><option>HVAC</option><option>Appliance</option><option>General</option><option>Pest</option><option>Lock</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Priority</label>
+        <select id="woPriority">
+          <option>Normal</option><option>Low</option><option>High</option><option>Emergency</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="woDesc" placeholder="Describe the issue..."></textarea></div>
+    <div class="form-group"><label>Assign To</label>
+      <select id="woAssign">
+        <option value="">-- Unassigned --</option>
+        <option>Mike Rodriguez</option><option>Dave Thompson</option><option>Sarah Kim</option><option>Carlos Mendez</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeCreate()">Cancel</button>
+      <button class="btn" onclick="submitWO()">Create Work Order</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var categories = ['Plumbing','Electrical','HVAC','Appliance','General','Pest','Lock'];
+  var priorities = ['Emergency','High','Normal','Low'];
+  var statusFlow = ['Submitted','Assigned','In Progress','Completed'];
+  var techs = ['Mike Rodriguez','Dave Thompson','Sarah Kim','Carlos Mendez'];
+  var units = ['1A','2B','3C','4B','5A','6C','7D','8B','9A','10C','11B','12A','14B','15A','16C'];
+  var tenants = ['Maria Santos','James Chen','Sarah O\'Brien','David Kim','Emily Johnson','Michael Brown','Lisa Wang','Robert Taylor','Anna Garcia','Tom Wilson','Jennifer Lee','Carlos Rivera','Michelle Park','Kevin Adams','Rachel Green'];
+
+  var descriptions = [
+    'Kitchen faucet leaking under sink','Bathroom light flickering','AC not cooling properly','Dishwasher won\'t drain',
+    'Front door lock sticking','Ceiling fan making noise','Garbage disposal jammed','Water heater not working',
+    'Toilet running continuously','Smoke detector beeping','Window won\'t close fully','Intercom buzzer broken',
+    'Oven temperature inaccurate','Washing machine vibrating','Cabinet door hinge broken','Thermostat unresponsive',
+    'Bathroom exhaust fan noisy','Power outlet not working','Refrigerator ice maker broken','Ant infestation in kitchen',
+    'Deadbolt difficult to turn','Dryer not heating','Baseboard heater cold','Microwave sparking',
+    'Hallway light out','Mouse droppings found','Sliding door track damaged','Hot water intermittent',
+    'Balcony door seal broken','Electrical panel buzzing'
+  ];
+
+  var now = new Date();
+  var workOrders = [];
+  for (var i = 0; i < 30; i++) {
+    var created = new Date(now - (i * 86400000 * 0.5) - Math.random() * 86400000 * 3);
+    var statusIdx = i < 5 ? 2 : i < 12 ? (i < 8 ? 1 : 0) : 3;
+    var st = statusFlow[statusIdx];
+    var updated = new Date(created.getTime() + Math.random() * 86400000 * 2);
+    if (st === 'Completed') updated = new Date(created.getTime() + Math.random() * 86400000 * 5);
+
+    var pri = i < 2 ? 'Emergency' : i < 5 ? 'High' : i < 17 ? 'Normal' : 'Low';
+    var cat = categories[i % categories.length];
+    var tech = st !== 'Submitted' ? techs[i % techs.length] : '';
+
+    var notes = [];
+    if (st !== 'Submitted') notes.push({ time: new Date(created.getTime() + 3600000), author: 'System', text: 'Assigned to ' + tech });
+    if (st === 'In Progress' || st === 'Completed') notes.push({ time: new Date(created.getTime() + 7200000), author: tech, text: 'On site, inspecting issue' });
+    if (st === 'Completed') {
+      notes.push({ time: new Date(created.getTime() + 14400000), author: tech, text: 'Parts ordered' });
+      notes.push({ time: updated, author: tech, text: 'Repair completed and verified' });
+    }
+
+    workOrders.push({
+      id: 'WO-' + (3000 + i),
+      unit: units[i % units.length],
+      tenant: tenants[i % tenants.length],
+      category: cat,
+      priority: pri,
+      status: st,
+      assignedTo: tech,
+      description: descriptions[i % descriptions.length],
+      created: created,
+      updated: updated,
+      notes: notes
+    });
+  }
+
+  var selectedWO = null;
+  var filterStatus = '';
+  var filterPriority = '';
+  var filterCategory = '';
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function dateStr(d) { return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+  function priorityBadge(p) {
+    var cls = p === 'Emergency' ? 'badge-red' : p === 'High' ? 'badge-amber' : p === 'Normal' ? 'badge-blue' : 'badge-gray';
+    return '<span class="badge ' + cls + '">' + esc(p) + '</span>';
+  }
+  function statusBadge(s) {
+    var cls = s === 'Completed' ? 'badge-green' : s === 'In Progress' ? 'badge-blue' : s === 'Assigned' ? 'badge-amber' : 'badge-accent';
+    return '<span class="badge ' + cls + '">' + esc(s) + '</span>';
+  }
+
+  function getFiltered() {
+    return workOrders.filter(function(wo) {
+      if (filterStatus && wo.status !== filterStatus) return false;
+      if (filterPriority && wo.priority !== filterPriority) return false;
+      if (filterCategory && wo.category !== filterCategory) return false;
+      return true;
+    });
+  }
+
+  function render() {
+    var openCount = workOrders.filter(function(w){ return w.status === 'Submitted' || w.status === 'Assigned'; }).length;
+    var inProgress = workOrders.filter(function(w){ return w.status === 'In Progress'; }).length;
+    var completed = workOrders.filter(function(w){ return w.status === 'Completed'; }).length;
+    var avgHrs = 4.2;
+
+    var html = '<div class="header"><h1><span>Work</span> Orders</h1><button class="btn" onclick="openCreate()">+ New Work Order</button></div>';
+
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Open</div><div class="value val-amber">' + openCount + '</div><div class="sub">Submitted + Assigned</div></div>';
+    html += '<div class="stat-card"><div class="label">In Progress</div><div class="value val-blue">' + inProgress + '</div><div class="sub">Actively being worked</div></div>';
+    html += '<div class="stat-card"><div class="label">Completed This Month</div><div class="value val-green">' + completed + '</div><div class="sub">Resolution rate: 87%</div></div>';
+    html += '<div class="stat-card"><div class="label">Avg Resolution</div><div class="value val-accent">' + avgHrs + ' hrs</div><div class="sub">Target: 8 hrs</div></div>';
+    html += '</div>';
+
+    var filtered = getFiltered();
+
+    html += '<div class="grid-2">';
+
+    // Table
+    html += '<div class="card"><div class="card-head"><h2>Work Orders</h2>';
+    html += '<div class="filter-bar">';
+    html += '<select onchange="filterByStatus(this.value)"><option value="">All Status</option>';
+    statusFlow.forEach(function(s){ html += '<option' + (filterStatus===s?' selected':'') + '>' + s + '</option>'; });
+    html += '</select>';
+    html += '<select onchange="filterByPriority(this.value)"><option value="">All Priority</option>';
+    priorities.forEach(function(p){ html += '<option' + (filterPriority===p?' selected':'') + '>' + p + '</option>'; });
+    html += '</select>';
+    html += '<select onchange="filterByCategory(this.value)"><option value="">All Categories</option>';
+    categories.forEach(function(c){ html += '<option' + (filterCategory===c?' selected':'') + '>' + c + '</option>'; });
+    html += '</select>';
+    html += '</div></div>';
+
+    html += '<div style="padding:0;overflow-x:auto"><table><thead><tr><th>ID</th><th>Unit</th><th>Category</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Created</th></tr></thead><tbody>';
+    filtered.forEach(function(wo) {
+      var sel = selectedWO && selectedWO.id === wo.id;
+      html += '<tr class="' + (sel ? 'selected' : '') + '" onclick="selectWO(\'' + wo.id + '\')" style="cursor:pointer">';
+      html += '<td style="color:var(--text3);font-size:12px">' + esc(wo.id) + '</td>';
+      html += '<td>' + esc(wo.unit) + '</td>';
+      html += '<td>' + esc(wo.category) + '</td>';
+      html += '<td>' + priorityBadge(wo.priority) + '</td>';
+      html += '<td>' + statusBadge(wo.status) + '</td>';
+      html += '<td>' + (wo.assignedTo ? esc(wo.assignedTo) : '<span style="color:var(--text3)">--</span>') + '</td>';
+      html += '<td style="font-size:12px;color:var(--text3)">' + dateStr(wo.created) + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    // Detail panel
+    html += '<div>';
+    if (selectedWO) {
+      html += '<div class="detail-panel">';
+      html += '<h3>' + esc(selectedWO.id) + ' &mdash; ' + esc(selectedWO.category) + '</h3>';
+      html += '<div class="detail-row"><span class="detail-label">Unit</span><span>' + esc(selectedWO.unit) + '</span></div>';
+      html += '<div class="detail-row"><span class="detail-label">Tenant</span><span>' + esc(selectedWO.tenant) + '</span></div>';
+      html += '<div class="detail-row"><span class="detail-label">Priority</span><span>' + priorityBadge(selectedWO.priority) + '</span></div>';
+      html += '<div class="detail-row"><span class="detail-label">Status</span><span>' + statusBadge(selectedWO.status) + '</span></div>';
+      html += '<div class="detail-row"><span class="detail-label">Assigned To</span><span>' + (selectedWO.assignedTo || '--') + '</span></div>';
+      html += '<div class="detail-row"><span class="detail-label">Created</span><span style="font-size:12px">' + dateStr(selectedWO.created) + '</span></div>';
+      html += '<div class="detail-row"><span class="detail-label">Updated</span><span style="font-size:12px">' + dateStr(selectedWO.updated) + '</span></div>';
+
+      html += '<div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:6px;font-size:13px;color:var(--text2)">' + esc(selectedWO.description) + '</div>';
+
+      // Notes timeline
+      if (selectedWO.notes.length > 0) {
+        html += '<div style="margin-top:16px;font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Activity</div>';
+        html += '<div class="timeline">';
+        selectedWO.notes.forEach(function(n) {
+          var dotColor = n.author === 'System' ? 'var(--accent)' : 'var(--green)';
+          html += '<div class="timeline-item"><div class="timeline-dot" style="background:' + dotColor + '"></div>';
+          html += '<div class="timeline-text"><div>' + esc(n.text) + '</div>';
+          html += '<div class="time">' + esc(n.author) + ' &bull; ' + dateStr(n.time) + '</div></div></div>';
+        });
+        html += '</div>';
+      }
+
+      // Actions
+      html += '<div style="display:flex;gap:6px;margin-top:16px;flex-wrap:wrap">';
+      if (selectedWO.status === 'Submitted') html += '<button class="btn btn-sm" onclick="advanceWO()">Assign</button>';
+      if (selectedWO.status === 'Assigned') html += '<button class="btn btn-sm" onclick="advanceWO()">Start Work</button>';
+      if (selectedWO.status === 'In Progress') html += '<button class="btn btn-sm" onclick="advanceWO()">Complete</button>';
+      html += '<button class="btn btn-sm btn-outline" onclick="selectedWO=null;render()">Close</button>';
+      html += '</div>';
+      html += '</div>';
+    } else {
+      html += '<div class="detail-panel" style="text-align:center;color:var(--text3);padding:40px 20px"><div style="font-size:24px;margin-bottom:8px">&#x1F527;</div><div>Select a work order to view details</div></div>';
+    }
+    html += '</div>';
+
+    html += '</div>'; // grid-2
+
+    document.getElementById('app').innerHTML = html;
+  }
+
+  window.selectWO = function(id) {
+    selectedWO = workOrders.find(function(w){ return w.id === id; }) || null;
+    render();
+  };
+  window.filterByStatus = function(v) { filterStatus = v; render(); };
+  window.filterByPriority = function(v) { filterPriority = v; render(); };
+  window.filterByCategory = function(v) { filterCategory = v; render(); };
+  window.advanceWO = function() {
+    if (!selectedWO) return;
+    var idx = statusFlow.indexOf(selectedWO.status);
+    if (idx < statusFlow.length - 1) {
+      selectedWO.status = statusFlow[idx + 1];
+      selectedWO.updated = new Date();
+      if (selectedWO.status === 'Assigned' && !selectedWO.assignedTo) selectedWO.assignedTo = techs[0];
+      selectedWO.notes.push({ time: new Date(), author: 'System', text: 'Status changed to ' + selectedWO.status });
+    }
+    render();
+  };
+  window.openCreate = function() { document.getElementById('createModal').classList.add('open'); };
+  window.closeCreate = function() { document.getElementById('createModal').classList.remove('open'); };
+  window.submitWO = function() {
+    var wo = {
+      id: 'WO-' + (4000 + workOrders.length),
+      unit: document.getElementById('woUnit').value || '1A',
+      tenant: document.getElementById('woTenant').value || 'New Tenant',
+      category: document.getElementById('woCategory').value,
+      priority: document.getElementById('woPriority').value,
+      status: 'Submitted',
+      assignedTo: document.getElementById('woAssign').value || '',
+      description: document.getElementById('woDesc').value || 'No description',
+      created: new Date(),
+      updated: new Date(),
+      notes: []
+    };
+    if (wo.assignedTo) {
+      wo.status = 'Assigned';
+      wo.notes.push({ time: new Date(), author: 'System', text: 'Assigned to ' + wo.assignedTo });
+    }
+    workOrders.unshift(wo);
+    window.closeCreate();
+    render();
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

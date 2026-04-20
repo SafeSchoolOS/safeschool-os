@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance Dashboard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); }
+.val-accent { color: var(--accent); }
+.val-amber { color: var(--amber); }
+.val-red { color: var(--red); }
+.val-blue { color: var(--blue); }
+.val-purple { color: var(--purple); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.tab { padding: 12px 24px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text3); transition: all 0.15s; background: none; border-top: none; border-left: none; border-right: none; }
+.tab:hover { color: var(--text); background: var(--bg3); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.score-ring { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; position: relative; }
+.score-ring .score-value { font-size: 36px; font-weight: 700; }
+.score-ring .score-label { font-size: 11px; color: var(--text3); }
+.score-section { display: flex; align-items: center; gap: 24px; padding: 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 24px; }
+.score-details { flex: 1; }
+.score-details h3 { font-size: 16px; margin-bottom: 8px; }
+.score-details p { font-size: 13px; color: var(--text2); line-height: 1.5; }
+.score-breakdown { display: flex; gap: 24px; margin-top: 12px; }
+.score-item { text-align: center; }
+.score-item .si-val { font-size: 20px; font-weight: 700; }
+.score-item .si-label { font-size: 11px; color: var(--text3); }
+.evidence { font-size: 12px; color: var(--text2); line-height: 1.4; max-width: 300px; }
+.progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; border-radius: 3px; }
+.ref-code { font-family: monospace; font-size: 11px; color: var(--accent); background: var(--accent-dim); padding: 2px 6px; border-radius: 3px; }
+.loading { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading compliance data...</div></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; render(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  var activeTab = 'hipaa';
+
+  // HIPAA Security Rule controls (45 CFR Part 164)
+  var HIPAA_CONTROLS = [
+    { ref: '164.308(a)(1)', title: 'Security Management Process', description: 'Risk analysis and risk management policies implemented', status: 'pass', evidence: 'Annual risk assessment completed 2026-01-15. Risk register maintained with 47 items, 3 open. Remediation plans tracked in GRC platform.' },
+    { ref: '164.308(a)(3)', title: 'Workforce Security', description: 'Authorization and supervision of workforce members', status: 'pass', evidence: 'Role-based access control enforced via EdgeRuntime activation keys. 156 active users audited quarterly. Last review: 2026-02-28.' },
+    { ref: '164.308(a)(4)', title: 'Information Access Management', description: 'Access authorization and establishment policies', status: 'pass', evidence: 'Tiered access levels (L1-L5) enforced. Access provisioning requires manager + security approval. Average provisioning time: 2.3 hours.' },
+    { ref: '164.308(a)(5)', title: 'Security Awareness Training', description: 'Security reminders, malware protection, login monitoring', status: 'review', evidence: 'Annual training completed by 94% of staff (target: 100%). 9 employees pending completion. Phishing simulation: 4.2% click rate (down from 8.1%).' },
+    { ref: '164.308(a)(6)', title: 'Security Incident Procedures', description: 'Incident response and reporting mechanisms', status: 'pass', evidence: 'Incident response plan tested 2026-02-10. Mean time to detect: 12 min. Mean time to respond: 28 min. 3 incidents YTD, all resolved.' },
+    { ref: '164.308(a)(7)', title: 'Contingency Plan', description: 'Data backup, disaster recovery, emergency mode operations', status: 'pass', evidence: 'Daily encrypted backups to offsite. RPO: 1 hour, RTO: 4 hours. DR drill completed 2026-01-22. Failover tested successfully.' },
+    { ref: '164.310(a)(1)', title: 'Facility Access Controls', description: 'Physical safeguards for facilities and equipment', status: 'pass', evidence: 'Badge-controlled access on all entry points (42 doors). 24/7 CCTV coverage (16 cameras). Visitor escort policy enforced. Guard tours verified via RTLS.' },
+    { ref: '164.310(d)(1)', title: 'Device and Media Controls', description: 'Hardware disposal, media re-use, accountability', status: 'review', evidence: 'Encryption-at-rest on all endpoints. 12 devices pending decommission audit. Media sanitization logs current through 2026-02-15.' },
+    { ref: '164.312(a)(1)', title: 'Access Control', description: 'Unique user ID, emergency access, automatic logoff, encryption', status: 'pass', evidence: 'Unique IDs for all 156 users. Auto-logoff after 15 min inactivity. AES-256 encryption on all PHI stores. Emergency break-glass access logged.' },
+    { ref: '164.312(b)', title: 'Audit Controls', description: 'Hardware, software, and procedural audit mechanisms', status: 'pass', evidence: 'Full audit trail on all PHI access. 180-day log retention. Automated anomaly alerts. Monthly audit review by compliance officer.' },
+    { ref: '164.312(c)(1)', title: 'Integrity', description: 'Electronic mechanisms to corroborate data integrity', status: 'pass', evidence: 'SHA-256 checksums on all data transfers. Database integrity checks run hourly. Zero integrity violations in past 90 days.' },
+  ];
+
+  // Joint Commission EC Standards
+  var JC_STANDARDS = [
+    { ref: 'EC.02.01.01', title: 'Environment of Care Management', description: 'Plan describes processes for managing the environment', status: 'met', findings: 'Comprehensive EOC management plan current. Annual evaluation completed. All 7 EOC components addressed.' },
+    { ref: 'EC.02.02.01', title: 'Fire Safety', description: 'Fire safety equipment inspected, tested, and maintained', status: 'met', findings: 'Fire suppression systems inspected monthly. Last test: 2026-03-01. All 28 extinguishers current. Fire drills conducted quarterly.' },
+    { ref: 'EC.02.03.01', title: 'Security Management', description: 'Security risks identified, managed, and incidents reported', status: 'met', findings: 'Access control system active on 42 doors. Incident reports filed within 24 hours. Lockdown drill completed 2026-02-20 (SLA: 4.8s).' },
+    { ref: 'EC.02.03.03', title: 'Infant/Pediatric Security', description: 'Sensory protection for high-risk areas', status: 'partial', findings: 'RTLS tagging deployed in NICU. 2 of 4 nursery exits need upgraded sensors. Upgrade scheduled for 2026-04-15.' },
+    { ref: 'EC.02.04.01', title: 'Hazardous Materials', description: 'Safe management of hazardous materials and waste', status: 'met', findings: 'MSDS database current (412 chemicals). Spill kits inspected monthly. HAZmat training: 98% compliance. Waste manifests filed per schedule.' },
+    { ref: 'EC.02.04.03', title: 'Emergency Preparedness', description: 'Emergency management plan tested twice annually', status: 'met', findings: 'Full-scale drill 2026-01-18. Tabletop exercise 2026-02-25. After-action reports documented. Generator tested monthly (100% uptime).' },
+    { ref: 'EC.02.05.01', title: 'Utilities Management', description: 'Utility systems maintained, inspected, and tested', status: 'met', findings: 'HVAC, electrical, plumbing on preventive maintenance schedule. 99.7% uptime YTD. Emergency power tested monthly.' },
+    { ref: 'EC.02.05.05', title: 'Medical Equipment', description: 'Equipment maintenance, inspection, and testing', status: 'partial', findings: 'Asset tracking shows 9 devices overdue for PM. 97.1% PM completion rate (target: 98%). Work orders issued for overdue items.' },
+    { ref: 'EC.02.06.01', title: 'Interior Spaces', description: 'Safe, functional, and clean environment maintained', status: 'met', findings: 'Monthly environment rounds conducted. 3 minor findings remediated within 48 hours. No outstanding deficiencies.' },
+    { ref: 'EC.04.01.01', title: 'Data Collection and Monitoring', description: 'Collect data on environmental performance and incidents', status: 'partial', findings: 'Dashboard reporting active. Missing real-time sensor integration for 2 zones. Integration scheduled for Q2 2026.' },
+  ];
+
+  function render() {
+    // Compute scores
+    var hipaaPass = HIPAA_CONTROLS.filter(function(c) { return c.status === 'pass'; }).length;
+    var hipaaReview = HIPAA_CONTROLS.filter(function(c) { return c.status === 'review'; }).length;
+    var hipaaScore = Math.round((hipaaPass / HIPAA_CONTROLS.length) * 100);
+
+    var jcMet = JC_STANDARDS.filter(function(c) { return c.status === 'met'; }).length;
+    var jcPartial = JC_STANDARDS.filter(function(c) { return c.status === 'partial'; }).length;
+    var jcScore = Math.round(((jcMet + jcPartial * 0.5) / JC_STANDARDS.length) * 100);
+
+    var overallScore = Math.round((hipaaScore + jcScore) / 2);
+    var overallColor = overallScore >= 90 ? 'var(--green)' : overallScore >= 75 ? 'var(--amber)' : 'var(--red)';
+
+    var html = '';
+
+    // Header
+    html += '<div class="header">';
+    html += '<h1><span>&#128203;</span> Compliance Dashboard</h1>';
+    html += '<div style="font-size:12px;color:var(--text3)">Last assessed: ' + new Date().toLocaleDateString() + '</div>';
+    html += '</div>';
+
+    // Overall score section
+    html += '<div class="score-section">';
+    html += '<div class="score-ring" style="background:conic-gradient(' + overallColor + ' 0% ' + overallScore + '%, var(--bg3) ' + overallScore + '% 100%)">';
+    html += '<div style="width:96px;height:96px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;flex-direction:column">';
+    html += '<div class="score-value" style="color:' + overallColor + '">' + overallScore + '</div>';
+    html += '<div class="score-label">Overall</div>';
+    html += '</div></div>';
+    html += '<div class="score-details">';
+    html += '<h3>Combined Compliance Score</h3>';
+    html += '<p>Across HIPAA Security Rule (45 CFR Part 164) and Joint Commission Environment of Care standards. Score reflects current control status and evidence documentation.</p>';
+    html += '<div class="score-breakdown">';
+    html += '<div class="score-item"><div class="si-val" style="color:var(--blue)">' + hipaaScore + '%</div><div class="si-label">HIPAA Score</div></div>';
+    html += '<div class="score-item"><div class="si-val" style="color:var(--purple)">' + jcScore + '%</div><div class="si-label">Joint Commission</div></div>';
+    html += '<div class="score-item"><div class="si-val val-green">' + (hipaaPass + jcMet) + '</div><div class="si-label">Controls Passing</div></div>';
+    html += '<div class="score-item"><div class="si-val val-amber">' + (hipaaReview + jcPartial) + '</div><div class="si-label">Needs Review</div></div>';
+    html += '</div></div></div>';
+
+    // Tabs
+    html += '<div class="card">';
+    html += '<div class="tabs">';
+    html += '<button class="tab' + (activeTab === 'hipaa' ? ' active' : '') + '" data-tab="hipaa">HIPAA Security Rule</button>';
+    html += '<button class="tab' + (activeTab === 'jc' ? ' active' : '') + '" data-tab="jc">Joint Commission</button>';
+    html += '</div>';
+
+    if (activeTab === 'hipaa') {
+      // HIPAA stats
+      html += '<div style="display:flex;gap:16px;padding:16px 20px;border-bottom:1px solid var(--border)">';
+      html += '<div><span style="font-size:11px;color:var(--text3)">SCORE</span> <strong style="color:var(--blue);font-size:18px">' + hipaaScore + '%</strong></div>';
+      html += '<div><span style="font-size:11px;color:var(--text3)">PASS</span> <strong style="color:var(--green)">' + hipaaPass + '</strong></div>';
+      html += '<div><span style="font-size:11px;color:var(--text3)">REVIEW</span> <strong style="color:var(--amber)">' + hipaaReview + '</strong></div>';
+      html += '<div><span style="font-size:11px;color:var(--text3)">TOTAL</span> <strong>' + HIPAA_CONTROLS.length + '</strong></div>';
+      html += '<div style="flex:1"></div>';
+      html += '<div class="progress-bar" style="width:200px;align-self:center"><div class="progress-fill" style="width:' + hipaaScore + '%;background:var(--blue)"></div></div>';
+      html += '</div>';
+
+      html += '<div style="overflow-x:auto"><table>';
+      html += '<tr><th>Reference</th><th>Control</th><th>Status</th><th>Evidence / Notes</th></tr>';
+      HIPAA_CONTROLS.forEach(function(c) {
+        var statusCls = c.status === 'pass' ? 'badge-green' : c.status === 'review' ? 'badge-amber' : 'badge-red';
+        var statusLabel = c.status === 'pass' ? 'Pass' : c.status === 'review' ? 'Needs Review' : 'Fail';
+        html += '<tr>';
+        html += '<td><span class="ref-code">' + esc(c.ref) + '</span></td>';
+        html += '<td><strong>' + esc(c.title) + '</strong><div style="font-size:11px;color:var(--text3);margin-top:2px">' + esc(c.description) + '</div></td>';
+        html += '<td><span class="badge ' + statusCls + '">' + statusLabel + '</span></td>';
+        html += '<td><div class="evidence">' + esc(c.evidence || '') + '</div></td>';
+        html += '</tr>';
+      });
+      html += '</table></div>';
+
+    } else {
+      // Joint Commission stats
+      html += '<div style="display:flex;gap:16px;padding:16px 20px;border-bottom:1px solid var(--border)">';
+      html += '<div><span style="font-size:11px;color:var(--text3)">SCORE</span> <strong style="color:var(--purple);font-size:18px">' + jcScore + '%</strong></div>';
+      html += '<div><span style="font-size:11px;color:var(--text3)">MET</span> <strong style="color:var(--green)">' + jcMet + '</strong></div>';
+      html += '<div><span style="font-size:11px;color:var(--text3)">PARTIAL</span> <strong style="color:var(--amber)">' + jcPartial + '</strong></div>';
+      html += '<div><span style="font-size:11px;color:var(--text3)">TOTAL</span> <strong>' + JC_STANDARDS.length + '</strong></div>';
+      html += '<div style="flex:1"></div>';
+      html += '<div class="progress-bar" style="width:200px;align-self:center"><div class="progress-fill" style="width:' + jcScore + '%;background:var(--purple)"></div></div>';
+      html += '</div>';
+
+      html += '<div style="overflow-x:auto"><table>';
+      html += '<tr><th>Standard</th><th>Requirement</th><th>Status</th><th>Findings</th></tr>';
+      JC_STANDARDS.forEach(function(c) {
+        var statusCls = c.status === 'met' ? 'badge-green' : c.status === 'partial' ? 'badge-amber' : 'badge-red';
+        var statusLabel = c.status === 'met' ? 'Met' : c.status === 'partial' ? 'Partially Met' : 'Not Met';
+        html += '<tr>';
+        html += '<td><span class="ref-code">' + esc(c.ref) + '</span></td>';
+        html += '<td><strong>' + esc(c.title) + '</strong><div style="font-size:11px;color:var(--text3);margin-top:2px">' + esc(c.description) + '</div></td>';
+        html += '<td><span class="badge ' + statusCls + '">' + statusLabel + '</span></td>';
+        html += '<td><div class="evidence">' + esc(c.findings || '') + '</div></td>';
+        html += '</tr>';
+      });
+      html += '</table></div>';
+    }
+
+    html += '</div>'; // end card
+
+    document.getElementById('app').innerHTML = html;
+
+    // Bind tab events
+    document.querySelectorAll('.tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        activeTab = this.dataset.tab;
+        render();
+      });
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

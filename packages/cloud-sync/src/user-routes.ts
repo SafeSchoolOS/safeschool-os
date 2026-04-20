@@ -236,7 +236,7 @@ export async function userRoutes(fastify: FastifyInstance, options: UserRoutesOp
   // ─── GET /import/template — CSV template ─────────────────────
 
   fastify.get('/import/template', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const csv = 'email,name,role\njohn@example.com,John Doe,viewer\njane@example.com,Jane Smith,admin\n';
+    const csv = 'email,name,role\nuser@yourcompany.com,First Last,viewer\nadmin@yourcompany.com,Admin Name,admin\n';
     return reply.type('text/csv')
       .header('Content-Disposition', 'attachment; filename="user-import-template.csv"')
       .send(csv);

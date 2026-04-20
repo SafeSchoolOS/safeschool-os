@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EdgeRuntime Widget</title>
+<style>
+:root {
+  --bg: #0f0f23;
+  --bg2: #1a1d2e;
+  --border: #2e3348;
+  --text: #e4e6f0;
+  --text2: #8b8fa3;
+  --accent: #00ff88;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 12px; min-height: 100vh; }
+.widget-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.widget-header h1 { font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+.widget-header .status { font-size: 0.7rem; color: var(--text2); }
+.score-ring { display: flex; align-items: center; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.ring { width: 60px; height: 60px; position: relative; }
+.ring svg { transform: rotate(-90deg); }
+.ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; }
+.score-info { flex: 1; }
+.score-info .grade { font-size: 0.75rem; color: var(--text2); }
+.score-info .score-num { font-size: 1.5rem; font-weight: 700; }
+.metric-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.metric-row:last-child { border-bottom: none; }
+.metric-label { color: var(--text2); }
+.metric-value { font-weight: 600; }
+.metric-value.red { color: var(--danger); }
+.metric-value.green { color: #22c55e; }
+.metric-value.yellow { color: var(--warning); }
+.alert-list { margin-top: 10px; }
+.alert-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 0.78rem; }
+.alert-item .alert-title { font-weight: 600; margin-bottom: 2px; }
+.alert-item .alert-meta { color: var(--text2); font-size: 0.7rem; }
+.priority-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+.priority-critical { background: var(--danger); }
+.priority-high { background: #f97316; }
+.priority-medium { background: var(--warning); }
+.priority-low { background: var(--info); }
+.section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin: 10px 0 6px; }
+.metrics-grid { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.loading { text-align: center; padding: 2rem; color: var(--text2); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="widget-header">
+  <h1>EdgeRuntime</h1>
+  <span class="status" id="lastUpdate">Loading...</span>
+</div>
+<div id="widgetContent"><div class="loading">Connecting...</div></div>
+
+<script>
+(function() {
+  var BASE_URL = '{{BASE_URL}}' !== '{{' + 'BASE_URL}}' ? '{{BASE_URL}}' : '';
+  var THEME = '{{THEME}}' !== '{{' + 'THEME}}' ? '{{THEME}}' : 'dark';
+  var REFRESH = parseInt('{{REFRESH}}' !== '{{' + 'REFRESH}}' ? '{{REFRESH}}' : '10', 10);
+
+  // Also read from URL params
+  var params = new URLSearchParams(location.search);
+  if (params.get('base')) BASE_URL = params.get('base');
+  if (params.get('theme')) THEME = params.get('theme');
+  if (params.get('refresh')) REFRESH = parseInt(params.get('refresh'), 10) || 10;
+  var TOKEN = params.get('token') || '';
+
+  if (THEME === 'light') {
+    document.documentElement.style.setProperty('--bg', '#f8f9fa');
+    document.documentElement.style.setProperty('--bg2', '#ffffff');
+    document.documentElement.style.setProperty('--border', '#dee2e6');
+    document.documentElement.style.setProperty('--text', '#212529');
+    document.documentElement.style.setProperty('--text2', '#6c757d');
+  }
+
+  function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+  function fmtTime(iso) {
+    if (!iso) return '-';
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getScoreColor(score) {
+    if (score >= 90) return '#22c55e';
+    if (score >= 80) return '#3b82f6';
+    if (score >= 70) return '#f59e0b';
+    if (score >= 60) return '#f97316';
+    return '#ef4444';
+  }
+
+  function renderWidget(data) {
+    var html = '';
+
+    // Posture score ring
+    var score = data.postureScore || 0;
+    var grade = data.postureGrade || '-';
+    var color = getScoreColor(score);
+    var pct = score / 100;
+    var circumference = 2 * Math.PI * 24;
+    var offset = circumference * (1 - pct);
+
+    html += '<div class="score-ring">';
+    html += '<div class="ring"><svg width="60" height="60"><circle cx="30" cy="30" r="24" fill="none" stroke="var(--border)" stroke-width="5"/>';
+    html += '<circle cx="30" cy="30" r="24" fill="none" stroke="' + color + '" stroke-width="5" stroke-dasharray="' + circumference + '" stroke-dashoffset="' + offset + '" stroke-linecap="round"/>';
+    html += '</svg><div class="ring-label" style="color:' + color + '">' + esc(grade) + '</div></div>';
+    html += '<div class="score-info"><div class="grade">SECURITY POSTURE</div><div class="score-num" style="color:' + color + '">' + score + '<span style="font-size:0.8rem;color:var(--text2)">/100</span></div></div></div>';
+
+    // Key metrics
+    html += '<div class="metrics-grid">';
+    html += '<div class="metric-row"><span class="metric-label">Active Incidents</span><span class="metric-value' + (data.activeIncidents > 0 ? ' red' : ' green') + '">' + (data.activeIncidents || 0) + '</span></div>';
+    html += '<div class="metric-row"><span class="metric-label">Active Alarms</span><span class="metric-value' + (data.activeAlarms > 0 ? ' yellow' : ' green') + '">' + (data.activeAlarms || 0) + '</span></div>';
+    html += '<div class="metric-row"><span class="metric-label">Devices Online</span><span class="metric-value green">' + (data.onlineDevices || 0) + '/' + (data.totalDevices || 0) + '</span></div>';
+    html += '</div>';
+
+    // Recent alerts
+    var alerts = data.recentAlerts || [];
+    if (alerts.length > 0) {
+      html += '<div class="section-label">Recent Alerts</div>';
+      html += '<div class="alert-list">';
+      alerts.forEach(function(a) {
+        html += '<div class="alert-item">';
+        html += '<div class="alert-title"><span class="priority-dot priority-' + esc(a.priority || 'medium') + '"></span>' + esc(a.title || a.alarm_number) + '</div>';
+        html += '<div class="alert-meta">' + esc(a.priority || '-') + ' &middot; ' + esc(a.status || '-') + ' &middot; ' + fmtTime(a.created_at) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    document.getElementById('widgetContent').innerHTML = html;
+    document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function fetchData() {
+    var url = (BASE_URL || '') + '/api/v1/widget/data';
+    var headers = {};
+    if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+
+    fetch(url, { headers: headers })
+      .then(function(r) { return r.json(); })
+      .then(renderWidget)
+      .catch(function(err) {
+        document.getElementById('widgetContent').innerHTML = '<div class="loading">Connection error. Retrying...</div>';
+        document.getElementById('lastUpdate').textContent = 'Error: ' + err.message;
+      });
+  }
+
+  fetchData();
+  setInterval(fetchData, REFRESH * 1000);
+})();
+</script>
+</body>
+</html>

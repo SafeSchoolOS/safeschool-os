@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alert Management</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.stat-label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.25rem; }
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.blue { color: var(--blue); }
+.stat-value.purple { color: var(--purple); }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+.tab { padding: 0.6rem 1.25rem; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text2); cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.search { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 220px; outline: none; }
+.search:focus { border-color: var(--accent); }
+select.filter { padding: 0.4rem 0.75rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; }
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); border-bottom: 1px solid var(--border); }
+td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+tr:hover { background: var(--bg2); }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
+.badge-critical { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-high { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-medium { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-low { background: rgba(107,114,128,0.15); color: #9ca3af; }
+.badge-new { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-ack { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-resolved { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-enabled { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-disabled { background: rgba(107,114,128,0.15); color: #6b7280; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; margin-bottom: 1rem; }
+.form-row { margin-bottom: 0.75rem; }
+.form-label { display: block; font-size: 0.8rem; color: var(--text3); margin-bottom: 0.25rem; }
+.form-input { width: 100%; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.85rem; outline: none; }
+.form-input:focus { border-color: var(--accent); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.toggle { position: relative; width: 36px; height: 20px; background: var(--bg3); border-radius: 10px; cursor: pointer; transition: background 0.2s; display: inline-block; vertical-align: middle; }
+.toggle.on { background: var(--green); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.toggle.on::after { transform: translateX(16px); }
+.pulse { animation: pulse-alert 2s infinite; }
+@keyframes pulse-alert { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  function api(method, path) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    else headers['X-Demo-Mode'] = 'true';
+    return fetch(path, { method: method, headers: headers }).then(function(r) { return r.json(); }).catch(function() { return null; });
+  }
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; loadData(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  var currentTab = 'active';
+  var searchText = '';
+  var showModal = false;
+  var alerts = [];
+  var rules = [];
+
+  var SOURCES = ['Main Entrance','Server Room B2','Parking Garage L1','Emergency Exit 4','Loading Dock','Executive Wing','Lab Wing Door 3','Cafeteria','Elevator Bank A','North Gate','Camera NW-07','Camera SE-12','Motion Sensor V-4','Panel FP-01','Controller DC-08'];
+  var MESSAGES = [
+    'Door forced open detected','After-hours access attempt','Tailgating event detected','Door held open > 60 seconds',
+    'Failed access attempt (3x)','Camera offline','Motion detected in restricted zone','Fire panel trouble signal',
+    'Communication failure with controller','Perimeter breach detected','Access denied - expired credential','Door lock malfunction',
+    'Anti-passback violation','Reader tamper detected','Battery low on wireless lock',
+    'Duress code entered','Temperature sensor threshold exceeded','Network connectivity lost','Unauthorized credential type',
+    'Schedule override activated'
+  ];
+
+  function genAlerts() {
+    var items = [];
+    var severities = ['CRITICAL','HIGH','MEDIUM','LOW'];
+    var statuses = ['NEW','ACKNOWLEDGED','RESOLVED'];
+
+    for (var i = 0; i < 20; i++) {
+      var sev = i < 3 ? 'CRITICAL' : i < 7 ? 'HIGH' : i < 14 ? 'MEDIUM' : 'LOW';
+      var status = i < 8 ? 'NEW' : i < 14 ? 'ACKNOWLEDGED' : 'RESOLVED';
+      var minsAgo = Math.floor(Math.random() * 1440) + 1;
+      var created = new Date(Date.now() - minsAgo * 60000);
+
+      items.push({
+        id: 'ALT-' + String(5001 + i),
+        severity: sev,
+        message: MESSAGES[i % MESSAGES.length],
+        source: SOURCES[i % SOURCES.length],
+        status: status,
+        createdAt: created.toISOString(),
+        acknowledgedBy: status !== 'NEW' ? 'Officer ' + ['Rodriguez','Chen','Davis','Wilson'][i % 4] : null,
+        acknowledgedAt: status !== 'NEW' ? new Date(created.getTime() + Math.floor(Math.random() * 600000)).toISOString() : null,
+        resolvedAt: status === 'RESOLVED' ? new Date(created.getTime() + Math.floor(Math.random() * 3600000)).toISOString() : null,
+      });
+    }
+    return items;
+  }
+
+  var TRIGGER_TYPES = ['door_forced','after_hours_access','tailgating','door_held_open','failed_access','camera_offline','motion_restricted','fire_trouble','comm_failure','perimeter_breach'];
+  var TRIGGER_LABELS = ['Door Forced Open','After Hours Access','Tailgating Detected','Door Held Open','Failed Access (3x)','Camera Offline','Motion in Restricted Zone','Fire Panel Trouble','Communication Failure','Perimeter Breach'];
+  var NOTIFY_METHODS = ['Dashboard + Email','Dashboard Only','Email + SMS','SMS Only','Dashboard + Email + SMS'];
+
+  function genRules() {
+    var items = [];
+    for (var i = 0; i < 10; i++) {
+      items.push({
+        id: 'RULE-' + String(100 + i),
+        name: TRIGGER_LABELS[i] + ' Alert',
+        triggerType: TRIGGER_TYPES[i],
+        triggerLabel: TRIGGER_LABELS[i],
+        condition: TRIGGER_LABELS[i] + ' on any monitored device',
+        severity: i < 2 ? 'CRITICAL' : i < 5 ? 'HIGH' : i < 8 ? 'MEDIUM' : 'LOW',
+        enabled: i < 8,
+        notifyMethod: NOTIFY_METHODS[i % NOTIFY_METHODS.length],
+        createdAt: new Date(Date.now() - (30 + i * 10) * 86400000).toISOString(),
+      });
+    }
+    return items;
+  }
+
+  alerts = genAlerts();
+  rules = genRules();
+
+  async function loadData() {
+    try {
+      var res = await api('GET', '/api/v1/data/alerts?limit=50');
+      if (res && (res.alerts || res.entities) && (res.alerts || res.entities).length > 0) {
+        alerts = (res.alerts || res.entities).map(function(a) {
+          var d = a.data || a;
+          return {
+            id: d.id || a.id, severity: d.severity || 'MEDIUM', message: d.message || d.title || '',
+            source: d.source || '', status: d.status || 'NEW', createdAt: d.createdAt || a.createdAt || new Date().toISOString(),
+            acknowledgedBy: d.acknowledgedBy || null, acknowledgedAt: d.acknowledgedAt || null, resolvedAt: d.resolvedAt || null,
+          };
+        });
+      }
+    } catch(e) {}
+    try {
+      var res2 = await api('GET', '/api/v1/data/alert-rules?limit=50');
+      if (res2 && (res2.rules || res2.entities) && (res2.rules || res2.entities).length > 0) {
+        rules = (res2.rules || res2.entities).map(function(r) {
+          var d = r.data || r;
+          return {
+            id: d.id || r.id, name: d.name || '', triggerType: d.triggerType || '', triggerLabel: d.triggerLabel || d.triggerType || '',
+            condition: d.condition || '', severity: d.severity || 'MEDIUM', enabled: d.enabled !== false,
+            notifyMethod: d.notifyMethod || 'Dashboard Only', createdAt: d.createdAt || r.createdAt || new Date().toISOString(),
+          };
+        });
+      }
+    } catch(e) {}
+    render();
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return '-';
+    var diff = Date.now() - new Date(ts).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    return days + 'd ago';
+  }
+
+  function duration(from, to) {
+    if (!from) return '-';
+    var end = to ? new Date(to).getTime() : Date.now();
+    var diff = end - new Date(from).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return '<1m';
+    if (mins < 60) return mins + 'm';
+    var hrs = Math.floor(mins / 60);
+    return hrs + 'h ' + (mins % 60) + 'm';
+  }
+
+  function filteredAlerts() {
+    return alerts.filter(function(a) {
+      if (currentTab === 'active' && a.status === 'RESOLVED') return false;
+      if (currentTab === 'history' && a.status !== 'RESOLVED') return false;
+      if (searchText) {
+        var s = searchText.toLowerCase();
+        if (a.message.toLowerCase().indexOf(s) < 0 && a.source.toLowerCase().indexOf(s) < 0 && a.id.toLowerCase().indexOf(s) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    var activeCount = alerts.filter(function(a) { return a.status !== 'RESOLVED'; }).length;
+    var criticalCount = alerts.filter(function(a) { return a.severity === 'CRITICAL' && a.status !== 'RESOLVED'; }).length;
+    var ackCount = alerts.filter(function(a) { return a.status === 'ACKNOWLEDGED'; }).length;
+    var ruleCount = rules.length;
+
+    var html = '';
+    html += '<div class="header"><div><div class="title">Alert Management & Rules</div>';
+    html += '<div class="subtitle">Monitor alerts, manage rules, and configure notifications. AlertManagementAdapter interface.</div></div>';
+    html += '<button class="btn btn-accent" id="btnNewRule">+ New Rule</button></div>';
+
+    html += '<div class="stats">';
+    html += '<div class="stat"><div class="stat-label">Active Alerts</div><div class="stat-value red">' + activeCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Critical</div><div class="stat-value amber">' + criticalCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Acknowledged</div><div class="stat-value blue">' + ackCount + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Alert Rules</div><div class="stat-value purple">' + ruleCount + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="tabs">';
+    var tabs = [
+      { key: 'active', label: 'Active Alerts', count: activeCount },
+      { key: 'history', label: 'Alert History', count: alerts.filter(function(a) { return a.status === 'RESOLVED'; }).length },
+      { key: 'rules', label: 'Alert Rules', count: ruleCount }
+    ];
+    tabs.forEach(function(t) {
+      html += '<button class="tab' + (currentTab === t.key ? ' active' : '') + '" data-tab="' + t.key + '">' + t.label + ' (' + t.count + ')</button>';
+    });
+    html += '</div>';
+
+    if (currentTab === 'rules') {
+      html += renderRulesTab();
+    } else {
+      var data = filteredAlerts();
+
+      html += '<div class="toolbar">';
+      html += '<input class="search" id="searchInput" placeholder="Search alerts..." value="' + esc(searchText) + '">';
+      html += '<span style="color:var(--text3);font-size:0.8rem;margin-left:auto">' + data.length + ' results</span>';
+      html += '</div>';
+
+      html += '<table><thead><tr>';
+      html += '<th>Severity</th><th>Message</th><th>Source</th><th>Time</th><th>Duration</th><th>Status</th><th>Actions</th>';
+      html += '</tr></thead><tbody>';
+
+      if (data.length === 0) {
+        html += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:2rem">No alerts match your filters</td></tr>';
+      } else {
+        data.forEach(function(a) {
+          var sevClass = 'badge-' + a.severity.toLowerCase();
+          var statusClass = a.status === 'NEW' ? 'badge-new' : a.status === 'ACKNOWLEDGED' ? 'badge-ack' : 'badge-resolved';
+          var pulseClass = a.status === 'NEW' && a.severity === 'CRITICAL' ? ' pulse' : '';
+
+          html += '<tr>';
+          html += '<td><span class="badge ' + sevClass + pulseClass + '">' + a.severity + '</span></td>';
+          html += '<td><div style="font-weight:600">' + esc(a.message) + '</div>';
+          if (a.acknowledgedBy) html += '<div style="font-size:0.7rem;color:var(--text3)">Ack by ' + esc(a.acknowledgedBy) + '</div>';
+          html += '</td>';
+          html += '<td style="color:var(--text2)">' + esc(a.source) + '</td>';
+          html += '<td style="font-size:0.8rem;color:var(--text2)">' + timeAgo(a.createdAt) + '</td>';
+          html += '<td style="font-size:0.8rem;color:var(--text2)">' + duration(a.createdAt, a.resolvedAt) + '</td>';
+          html += '<td><span class="badge ' + statusClass + '">' + a.status + '</span></td>';
+          html += '<td>';
+          if (a.status === 'NEW') {
+            html += '<button class="btn btn-sm btn-outline alert-action" data-id="' + a.id + '" data-action="ack">Acknowledge</button> ';
+          }
+          if (a.status !== 'RESOLVED') {
+            html += '<button class="btn btn-sm btn-outline alert-action" data-id="' + a.id + '" data-action="resolve" style="border-color:var(--green);color:var(--green)">Resolve</button>';
+          }
+          html += '</td>';
+          html += '</tr>';
+        });
+      }
+      html += '</tbody></table>';
+    }
+
+    document.getElementById('app').innerHTML = html;
+
+    if (showModal) renderModal();
+
+    // Bind
+    document.querySelectorAll('.tab').forEach(function(t) {
+      t.addEventListener('click', function() { currentTab = this.dataset.tab; render(); });
+    });
+    var si = document.getElementById('searchInput');
+    if (si) si.addEventListener('input', function() { searchText = this.value; render(); });
+    document.getElementById('btnNewRule').addEventListener('click', function() { showModal = true; render(); });
+    document.querySelectorAll('.alert-action').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var alert = alerts.find(function(a) { return a.id === btn.dataset.id; });
+        if (!alert) return;
+        if (btn.dataset.action === 'ack') { alert.status = 'ACKNOWLEDGED'; alert.acknowledgedBy = 'Current User'; alert.acknowledgedAt = new Date().toISOString(); }
+        if (btn.dataset.action === 'resolve') { alert.status = 'RESOLVED'; alert.resolvedAt = new Date().toISOString(); }
+        render();
+      });
+    });
+    document.querySelectorAll('.rule-toggle').forEach(function(tog) {
+      tog.addEventListener('click', function() {
+        var rule = rules.find(function(r) { return r.id === tog.dataset.id; });
+        if (rule) { rule.enabled = !rule.enabled; render(); }
+      });
+    });
+  }
+
+  function renderRulesTab() {
+    var html = '';
+    html += '<table><thead><tr>';
+    html += '<th>Name</th><th>Condition</th><th>Severity</th><th>Notification</th><th>Enabled</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    rules.forEach(function(r) {
+      var sevClass = 'badge-' + r.severity.toLowerCase();
+      html += '<tr>';
+      html += '<td style="font-weight:600">' + esc(r.name) + '</td>';
+      html += '<td style="font-size:0.8rem;color:var(--text2)">' + esc(r.condition) + '</td>';
+      html += '<td><span class="badge ' + sevClass + '">' + r.severity + '</span></td>';
+      html += '<td style="font-size:0.8rem;color:var(--text2)">' + esc(r.notifyMethod) + '</td>';
+      html += '<td><span class="toggle rule-toggle' + (r.enabled ? ' on' : '') + '" data-id="' + r.id + '"></span></td>';
+      html += '<td><button class="btn btn-sm btn-outline">Edit</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function renderModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+    var html = '<h3>Create Alert Rule</h3>';
+
+    html += '<div class="form-row"><label class="form-label">Rule Name</label><input class="form-input" id="mName" placeholder="e.g. After Hours Door Access"></div>';
+
+    html += '<div class="form-grid">';
+    html += '<div class="form-row"><label class="form-label">Trigger Type</label><select class="form-input" id="mTrigger">';
+    TRIGGER_TYPES.forEach(function(t, i) { html += '<option value="' + t + '">' + esc(TRIGGER_LABELS[i]) + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="form-row"><label class="form-label">Severity</label><select class="form-input" id="mSeverity">';
+    ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(function(s) { html += '<option value="' + s + '"' + (s === 'HIGH' ? ' selected' : '') + '>' + s + '</option>'; });
+    html += '</select></div>';
+    html += '</div>';
+
+    html += '<div class="form-row"><label class="form-label">Notification Method</label><select class="form-input" id="mNotify">';
+    NOTIFY_METHODS.forEach(function(m) { html += '<option>' + esc(m) + '</option>'; });
+    html += '</select></div>';
+
+    html += '<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">';
+    html += '<button class="btn btn-outline" id="mCancel">Cancel</button>';
+    html += '<button class="btn btn-accent" id="mSave">Create Rule</button>';
+    html += '</div>';
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    document.getElementById('app').appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { showModal = false; render(); } });
+    document.getElementById('mCancel').addEventListener('click', function() { showModal = false; render(); });
+    document.getElementById('mSave').addEventListener('click', function() {
+      var trigIdx = TRIGGER_TYPES.indexOf(document.getElementById('mTrigger').value);
+      var newRule = {
+        id: 'RULE-' + String(200 + rules.length),
+        name: document.getElementById('mName').value || 'New Rule',
+        triggerType: document.getElementById('mTrigger').value,
+        triggerLabel: TRIGGER_LABELS[trigIdx >= 0 ? trigIdx : 0],
+        condition: TRIGGER_LABELS[trigIdx >= 0 ? trigIdx : 0] + ' on any monitored device',
+        severity: document.getElementById('mSeverity').value,
+        enabled: true,
+        notifyMethod: document.getElementById('mNotify').value,
+        createdAt: new Date().toISOString(),
+      };
+      rules.push(newRule);
+      showModal = false;
+      currentTab = 'rules';
+      render();
+    });
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>

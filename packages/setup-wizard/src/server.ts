@@ -8,7 +8,7 @@
 
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
-import { handleValidateKey, handleSaveConfig, handleGenerateUuid, handleProductInfo, handleWifiScan, handleWifiConfigure, handleNetworkStatus } from './routes.js';
+import { handleValidateKey, handleSaveConfig, handleGenerateUuid, handleProductInfo, handleWifiScan, handleWifiConfigure, handleNetworkStatus, handlePairingCode, handlePairingStatus } from './routes.js';
 import { getProductConfig } from './product-config.js';
 
 // The HTML is embedded at build time by esbuild's define
@@ -30,6 +30,24 @@ function getLocalIp(): string {
   return '127.0.0.1';
 }
 
+// Well-known captive portal detection paths used by devices/browsers.
+// Responding with a redirect triggers the device to show its captive portal UI.
+const CAPTIVE_PORTAL_PATHS = new Set([
+  // Apple iOS / macOS
+  '/hotspot-detect.html',
+  '/library/test/success.html',
+  // Android / Google
+  '/generate_204',
+  '/gen_204',
+  '/connecttest.txt',
+  // Windows
+  '/ncsi.txt',
+  '/connecttest.txt',
+  // Firefox
+  '/success.txt',
+  '/canonical.html',
+]);
+
 function createServer(): http.Server {
   let shutdownCalled = false;
 
@@ -38,6 +56,13 @@ function createServer(): http.Server {
     const method = req.method ?? 'GET';
 
     try {
+      // Captive portal detection — redirect to wizard so the device shows a login prompt
+      if (method === 'GET' && CAPTIVE_PORTAL_PATHS.has(url.pathname)) {
+        res.writeHead(302, { Location: 'http://192.168.4.1/' });
+        res.end();
+        return;
+      }
+
       // API routes
       if (method === 'POST' && url.pathname === '/api/validate-key') {
         await handleValidateKey(req, res);
@@ -73,6 +98,21 @@ function createServer(): http.Server {
       }
       if (method === 'GET' && url.pathname === '/api/network/status') {
         await handleNetworkStatus(req, res);
+        return;
+      }
+      if (method === 'GET' && url.pathname === '/api/pairing/code') {
+        await handlePairingCode(req, res);
+        return;
+      }
+      if (method === 'GET' && url.pathname === '/api/pairing/status') {
+        await handlePairingStatus(req, res, () => {
+          if (!shutdownCalled) {
+            shutdownCalled = true;
+            console.log('\nDevice paired. Shutting down wizard...');
+            server.close(() => process.exit(0));
+            setTimeout(() => process.exit(0), 3000);
+          }
+        });
         return;
       }
 

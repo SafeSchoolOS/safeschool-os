@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asset Tracking (RTLS)</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; padding: 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+.stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-card .value { font-size: 28px; font-weight: 700; }
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.val-green { color: var(--green); }
+.val-accent { color: var(--accent); }
+.val-amber { color: var(--amber); }
+.val-red { color: var(--red); }
+.val-blue { color: var(--blue); }
+.val-purple { color: var(--purple); }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.card-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-head .count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 2px 8px; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 600; background: var(--bg3); }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+tr.row-missing td { background: rgba(239,68,68,0.06); }
+tr.row-missing:hover td { background: rgba(239,68,68,0.1); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+.badge-gray { background: var(--bg3); color: var(--text3); }
+.badge-purple { background: rgba(139,92,246,0.15); color: var(--purple); }
+.badge-accent { background: var(--accent-dim); color: var(--accent); }
+.filters { display: flex; gap: 10px; flex-wrap: wrap; }
+.filter-select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 6px 28px 6px 10px; font-size: 12px; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; cursor: pointer; }
+.filter-select:focus { border-color: var(--accent); }
+.search-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 6px 12px; font-size: 13px; outline: none; width: 220px; }
+.search-box:focus { border-color: var(--accent); }
+.progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+.type-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.loading { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading asset data...</div></div>
+<script>
+(function() {
+  'use strict';
+
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  var token = null;
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'auth-token') { token = e.data.token; render(); }
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // Asset type definitions with counts
+  var ASSET_TYPES = [
+    { type: 'Infusion Pump', icon: '&#128137;', color: 'var(--blue)', total: 120, located: 108, missing: 4, maintenance: 8 },
+    { type: 'Wheelchair', icon: '&#9855;', color: 'var(--green)', total: 80, located: 72, missing: 3, maintenance: 5 },
+    { type: 'Portable Monitor', icon: '&#128187;', color: 'var(--accent)', total: 40, located: 36, missing: 1, maintenance: 3 },
+    { type: 'Crash Cart', icon: '&#128657;', color: 'var(--red)', total: 15, located: 14, missing: 0, maintenance: 1 },
+    { type: 'Ventilator', icon: '&#127788;', color: 'var(--purple)', total: 25, located: 22, missing: 1, maintenance: 2 },
+    { type: 'Ultrasound', icon: '&#128225;', color: 'var(--amber)', total: 10, located: 9, missing: 0, maintenance: 1 },
+  ];
+
+  var ZONES = ['ICU - Floor 3', 'ER - Floor 1', 'Surgery - Floor 4', 'Radiology - Floor 2', 'Pharmacy - Floor 1', 'Storage A', 'Storage B', 'Maintenance Bay', 'Pediatrics - Floor 2', 'Admin - Floor 5'];
+
+  // Generate individual asset records
+  var assets = [];
+  var assetId = 1000;
+  ASSET_TYPES.forEach(function(at) {
+    for (var i = 0; i < at.total; i++) {
+      var id = 'AST-' + (assetId++);
+      var status, zone, lastSeen;
+      if (i < at.located - at.maintenance) {
+        status = 'located';
+        zone = ZONES[Math.floor(Math.random() * ZONES.length)];
+        lastSeen = new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString();
+      } else if (i < at.located) {
+        status = 'maintenance';
+        zone = 'Maintenance Bay';
+        lastSeen = new Date(Date.now() - Math.floor(Math.random() * 86400000)).toISOString();
+      } else if (i < at.located + at.missing) {
+        status = 'missing';
+        zone = null;
+        lastSeen = new Date(Date.now() - Math.floor(Math.random() * 7 * 86400000) - 86400000).toISOString();
+      } else {
+        status = 'located';
+        zone = ZONES[Math.floor(Math.random() * ZONES.length)];
+        lastSeen = new Date(Date.now() - Math.floor(Math.random() * 7200000)).toISOString();
+      }
+      assets.push({ id: id, type: at.type, icon: at.icon, color: at.color, status: status, zone: zone, lastSeen: lastSeen, name: at.type + ' #' + (i + 1) });
+    }
+  });
+
+  var filterType = '', filterZone = '', searchQuery = '';
+
+  function fmtAgo(ts) {
+    if (!ts) return 'Unknown';
+    try {
+      var diff = Date.now() - new Date(ts).getTime();
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+      if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+      return Math.floor(diff / 86400000) + 'd ago';
+    } catch(e) { return 'Unknown'; }
+  }
+
+  function render() {
+    var totalAssets = 0, totalLocated = 0, totalMissing = 0, totalMaint = 0;
+    ASSET_TYPES.forEach(function(at) {
+      totalAssets += at.total;
+      totalLocated += at.located;
+      totalMissing += at.missing;
+      totalMaint += at.maintenance;
+    });
+
+    var filtered = assets.filter(function(a) {
+      if (filterType && a.type !== filterType) return false;
+      if (filterZone && (a.zone || '') !== filterZone) return false;
+      if (searchQuery) {
+        var q = searchQuery.toLowerCase();
+        if ((a.name || '').toLowerCase().indexOf(q) < 0 && (a.id || '').toLowerCase().indexOf(q) < 0 && (a.type || '').toLowerCase().indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+
+    // Sort: missing first, then maintenance, then located
+    filtered.sort(function(a, b) {
+      var order = { missing: 0, maintenance: 1, located: 2 };
+      return (order[a.status] || 2) - (order[b.status] || 2);
+    });
+
+    var html = '';
+
+    // Header
+    html += '<div class="header">';
+    html += '<h1><span>&#128205;</span> Asset Tracking (RTLS)</h1>';
+    html += '<div class="filters">';
+    html += '<input class="search-box" id="searchInput" placeholder="Search assets..." value="' + esc(searchQuery) + '">';
+    html += '<select class="filter-select" id="filterType"><option value="">All Types</option>';
+    ASSET_TYPES.forEach(function(at) {
+      html += '<option value="' + esc(at.type) + '"' + (filterType === at.type ? ' selected' : '') + '>' + esc(at.type) + ' (' + at.total + ')</option>';
+    });
+    html += '</select>';
+    html += '<select class="filter-select" id="filterZone"><option value="">All Zones</option>';
+    ZONES.forEach(function(z) {
+      html += '<option value="' + esc(z) + '"' + (filterZone === z ? ' selected' : '') + '>' + esc(z) + '</option>';
+    });
+    html += '</select>';
+    html += '</div></div>';
+
+    // Stats row
+    html += '<div class="stats-row">';
+    html += '<div class="stat-card"><div class="label">Total Assets</div><div class="value val-accent">' + totalAssets + '</div><div class="sub">Across ' + ASSET_TYPES.length + ' categories</div></div>';
+    html += '<div class="stat-card"><div class="label">Located</div><div class="value val-green">' + totalLocated + '</div><div class="progress-bar"><div class="progress-fill" style="width:' + Math.round((totalLocated / totalAssets) * 100) + '%;background:var(--green)"></div></div></div>';
+    html += '<div class="stat-card"><div class="label">Missing</div><div class="value val-red">' + totalMissing + '</div><div class="sub">Requires investigation</div></div>';
+    html += '<div class="stat-card"><div class="label">In Maintenance</div><div class="value val-amber">' + totalMaint + '</div><div class="sub">Scheduled service</div></div>';
+    html += '</div>';
+
+    // Asset Type Summary
+    html += '<div class="card">';
+    html += '<div class="card-head"><h2>Asset Inventory by Type</h2></div>';
+    html += '<div style="overflow-x:auto"><table>';
+    html += '<tr><th>Asset Type</th><th>Total</th><th>Located</th><th>Missing</th><th>Maintenance</th><th>Availability</th></tr>';
+    ASSET_TYPES.forEach(function(at) {
+      var pct = at.total ? Math.round(((at.located - at.maintenance) / at.total) * 100) : 0;
+      var rowCls = at.missing > 0 ? ' class="row-missing"' : '';
+      html += '<tr' + rowCls + '>';
+      html += '<td><div style="display:flex;align-items:center;gap:10px"><div class="type-icon" style="background:' + at.color + '22;color:' + at.color + '">' + at.icon + '</div><strong>' + esc(at.type) + '</strong></div></td>';
+      html += '<td><strong>' + at.total + '</strong></td>';
+      html += '<td><span style="color:var(--green)">' + at.located + '</span></td>';
+      html += '<td>' + (at.missing > 0 ? '<span class="badge badge-red">' + at.missing + '</span>' : '<span style="color:var(--text3)">0</span>') + '</td>';
+      html += '<td>' + (at.maintenance > 0 ? '<span class="badge badge-amber">' + at.maintenance + '</span>' : '<span style="color:var(--text3)">0</span>') + '</td>';
+      html += '<td><div style="display:flex;align-items:center;gap:8px"><div class="progress-bar" style="width:100px"><div class="progress-fill" style="width:' + pct + '%;background:' + (pct > 80 ? 'var(--green)' : pct > 50 ? 'var(--amber)' : 'var(--red)') + '"></div></div><span style="font-size:12px;color:var(--text2)">' + pct + '%</span></div></td>';
+      html += '</tr>';
+    });
+    html += '</table></div></div>';
+
+    // Individual assets table
+    html += '<div class="card">';
+    html += '<div class="card-head"><h2>Asset Details</h2><span class="count">' + filtered.length + ' of ' + assets.length + ' assets</span></div>';
+    html += '<div style="overflow-x:auto;max-height:500px;overflow-y:auto"><table>';
+    html += '<tr><th>Asset ID</th><th>Name</th><th>Type</th><th>Status</th><th>Zone</th><th>Last Seen</th></tr>';
+
+    // Show first 100 to avoid DOM overload
+    var shown = filtered.slice(0, 100);
+    shown.forEach(function(a) {
+      var statusCls = a.status === 'located' ? 'badge-green' : a.status === 'missing' ? 'badge-red' : a.status === 'maintenance' ? 'badge-amber' : 'badge-gray';
+      var rowCls = a.status === 'missing' ? ' class="row-missing"' : '';
+      html += '<tr' + rowCls + '>';
+      html += '<td style="font-family:monospace;font-size:12px;color:var(--text2)">' + esc(a.id) + '</td>';
+      html += '<td><strong>' + esc(a.name) + '</strong></td>';
+      html += '<td><span style="color:' + (a.color || 'var(--text2)') + '">' + esc(a.type) + '</span></td>';
+      html += '<td><span class="badge ' + statusCls + '">' + esc(a.status) + '</span></td>';
+      html += '<td>' + esc(a.zone || 'Unknown') + '</td>';
+      html += '<td style="color:var(--text2);font-size:12px">' + fmtAgo(a.lastSeen) + '</td>';
+      html += '</tr>';
+    });
+
+    if (filtered.length > 100) {
+      html += '<tr><td colspan="6" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Showing 100 of ' + filtered.length + ' assets. Use filters to narrow results.</td></tr>';
+    }
+
+    html += '</table></div></div>';
+
+    document.getElementById('app').innerHTML = html;
+    bindEvents();
+  }
+
+  function bindEvents() {
+    var si = document.getElementById('searchInput');
+    if (si) si.addEventListener('input', function() {
+      searchQuery = this.value;
+      render();
+      var el = document.getElementById('searchInput');
+      if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+    });
+
+    var ft = document.getElementById('filterType');
+    if (ft) ft.addEventListener('change', function() { filterType = this.value; render(); });
+
+    var fz = document.getElementById('filterZone');
+    if (fz) fz.addEventListener('change', function() { filterZone = this.value; render(); });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

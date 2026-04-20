@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAC API Explorer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #8b5cf6; --accent-hover: #7c3aed; --accent-dim: rgba(139,92,246,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+  --cyan: #06b6d4;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; padding: 1.5rem; overflow-y: auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+.title { font-size: 1.25rem; font-weight: 700; }
+.subtitle { color: var(--text2); font-size: 0.85rem; margin-top: 0.25rem; }
+
+/* Connection panel */
+.connection-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.conn-row { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.conn-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.conn-field label { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+.conn-field input, .conn-field select { padding: 0.4rem 0.6rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; font-family: inherit; }
+.conn-field input:focus, .conn-field select:focus { border-color: var(--accent); }
+.conn-field.wide { flex: 1; min-width: 200px; }
+.conn-field.medium { min-width: 150px; }
+.auth-fields { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.auth-fields.hidden { display: none; }
+.conn-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; }
+.status-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.red { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.status-dot.gray { background: var(--text3); }
+.status-dot.amber { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.server-info { font-size: 0.75rem; color: var(--text2); margin-top: 0.25rem; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab { padding: 0.6rem 1rem; cursor: pointer; font-size: 0.8rem; color: var(--text2); border-bottom: 2px solid transparent; transition: all 0.15s; font-weight: 500; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Buttons */
+.btn { padding: 0.4rem 0.9rem; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: all 0.15s; font-family: inherit; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-green { background: transparent; border: 1px solid var(--green); color: var(--green); }
+.btn-green:hover { background: rgba(34,197,94,0.1); }
+.btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+th { text-align: left; padding: 0.5rem 0.6rem; color: var(--text3); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); background: var(--bg2); position: sticky; top: 0; }
+td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:hover td { background: var(--bg2); }
+.status-200 { color: var(--green); font-weight: 700; }
+.status-401, .status-403 { color: var(--amber); font-weight: 700; }
+.status-404, .status-500 { color: var(--red); font-weight: 700; }
+.status-unknown { color: var(--text3); }
+
+/* Code / JSON */
+.json-view { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; line-height: 1.5; color: var(--text); }
+.json-key { color: var(--cyan); }
+.json-str { color: var(--green); }
+.json-num { color: var(--amber); }
+.json-bool { color: var(--purple); }
+.json-null { color: var(--text3); }
+
+/* Request builder */
+.request-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: flex-end; }
+.request-row .conn-field { flex: 1; }
+.method-select { width: 100px; }
+.headers-editor { margin-bottom: 0.75rem; }
+.header-row { display: flex; gap: 0.5rem; margin-bottom: 0.25rem; align-items: center; }
+.header-row input { flex: 1; padding: 0.35rem 0.5rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.8rem; outline: none; font-family: inherit; }
+.header-row input:focus { border-color: var(--accent); }
+.remove-header { background: none; border: none; color: var(--red); cursor: pointer; font-size: 1rem; padding: 0 0.25rem; }
+.body-editor { width: 100%; min-height: 120px; padding: 0.6rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.8rem; resize: vertical; outline: none; }
+.body-editor:focus { border-color: var(--accent); }
+.response-meta { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.5rem; font-size: 0.8rem; }
+.response-meta .badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 700; font-size: 0.8rem; }
+.response-meta .badge.s2xx { background: rgba(34,197,94,0.15); color: var(--green); }
+.response-meta .badge.s4xx { background: rgba(245,158,11,0.15); color: var(--amber); }
+.response-meta .badge.s5xx { background: rgba(239,68,68,0.15); color: var(--red); }
+
+/* Entity browser */
+.entity-tree { display: flex; gap: 1rem; }
+.entity-list { width: 220px; min-width: 220px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow-y: auto; max-height: 500px; }
+.entity-item { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.8rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
+.entity-item:hover { background: var(--bg3); }
+.entity-item.active { background: var(--accent-dim); color: var(--accent); border-right: 2px solid var(--accent); }
+.entity-item .count { font-size: 0.7rem; color: var(--text3); margin-left: auto; }
+.entity-detail { flex: 1; min-width: 0; }
+.entity-detail-empty { display: flex; align-items: center; justify-content: center; min-height: 300px; color: var(--text3); font-size: 0.85rem; }
+
+/* Field mapper */
+.mapper-table { width: 100%; }
+.mapper-table td { padding: 0.4rem 0.5rem; }
+.mapper-table .pac-field { font-family: monospace; color: var(--cyan); font-size: 0.8rem; }
+.mapper-table .edge-field { font-family: monospace; color: var(--green); font-size: 0.8rem; }
+.mapper-table select, .mapper-table input { padding: 0.3rem 0.5rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.8rem; outline: none; font-family: inherit; width: 100%; }
+.mapper-table select:focus, .mapper-table input:focus { border-color: var(--accent); }
+
+/* Command tester */
+.cmd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+.cmd-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.cmd-card h4 { font-size: 0.85rem; margin-bottom: 0.5rem; }
+.cmd-card .cmd-desc { font-size: 0.75rem; color: var(--text2); margin-bottom: 0.75rem; }
+.cmd-card .cmd-inputs { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+.cmd-card .cmd-inputs input { padding: 0.35rem 0.5rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.8rem; outline: none; }
+.cmd-card .cmd-inputs input:focus { border-color: var(--accent); }
+.cmd-result { margin-top: 0.5rem; }
+.cmd-result .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+.cmd-result .badge.supported { background: rgba(34,197,94,0.15); color: var(--green); }
+.cmd-result .badge.unsupported { background: rgba(239,68,68,0.15); color: var(--red); }
+.cmd-result .badge.unknown { background: var(--bg3); color: var(--text3); }
+
+/* History */
+.history-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.8rem; }
+.history-item:hover { background: var(--bg2); }
+.history-item .method { font-weight: 700; width: 50px; flex-shrink: 0; }
+.history-item .method.GET { color: var(--green); }
+.history-item .method.POST { color: var(--blue); }
+.history-item .method.PUT { color: var(--amber); }
+.history-item .method.DELETE { color: var(--red); }
+.history-item .method.PATCH { color: var(--purple); }
+.history-item .path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-item .status { width: 40px; text-align: center; font-weight: 700; }
+.history-item .time { color: var(--text3); font-size: 0.7rem; width: 70px; text-align: right; }
+.history-filter { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center; }
+.history-filter input { flex: 1; padding: 0.4rem 0.6rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.8rem; outline: none; }
+.history-filter input:focus { border-color: var(--accent); }
+
+/* Discovery progress */
+.discovery-progress { margin: 0.75rem 0; }
+.progress-bar { width: 100%; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); transition: width 0.2s; border-radius: 3px; }
+.progress-text { font-size: 0.75rem; color: var(--text2); margin-top: 0.35rem; }
+
+/* Scrollable table containers */
+.table-scroll { max-height: 450px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+
+/* Generated code */
+.code-output { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.78rem; white-space: pre; overflow-x: auto; max-height: 500px; overflow-y: auto; line-height: 1.5; }
+
+/* Demo badge */
+.demo-badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.6rem; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); color: var(--amber); border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+
+/* Section spacing */
+.section { margin-bottom: 1.25rem; }
+.section-label { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+.section-hint { font-size: 0.75rem; color: var(--text3); margin-bottom: 0.5rem; }
+
+/* Flex utils */
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-sm { gap: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="title">PAC API Explorer</div>
+    <div class="subtitle">Discover endpoints, test commands, and map fields for PAC system integration</div>
+  </div>
+  <div style="display:flex;gap:0.5rem;align-items:center;">
+    <span id="demoIndicator" class="demo-badge" style="display:none;">DEMO MODE</span>
+    <button class="btn btn-outline btn-sm" onclick="toggleDemo()">Toggle Demo</button>
+  </div>
+</div>
+
+<!-- Connection Panel -->
+<div class="connection-panel">
+  <div class="conn-row">
+    <div class="conn-field wide">
+      <label>API Base URL</label>
+      <input type="text" id="apiUrl" placeholder="https://pac-server:443/api" />
+    </div>
+    <div class="conn-field medium">
+      <label>Auth Type</label>
+      <select id="authType" onchange="updateAuthFields()">
+        <option value="apikey">API Key</option>
+        <option value="basic">Basic Auth</option>
+        <option value="bearer">Bearer Token</option>
+        <option value="oauth2">OAuth 2.0</option>
+      </select>
+    </div>
+    <div class="conn-field">
+      <button class="btn btn-accent" id="btnConnect" onclick="testConnection()">Connect</button>
+    </div>
+  </div>
+  <!-- Auth fields: API Key -->
+  <div class="auth-fields" id="authApiKey">
+    <div class="conn-field wide">
+      <label>API Key</label>
+      <input type="password" id="inputApiKey" placeholder="Enter API key" />
+    </div>
+    <div class="conn-field medium">
+      <label>Header Name</label>
+      <input type="text" id="inputApiKeyHeader" value="X-API-Key" />
+    </div>
+  </div>
+  <!-- Auth fields: Basic -->
+  <div class="auth-fields hidden" id="authBasic">
+    <div class="conn-field medium">
+      <label>Username</label>
+      <input type="text" id="inputBasicUser" placeholder="admin" />
+    </div>
+    <div class="conn-field medium">
+      <label>Password</label>
+      <input type="password" id="inputBasicPass" placeholder="password" />
+    </div>
+  </div>
+  <!-- Auth fields: Bearer -->
+  <div class="auth-fields hidden" id="authBearer">
+    <div class="conn-field wide">
+      <label>Bearer Token</label>
+      <input type="password" id="inputBearer" placeholder="eyJhbGciOiJIUzI1NiIs..." />
+    </div>
+  </div>
+  <!-- Auth fields: OAuth 2.0 -->
+  <div class="auth-fields hidden" id="authOAuth">
+    <div class="conn-field medium">
+      <label>Token URL</label>
+      <input type="text" id="inputOAuthUrl" placeholder="https://server/oauth/token" />
+    </div>
+    <div class="conn-field medium">
+      <label>Client ID</label>
+      <input type="text" id="inputOAuthClientId" placeholder="client_id" />
+    </div>
+    <div class="conn-field medium">
+      <label>Client Secret</label>
+      <input type="password" id="inputOAuthSecret" placeholder="client_secret" />
+    </div>
+    <div class="conn-field">
+      <button class="btn btn-outline btn-sm" onclick="fetchOAuthToken()">Get Token</button>
+    </div>
+  </div>
+  <div class="conn-status">
+    <span class="status-dot gray" id="statusDot"></span>
+    <span id="statusText">Not connected</span>
+  </div>
+  <div class="server-info" id="serverInfo"></div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" data-tab="discovery" onclick="switchTab('discovery')">Endpoint Discovery</div>
+  <div class="tab" data-tab="request" onclick="switchTab('request')">Request Builder</div>
+  <div class="tab" data-tab="entities" onclick="switchTab('entities')">Entity Browser</div>
+  <div class="tab" data-tab="commands" onclick="switchTab('commands')">Command Tester</div>
+  <div class="tab" data-tab="history" onclick="switchTab('history')">Response History</div>
+  <div class="tab" data-tab="mapper" onclick="switchTab('mapper')">Field Mapper</div>
+</div>
+
+<!-- Tab: Endpoint Discovery -->
+<div class="tab-panel active" id="panel-discovery">
+  <div class="flex-between" style="margin-bottom:0.75rem;">
+    <div class="section-label">Discovered Endpoints</div>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-accent btn-sm" onclick="discoverEndpoints()">Discover Endpoints</button>
+      <button class="btn btn-outline btn-sm" onclick="clearDiscovery()">Clear</button>
+    </div>
+  </div>
+  <div class="discovery-progress" id="discoveryProgress" style="display:none;">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-text" id="progressText">Scanning...</div>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Status</th><th>Response Sample</th><th>Actions</th></tr></thead>
+      <tbody id="discoveryTable"></tbody>
+    </table>
+  </div>
+  <div id="discoveryEmpty" style="text-align:center;padding:2rem;color:var(--text3);font-size:0.85rem;">
+    Click "Discover Endpoints" to scan common PAC API paths
+  </div>
+</div>
+
+<!-- Tab: Request Builder -->
+<div class="tab-panel" id="panel-request">
+  <div class="section-label">Build & Send Request</div>
+  <div class="request-row">
+    <div class="conn-field">
+      <label>Method</label>
+      <select id="reqMethod" class="method-select">
+        <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option>
+      </select>
+    </div>
+    <div class="conn-field" style="flex:1;">
+      <label>URL</label>
+      <input type="text" id="reqUrl" placeholder="https://pac-server/api/v1/persons" />
+    </div>
+    <div class="conn-field">
+      <button class="btn btn-accent" onclick="sendRequest()">Send</button>
+    </div>
+    <div class="conn-field">
+      <button class="btn btn-outline btn-sm" onclick="saveRequest()">Save</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="flex-between" style="margin-bottom:0.35rem;">
+      <label style="font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;">Headers</label>
+      <button class="btn btn-outline btn-sm" onclick="addHeader()">+ Add Header</button>
+    </div>
+    <div class="headers-editor" id="headersEditor">
+      <div class="header-row">
+        <input type="text" placeholder="Header name" value="Content-Type" />
+        <input type="text" placeholder="Header value" value="application/json" />
+        <button class="remove-header" onclick="this.parentElement.remove()">&times;</button>
+      </div>
+      <div class="header-row">
+        <input type="text" placeholder="Header name" value="Accept" />
+        <input type="text" placeholder="Header value" value="application/json" />
+        <button class="remove-header" onclick="this.parentElement.remove()">&times;</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <label style="font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;">Request Body</label>
+    <textarea class="body-editor" id="reqBody" placeholder='{ "key": "value" }'></textarea>
+  </div>
+
+  <div class="section" id="responseSection" style="display:none;">
+    <div class="section-label">Response</div>
+    <div class="response-meta" id="responseMeta"></div>
+    <div class="section-hint">Response Headers</div>
+    <div class="json-view" id="responseHeaders" style="max-height:120px;margin-bottom:0.5rem;"></div>
+    <div class="section-hint">Response Body</div>
+    <div class="json-view" id="responseBody"></div>
+  </div>
+</div>
+
+<!-- Tab: Entity Browser -->
+<div class="tab-panel" id="panel-entities">
+  <div class="flex-between" style="margin-bottom:0.75rem;">
+    <div class="section-label">Entity Browser</div>
+    <button class="btn btn-outline btn-sm" onclick="inspectSchema()">Inspect Schema</button>
+  </div>
+  <div class="section-hint">Discovered entity types from endpoint scan. Click one to fetch sample records.</div>
+  <div class="entity-tree">
+    <div class="entity-list" id="entityList">
+      <div style="padding:1rem;color:var(--text3);font-size:0.8rem;text-align:center;">Run endpoint discovery first</div>
+    </div>
+    <div class="entity-detail" id="entityDetail">
+      <div class="entity-detail-empty">Select an entity type to browse records</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Command Tester -->
+<div class="tab-panel" id="panel-commands">
+  <div class="section-label">PAC Command Tester</div>
+  <div class="section-hint">Test common PAC commands. Results show whether the connected system supports each operation.</div>
+  <div class="cmd-grid" id="commandGrid"></div>
+</div>
+
+<!-- Tab: Response History -->
+<div class="tab-panel" id="panel-history">
+  <div class="flex-between" style="margin-bottom:0.75rem;">
+    <div class="section-label">Request History</div>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-outline btn-sm" onclick="exportHistory()">Export JSON</button>
+      <button class="btn btn-danger btn-sm" onclick="clearHistory()">Clear All</button>
+    </div>
+  </div>
+  <div class="history-filter">
+    <input type="text" id="historyFilter" placeholder="Filter by path..." oninput="renderHistory()" />
+  </div>
+  <div id="historyList"></div>
+  <div id="historyEmpty" style="text-align:center;padding:2rem;color:var(--text3);font-size:0.85rem;">No requests recorded yet</div>
+</div>
+
+<!-- Tab: Field Mapper -->
+<div class="tab-panel" id="panel-mapper">
+  <div class="flex-between" style="margin-bottom:0.75rem;">
+    <div class="section-label">Field Mapper</div>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-green btn-sm" onclick="generateAdapterCode()">Generate Adapter Code</button>
+      <button class="btn btn-outline btn-sm" onclick="autoMapFields()">Auto-Map</button>
+    </div>
+  </div>
+  <div class="section-hint">Map PAC system fields to EdgeRuntime entity fields. Select an entity type first.</div>
+  <div style="margin-bottom:0.75rem;">
+    <select id="mapperEntitySelect" onchange="loadMapperEntity()" style="padding:0.4rem 0.6rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;outline:none;">
+      <option value="">-- Select Entity Type --</option>
+    </select>
+  </div>
+  <div class="table-scroll" id="mapperTableWrap" style="display:none;">
+    <table class="mapper-table">
+      <thead><tr><th>PAC Field</th><th>Type</th><th>Sample</th><th>EdgeRuntime Field</th><th>Transform</th></tr></thead>
+      <tbody id="mapperTableBody"></tbody>
+    </table>
+  </div>
+  <div id="codeOutput" style="display:none;margin-top:1rem;">
+    <div class="flex-between" style="margin-bottom:0.5rem;">
+      <div class="section-label">Generated Adapter Code</div>
+      <button class="btn btn-outline btn-sm" onclick="copyCode()">Copy</button>
+    </div>
+    <div class="code-output" id="generatedCode"></div>
+  </div>
+</div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────
+var state = {
+  connected: false,
+  demoMode: false,
+  baseUrl: '',
+  authHeaders: {},
+  discoveredEndpoints: [],
+  entities: {},       // entityType -> { fields, records }
+  history: [],
+  fieldMappings: {},  // entityType -> [ { pacField, type, sample, edgeField, transform } ]
+  oauthToken: null,
+};
+
+// ─── EdgeRuntime standard entity fields ────────────────────────
+var EDGE_FIELDS = {
+  cardholder: ['externalId','firstName','lastName','email','phone','department','title','status','accessLevels','credentials','photo','customFields','createdAt','updatedAt'],
+  door: ['externalId','name','location','status','controllerName','readerType','lastEvent','zone','building','floor'],
+  event: ['externalId','timestamp','eventType','personName','doorName','cardNumber','granted','description','source','severity'],
+  camera: ['externalId','name','location','status','streamUrl','snapshotUrl','resolution','vendor','model'],
+  accessLevel: ['externalId','name','description','doors','schedules','priority'],
+  credential: ['externalId','cardNumber','format','status','holderId','activationDate','expirationDate','type'],
+  visitor: ['externalId','firstName','lastName','email','phone','company','host','purpose','checkInTime','checkOutTime','badgeNumber','status','photo'],
+  zone: ['externalId','name','type','building','floor','occupancy','maxOccupancy'],
+  schedule: ['externalId','name','type','timezone','intervals','holidays'],
+  alarm: ['externalId','name','type','priority','status','source','acknowledgedBy','acknowledgedAt'],
+};
+
+// ─── Common PAC API paths to probe ─────────────────────────────
+var PROBE_PATHS = [
+  // v1
+  '/api/v1/persons', '/api/v1/cardholders', '/api/v1/badges', '/api/v1/credentials',
+  '/api/v1/doors', '/api/v1/readers', '/api/v1/controllers', '/api/v1/panels',
+  '/api/v1/access-levels', '/api/v1/access-groups', '/api/v1/access-rights',
+  '/api/v1/events', '/api/v1/alarms', '/api/v1/alerts',
+  '/api/v1/schedules', '/api/v1/holidays', '/api/v1/timezones',
+  '/api/v1/cameras', '/api/v1/zones', '/api/v1/areas', '/api/v1/floors',
+  '/api/v1/elevators', '/api/v1/inputs', '/api/v1/outputs',
+  '/api/v1/visitors', '/api/v1/partitions',
+  '/api/v1/sites', '/api/v1/buildings', '/api/v1/organizations',
+  '/api/v1/operators', '/api/v1/roles', '/api/v1/permissions',
+  '/api/v1/reports', '/api/v1/audit-trail',
+  // v2
+  '/api/v2/persons', '/api/v2/cardholders', '/api/v2/doors', '/api/v2/events',
+  '/api/v2/access-levels', '/api/v2/cameras', '/api/v2/credentials',
+  '/api/v2/visitors', '/api/v2/alarms', '/api/v2/zones',
+  // No version prefix
+  '/api/persons', '/api/cardholders', '/api/doors', '/api/events',
+  '/api/access-levels', '/api/cameras', '/api/credentials', '/api/visitors',
+  // OData
+  '/odata/Persons', '/odata/Cardholders', '/odata/Doors', '/odata/Events',
+  '/odata/AccessLevels', '/odata/Cameras', '/odata/Credentials',
+  '/odata/Badges', '/odata/Readers', '/odata/Panels',
+  // GraphQL
+  '/graphql',
+  // Lenel OnGuard
+  '/api/access/onguard/openaccess/instances', '/api/access/onguard/openaccess/types',
+  // Genetec Security Center
+  '/api/entity', '/api/report',
+  // Brivo
+  '/api/v1/api/sites', '/api/v1/api/users',
+  // S2 NetBox
+  '/goforms/nbapi',
+];
+
+// ─── Demo data ─────────────────────────────────────────────────
+var DEMO_ENDPOINTS = [
+  { method: 'GET', path: '/api/v1/persons', status: 200, sample: '{"data":[{"ID":1,"FIRSTNAME":"John","LASTNAME":"Smith","BADGEID":"100432","STATUS":"Active","DEPARTMENT":"Engineering","EMAIL":"jsmith@acme.com","PHONE":"555-0101","HIRE_DATE":"2024-01-15"}],"total":847}' },
+  { method: 'GET', path: '/api/v1/doors', status: 200, sample: '{"data":[{"DOOR_ID":1,"NAME":"Main Lobby","CONTROLLER":"Panel-01","READER":"Reader-01A","STATUS":"Secured","ZONE":"Building A","FLOOR":1,"LAST_EVENT":"2026-03-16T08:22:11Z"}],"total":128}' },
+  { method: 'GET', path: '/api/v1/access-levels', status: 200, sample: '{"data":[{"AL_ID":1,"NAME":"General Access","DESCRIPTION":"Standard employee access","DOOR_COUNT":45,"SCHEDULE":"24/7","PRIORITY":1}],"total":23}' },
+  { method: 'GET', path: '/api/v1/events', status: 200, sample: '{"data":[{"EVENT_ID":88291,"TIMESTAMP":"2026-03-16T08:22:11Z","EVENT_TYPE":"ACCESS_GRANTED","PERSON_NAME":"John Smith","DOOR_NAME":"Main Lobby","CARD_NO":"100432","GRANTED":true}],"total":152847}' },
+  { method: 'GET', path: '/api/v1/cameras', status: 200, sample: '{"data":[{"CAM_ID":1,"NAME":"Lobby PTZ","LOCATION":"Main Entrance","STATUS":"Online","STREAM_URL":"rtsp://192.168.1.50/ch1","RESOLUTION":"1920x1080","VENDOR":"Axis","MODEL":"P5655-E"}],"total":64}' },
+  { method: 'GET', path: '/api/v1/credentials', status: 200, sample: '{"data":[{"CRED_ID":1,"CARD_NO":"100432","FORMAT":"HID 26-bit","STATUS":"Active","HOLDER_ID":1,"ACTIVATED":"2024-01-15","EXPIRES":"2027-01-15","TYPE":"Proximity"}],"total":912}' },
+  { method: 'GET', path: '/api/v1/visitors', status: 200, sample: '{"data":[{"VIS_ID":1,"FIRST":"Jane","LAST":"Doe","COMPANY":"ACME Corp","HOST":"John Smith","PURPOSE":"Meeting","CHECK_IN":"2026-03-16T09:00:00Z","BADGE":"V-001","STATUS":"Checked In"}],"total":34}' },
+  { method: 'GET', path: '/api/v1/schedules', status: 200, sample: '{"data":[{"SCHED_ID":1,"NAME":"Business Hours","TYPE":"Weekly","TIMEZONE":"America/New_York","INTERVALS":[{"day":"MON","start":"08:00","end":"18:00"}]}],"total":8}' },
+  { method: 'GET', path: '/api/v1/alarms', status: 200, sample: '{"data":[{"ALARM_ID":1,"NAME":"Door Forced Open","TYPE":"DoorForced","PRIORITY":"High","STATUS":"Active","SOURCE":"Main Lobby","ACK_BY":null}],"total":3}' },
+  { method: 'GET', path: '/api/v1/zones', status: 200, sample: '{"data":[{"ZONE_ID":1,"NAME":"Building A","TYPE":"Building","FLOOR_COUNT":5,"OCCUPANCY":142,"MAX_OCCUPANCY":500}],"total":12}' },
+  { method: 'GET', path: '/api/v1/badges', status: 401, sample: '{"error":"Unauthorized","message":"Valid API key required for badge management"}' },
+  { method: 'GET', path: '/api/v1/controllers', status: 200, sample: '{"data":[{"CTRL_ID":1,"NAME":"Panel-01","MODEL":"Mercury EP4502","IP":"192.168.1.100","STATUS":"Online","FIRMWARE":"2.1.4","DOOR_COUNT":8}],"total":16}' },
+  { method: 'GET', path: '/api/v1/readers', status: 200, sample: '{"data":[{"READER_ID":1,"NAME":"Reader-01A","DOOR":"Main Lobby","TYPE":"iCLASS SE","STATUS":"Online","CONTROLLER":"Panel-01"}],"total":256}' },
+  { method: 'GET', path: '/api/v1/access-groups', status: 404, sample: '{"error":"Not Found"}' },
+  { method: 'GET', path: '/api/v1/elevators', status: 404, sample: '{"error":"Not Found"}' },
+  { method: 'GET', path: '/api/v2/persons', status: 200, sample: '{"items":[{"id":"P001","firstName":"John","lastName":"Smith","badgeId":"100432"}],"page":1,"pageSize":25,"total":847}' },
+  { method: 'GET', path: '/api/v2/doors', status: 200, sample: '{"items":[{"id":"D001","name":"Main Lobby","status":"secured"}],"page":1,"pageSize":25,"total":128}' },
+  { method: 'GET', path: '/graphql', status: 200, sample: '{"data":{"__schema":{"queryType":{"name":"Query"},"types":[{"name":"Person"},{"name":"Door"},{"name":"Event"},{"name":"Camera"}]}}}' },
+];
+
+var DEMO_FIELD_MAPPINGS = {
+  persons: [
+    { pacField: 'ID', type: 'number', sample: '1', edgeField: 'externalId', transform: 'toString' },
+    { pacField: 'FIRSTNAME', type: 'string', sample: 'John', edgeField: 'firstName', transform: '' },
+    { pacField: 'LASTNAME', type: 'string', sample: 'Smith', edgeField: 'lastName', transform: '' },
+    { pacField: 'BADGEID', type: 'string', sample: '100432', edgeField: 'externalId', transform: '' },
+    { pacField: 'STATUS', type: 'string', sample: 'Active', edgeField: 'status', transform: 'toLowerCase' },
+    { pacField: 'DEPARTMENT', type: 'string', sample: 'Engineering', edgeField: 'department', transform: '' },
+    { pacField: 'EMAIL', type: 'string', sample: 'jsmith@acme.com', edgeField: 'email', transform: '' },
+    { pacField: 'PHONE', type: 'string', sample: '555-0101', edgeField: 'phone', transform: '' },
+    { pacField: 'HIRE_DATE', type: 'string', sample: '2024-01-15', edgeField: 'createdAt', transform: 'new Date()' },
+  ],
+  doors: [
+    { pacField: 'DOOR_ID', type: 'number', sample: '1', edgeField: 'externalId', transform: 'toString' },
+    { pacField: 'NAME', type: 'string', sample: 'Main Lobby', edgeField: 'name', transform: '' },
+    { pacField: 'CONTROLLER', type: 'string', sample: 'Panel-01', edgeField: 'controllerName', transform: '' },
+    { pacField: 'READER', type: 'string', sample: 'Reader-01A', edgeField: 'readerType', transform: '' },
+    { pacField: 'STATUS', type: 'string', sample: 'Secured', edgeField: 'status', transform: 'toLowerCase' },
+    { pacField: 'ZONE', type: 'string', sample: 'Building A', edgeField: 'zone', transform: '' },
+    { pacField: 'FLOOR', type: 'number', sample: '1', edgeField: 'floor', transform: 'toString' },
+    { pacField: 'LAST_EVENT', type: 'string', sample: '2026-03-16T08:22:11Z', edgeField: 'lastEvent', transform: 'new Date()' },
+  ],
+  events: [
+    { pacField: 'EVENT_ID', type: 'number', sample: '88291', edgeField: 'externalId', transform: 'toString' },
+    { pacField: 'TIMESTAMP', type: 'string', sample: '2026-03-16T08:22:11Z', edgeField: 'timestamp', transform: 'new Date()' },
+    { pacField: 'EVENT_TYPE', type: 'string', sample: 'ACCESS_GRANTED', edgeField: 'eventType', transform: 'camelCase' },
+    { pacField: 'PERSON_NAME', type: 'string', sample: 'John Smith', edgeField: 'personName', transform: '' },
+    { pacField: 'DOOR_NAME', type: 'string', sample: 'Main Lobby', edgeField: 'doorName', transform: '' },
+    { pacField: 'CARD_NO', type: 'string', sample: '100432', edgeField: 'cardNumber', transform: '' },
+    { pacField: 'GRANTED', type: 'boolean', sample: 'true', edgeField: 'granted', transform: '' },
+  ],
+  cameras: [
+    { pacField: 'CAM_ID', type: 'number', sample: '1', edgeField: 'externalId', transform: 'toString' },
+    { pacField: 'NAME', type: 'string', sample: 'Lobby PTZ', edgeField: 'name', transform: '' },
+    { pacField: 'LOCATION', type: 'string', sample: 'Main Entrance', edgeField: 'location', transform: '' },
+    { pacField: 'STATUS', type: 'string', sample: 'Online', edgeField: 'status', transform: 'toLowerCase' },
+    { pacField: 'STREAM_URL', type: 'string', sample: 'rtsp://192.168.1.50/ch1', edgeField: 'streamUrl', transform: '' },
+    { pacField: 'RESOLUTION', type: 'string', sample: '1920x1080', edgeField: 'resolution', transform: '' },
+    { pacField: 'VENDOR', type: 'string', sample: 'Axis', edgeField: 'vendor', transform: '' },
+    { pacField: 'MODEL', type: 'string', sample: 'P5655-E', edgeField: 'model', transform: '' },
+  ],
+};
+
+// ─── Utility Functions ─────────────────────────────────────────
+
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function syntaxHighlight(json) {
+  if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+    var cls = 'json-num';
+    if (/^"/.test(match)) {
+      cls = /:$/.test(match) ? 'json-key' : 'json-str';
+    } else if (/true|false/.test(match)) {
+      cls = 'json-bool';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return '<span class="' + cls + '">' + escapeHtml(match) + '</span>';
+  });
+}
+
+function formatTime(ts) {
+  var d = new Date(ts);
+  return d.toLocaleTimeString() + ' ' + d.toLocaleDateString();
+}
+
+function statusClass(code) {
+  if (code >= 200 && code < 300) return 'status-200';
+  if (code === 401 || code === 403) return 'status-401';
+  if (code === 404) return 'status-404';
+  if (code >= 500) return 'status-500';
+  return 'status-unknown';
+}
+
+function statusBadgeClass(code) {
+  if (code >= 200 && code < 300) return 's2xx';
+  if (code >= 400 && code < 500) return 's4xx';
+  return 's5xx';
+}
+
+function inferType(val) {
+  if (val === null || val === undefined) return 'null';
+  if (typeof val === 'boolean') return 'boolean';
+  if (typeof val === 'number') return 'number';
+  if (typeof val === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}/.test(val)) return 'datetime';
+    if (/^https?:\/\//.test(val) || /^rtsp:\/\//.test(val)) return 'url';
+    return 'string';
+  }
+  if (Array.isArray(val)) return 'array';
+  return 'object';
+}
+
+function guessEdgeField(pacField) {
+  var lower = pacField.toLowerCase().replace(/[_\-\s]+/g, '');
+  var map = {
+    'id': 'externalId', 'externalid': 'externalId', 'personid': 'externalId', 'doorid': 'externalId',
+    'camid': 'externalId', 'cameraid': 'externalId', 'eventid': 'externalId', 'badgeid': 'externalId',
+    'credid': 'externalId', 'visid': 'externalId', 'alarmid': 'externalId', 'zoneid': 'externalId',
+    'firstname': 'firstName', 'first': 'firstName', 'fname': 'firstName', 'givenname': 'firstName',
+    'lastname': 'lastName', 'last': 'lastName', 'lname': 'lastName', 'surname': 'lastName', 'familyname': 'lastName',
+    'email': 'email', 'emailaddress': 'email', 'mail': 'email',
+    'phone': 'phone', 'phonenumber': 'phone', 'telephone': 'phone', 'mobile': 'phone',
+    'department': 'department', 'dept': 'department',
+    'title': 'title', 'jobtitle': 'title',
+    'status': 'status', 'state': 'status',
+    'name': 'name', 'doorname': 'name', 'camname': 'name', 'cameraname': 'name',
+    'location': 'location', 'loc': 'location',
+    'controller': 'controllerName', 'controllername': 'controllerName', 'panel': 'controllerName',
+    'reader': 'readerType', 'readertype': 'readerType',
+    'zone': 'zone', 'zonename': 'zone',
+    'building': 'building', 'bldg': 'building',
+    'floor': 'floor', 'floornum': 'floor',
+    'timestamp': 'timestamp', 'eventtime': 'timestamp', 'datetime': 'timestamp', 'time': 'timestamp',
+    'eventtype': 'eventType', 'type': 'eventType',
+    'personname': 'personName', 'cardholdername': 'personName',
+    'doorname': 'doorName',
+    'cardno': 'cardNumber', 'cardnumber': 'cardNumber', 'cardnum': 'cardNumber',
+    'granted': 'granted',
+    'description': 'description', 'desc': 'description',
+    'source': 'source',
+    'severity': 'severity', 'priority': 'priority',
+    'streamurl': 'streamUrl', 'rtspurl': 'streamUrl',
+    'snapshoturl': 'snapshotUrl', 'imageurl': 'snapshotUrl',
+    'resolution': 'resolution', 'res': 'resolution',
+    'vendor': 'vendor', 'manufacturer': 'vendor', 'make': 'vendor',
+    'model': 'model',
+    'company': 'company', 'organization': 'company', 'org': 'company',
+    'host': 'host', 'hostname': 'host',
+    'purpose': 'purpose', 'reason': 'purpose',
+    'checkin': 'checkInTime', 'checkintime': 'checkInTime', 'checkedin': 'checkInTime',
+    'checkout': 'checkOutTime', 'checkouttime': 'checkOutTime',
+    'badge': 'badgeNumber', 'badgenumber': 'badgeNumber', 'badgeno': 'badgeNumber',
+    'photo': 'photo', 'image': 'photo', 'avatar': 'photo',
+    'createdat': 'createdAt', 'created': 'createdAt', 'datecreated': 'createdAt',
+    'updatedat': 'updatedAt', 'updated': 'updatedAt', 'modified': 'updatedAt', 'lastmodified': 'updatedAt',
+    'hiredate': 'createdAt', 'hire_date': 'createdAt',
+    'activated': 'activationDate', 'activationdate': 'activationDate',
+    'expires': 'expirationDate', 'expirationdate': 'expirationDate', 'expiry': 'expirationDate',
+    'format': 'format', 'cardformat': 'format',
+    'holderid': 'holderId', 'personid': 'holderId',
+    'occupancy': 'occupancy', 'currentoccupancy': 'occupancy',
+    'maxoccupancy': 'maxOccupancy', 'capacity': 'maxOccupancy',
+  };
+  return map[lower] || '';
+}
+
+function guessTransform(pacField, type, edgeField) {
+  if (type === 'number' && (edgeField === 'externalId' || edgeField === 'floor')) return 'toString';
+  if (type === 'datetime' || /date|time/i.test(pacField)) return 'new Date()';
+  if (/status|state/i.test(pacField)) return 'toLowerCase';
+  if (/event.?type/i.test(pacField)) return 'camelCase';
+  return '';
+}
+
+function entityTypeFromPath(path) {
+  var parts = path.split('/').filter(Boolean);
+  var last = parts[parts.length - 1];
+  return last.replace(/[^a-zA-Z]/g, '').toLowerCase();
+}
+
+// ─── Auth / Connection ─────────────────────────────────────────
+
+function updateAuthFields() {
+  var t = document.getElementById('authType').value;
+  document.getElementById('authApiKey').classList.toggle('hidden', t !== 'apikey');
+  document.getElementById('authBasic').classList.toggle('hidden', t !== 'basic');
+  document.getElementById('authBearer').classList.toggle('hidden', t !== 'bearer');
+  document.getElementById('authOAuth').classList.toggle('hidden', t !== 'oauth2');
+}
+
+function buildAuthHeaders() {
+  var t = document.getElementById('authType').value;
+  var h = {};
+  if (t === 'apikey') {
+    var key = document.getElementById('inputApiKey').value;
+    var header = document.getElementById('inputApiKeyHeader').value || 'X-API-Key';
+    if (key) h[header] = key;
+  } else if (t === 'basic') {
+    var user = document.getElementById('inputBasicUser').value;
+    var pass = document.getElementById('inputBasicPass').value;
+    if (user) h['Authorization'] = 'Basic ' + btoa(user + ':' + pass);
+  } else if (t === 'bearer') {
+    var token = document.getElementById('inputBearer').value;
+    if (token) h['Authorization'] = 'Bearer ' + token;
+  } else if (t === 'oauth2') {
+    if (state.oauthToken) h['Authorization'] = 'Bearer ' + state.oauthToken;
+  }
+  return h;
+}
+
+async function fetchOAuthToken() {
+  var url = document.getElementById('inputOAuthUrl').value;
+  var clientId = document.getElementById('inputOAuthClientId').value;
+  var secret = document.getElementById('inputOAuthSecret').value;
+  if (!url || !clientId || !secret) { alert('Fill in Token URL, Client ID, and Client Secret'); return; }
+  try {
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials&client_id=' + encodeURIComponent(clientId) + '&client_secret=' + encodeURIComponent(secret),
+    });
+    var data = await resp.json();
+    if (data.access_token) {
+      state.oauthToken = data.access_token;
+      alert('OAuth token acquired. Expires in ' + (data.expires_in || '?') + 's');
+    } else {
+      alert('Failed to get token: ' + JSON.stringify(data));
+    }
+  } catch (e) {
+    alert('OAuth error: ' + e.message);
+  }
+}
+
+async function testConnection() {
+  if (state.demoMode) {
+    setConnectionStatus('green', 'Connected (Demo Mode)', 'Simulated Sicunet PAC server v4.2.1 | 847 cardholders | 128 doors | 64 cameras');
+    state.connected = true;
+    return;
+  }
+  var url = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  if (!url) { alert('Enter an API base URL'); return; }
+  state.baseUrl = url;
+  state.authHeaders = buildAuthHeaders();
+  setConnectionStatus('amber', 'Connecting...');
+  document.getElementById('btnConnect').disabled = true;
+  try {
+    var resp = await fetch(url, {
+      method: 'GET',
+      headers: Object.assign({ 'Accept': 'application/json' }, state.authHeaders),
+    });
+    if (resp.ok || resp.status === 401 || resp.status === 403) {
+      var statusMsg = resp.ok ? 'Connected' : 'Authenticated required (server reachable)';
+      var color = resp.ok ? 'green' : 'amber';
+      var info = 'Status: ' + resp.status + ' | Server: ' + (resp.headers.get('server') || 'unknown');
+      setConnectionStatus(color, statusMsg, info);
+      state.connected = resp.ok;
+    } else {
+      setConnectionStatus('red', 'Connection failed (' + resp.status + ')');
+    }
+  } catch (e) {
+    setConnectionStatus('red', 'Connection error: ' + e.message);
+  }
+  document.getElementById('btnConnect').disabled = false;
+}
+
+function setConnectionStatus(color, text, info) {
+  var dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + color;
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('serverInfo').textContent = info || '';
+}
+
+// ─── Tab switching ─────────────────────────────────────────────
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tab); });
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + tab); });
+}
+
+// ─── Demo mode ─────────────────────────────────────────────────
+
+function toggleDemo() {
+  state.demoMode = !state.demoMode;
+  document.getElementById('demoIndicator').style.display = state.demoMode ? 'inline-flex' : 'none';
+  if (state.demoMode) {
+    setConnectionStatus('green', 'Connected (Demo Mode)', 'Simulated Sicunet PAC server v4.2.1 | 847 cardholders | 128 doors | 64 cameras');
+    state.connected = true;
+    loadDemoData();
+  } else {
+    setConnectionStatus('gray', 'Not connected');
+    state.connected = false;
+    state.discoveredEndpoints = [];
+    state.entities = {};
+    state.fieldMappings = {};
+    renderDiscovery();
+    renderEntityList();
+    renderMapperSelect();
+  }
+}
+
+function loadDemoData() {
+  state.discoveredEndpoints = DEMO_ENDPOINTS.slice();
+  state.fieldMappings = JSON.parse(JSON.stringify(DEMO_FIELD_MAPPINGS));
+  // Build entity data from demo endpoints
+  DEMO_ENDPOINTS.forEach(function(ep) {
+    if (ep.status === 200 && ep.path !== '/graphql') {
+      try {
+        var data = JSON.parse(ep.sample);
+        var records = data.data || data.items || [];
+        if (records.length > 0) {
+          var entityType = entityTypeFromPath(ep.path);
+          state.entities[entityType] = {
+            path: ep.path,
+            fields: Object.keys(records[0]),
+            records: records,
+            total: data.total || records.length,
+          };
+        }
+      } catch (e) {}
+    }
+  });
+  renderDiscovery();
+  renderEntityList();
+  renderMapperSelect();
+  renderCommands();
+}
+
+// ─── Endpoint Discovery ────────────────────────────────────────
+
+async function discoverEndpoints() {
+  if (state.demoMode) { loadDemoData(); return; }
+  var url = state.baseUrl || document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  if (!url) { alert('Enter an API base URL first'); return; }
+  state.baseUrl = url;
+  state.authHeaders = buildAuthHeaders();
+  state.discoveredEndpoints = [];
+
+  var progress = document.getElementById('discoveryProgress');
+  var fill = document.getElementById('progressFill');
+  var text = document.getElementById('progressText');
+  progress.style.display = 'block';
+  document.getElementById('discoveryEmpty').style.display = 'none';
+
+  for (var i = 0; i < PROBE_PATHS.length; i++) {
+    var path = PROBE_PATHS[i];
+    var pct = Math.round(((i + 1) / PROBE_PATHS.length) * 100);
+    fill.style.width = pct + '%';
+    text.textContent = 'Scanning ' + path + ' (' + (i + 1) + '/' + PROBE_PATHS.length + ')';
+
+    try {
+      var resp = await fetch(url + path, {
+        method: 'GET',
+        headers: Object.assign({ 'Accept': 'application/json' }, state.authHeaders),
+        signal: AbortSignal.timeout(5000),
+      });
+      var body = '';
+      try { body = await resp.text(); } catch (e) { body = '(could not read body)'; }
+      state.discoveredEndpoints.push({
+        method: 'GET',
+        path: path,
+        status: resp.status,
+        sample: body.substring(0, 500),
+      });
+      // If 200, try to parse entity data
+      if (resp.status === 200) {
+        try {
+          var data = JSON.parse(body);
+          var records = data.data || data.items || (Array.isArray(data) ? data : []);
+          if (records.length > 0) {
+            var entityType = entityTypeFromPath(path);
+            state.entities[entityType] = {
+              path: path,
+              fields: Object.keys(records[0]),
+              records: records.slice(0, 10),
+              total: data.total || data.count || records.length,
+            };
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      // Timeout or network error — skip
+    }
+    renderDiscovery();
+  }
+
+  fill.style.width = '100%';
+  text.textContent = 'Discovery complete. Found ' + state.discoveredEndpoints.filter(function(e) { return e.status < 400; }).length + ' active endpoints.';
+  renderEntityList();
+  renderMapperSelect();
+  renderCommands();
+}
+
+function clearDiscovery() {
+  state.discoveredEndpoints = [];
+  state.entities = {};
+  renderDiscovery();
+  renderEntityList();
+  renderMapperSelect();
+  document.getElementById('discoveryProgress').style.display = 'none';
+  document.getElementById('discoveryEmpty').style.display = 'block';
+}
+
+function renderDiscovery() {
+  var tbody = document.getElementById('discoveryTable');
+  var empty = document.getElementById('discoveryEmpty');
+  if (state.discoveredEndpoints.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = state.discoveredEndpoints.map(function(ep) {
+    var sc = statusClass(ep.status);
+    var sample = escapeHtml(ep.sample || '').substring(0, 120);
+    return '<tr>' +
+      '<td style="font-weight:600;color:var(--green);">' + ep.method + '</td>' +
+      '<td style="font-family:monospace;font-size:0.78rem;">' + escapeHtml(ep.path) + '</td>' +
+      '<td class="' + sc + '">' + ep.status + '</td>' +
+      '<td style="font-size:0.75rem;color:var(--text2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(ep.sample) + '">' + sample + '</td>' +
+      '<td><button class="btn btn-outline btn-sm" onclick="openInBuilder(\'' + escapeHtml(ep.path) + '\')">Open</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function openInBuilder(path) {
+  var url = state.baseUrl || document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  document.getElementById('reqMethod').value = 'GET';
+  document.getElementById('reqUrl').value = url + path;
+  switchTab('request');
+}
+
+// ─── Request Builder ───────────────────────────────────────────
+
+function addHeader() {
+  var row = document.createElement('div');
+  row.className = 'header-row';
+  row.innerHTML = '<input type="text" placeholder="Header name" /><input type="text" placeholder="Header value" /><button class="remove-header" onclick="this.parentElement.remove()">&times;</button>';
+  document.getElementById('headersEditor').appendChild(row);
+}
+
+async function sendRequest() {
+  var method = document.getElementById('reqMethod').value;
+  var url = document.getElementById('reqUrl').value;
+  if (!url) { alert('Enter a URL'); return; }
+
+  // Build headers
+  var headers = Object.assign({}, buildAuthHeaders());
+  document.querySelectorAll('#headersEditor .header-row').forEach(function(row) {
+    var inputs = row.querySelectorAll('input');
+    var k = inputs[0].value.trim();
+    var v = inputs[1].value.trim();
+    if (k) headers[k] = v;
+  });
+
+  var body = document.getElementById('reqBody').value.trim() || undefined;
+  var opts = { method: method, headers: headers };
+  if (body && method !== 'GET' && method !== 'HEAD') opts.body = body;
+
+  var startTime = Date.now();
+  var entry = { method: method, url: url, headers: headers, body: body, timestamp: Date.now(), status: 0, responseHeaders: {}, responseBody: '', duration: 0 };
+
+  if (state.demoMode) {
+    // Simulate response
+    var path = url.replace(state.baseUrl || '', '');
+    var demoEp = state.discoveredEndpoints.find(function(e) { return e.path === path; });
+    entry.status = demoEp ? demoEp.status : 200;
+    entry.responseBody = demoEp ? demoEp.sample : '{"message":"OK","demo":true}';
+    entry.responseHeaders = { 'content-type': 'application/json', 'x-powered-by': 'PAC-Demo', 'x-request-id': 'demo-' + Date.now() };
+    entry.duration = Math.floor(Math.random() * 150) + 20;
+  } else {
+    try {
+      var resp = await fetch(url, opts);
+      entry.status = resp.status;
+      entry.duration = Date.now() - startTime;
+      var rh = {};
+      resp.headers.forEach(function(v, k) { rh[k] = v; });
+      entry.responseHeaders = rh;
+      entry.responseBody = await resp.text();
+    } catch (e) {
+      entry.status = 0;
+      entry.duration = Date.now() - startTime;
+      entry.responseBody = JSON.stringify({ error: e.message });
+    }
+  }
+
+  state.history.unshift(entry);
+  showResponse(entry);
+  renderHistory();
+}
+
+function showResponse(entry) {
+  var section = document.getElementById('responseSection');
+  section.style.display = 'block';
+  var meta = document.getElementById('responseMeta');
+  var bc = statusBadgeClass(entry.status);
+  meta.innerHTML = '<span class="badge ' + bc + '">' + (entry.status || 'ERR') + '</span>' +
+    '<span style="color:var(--text2);font-size:0.8rem;">' + entry.duration + 'ms</span>' +
+    '<span style="color:var(--text3);font-size:0.75rem;">' + entry.method + ' ' + escapeHtml(entry.url) + '</span>';
+  document.getElementById('responseHeaders').innerHTML = syntaxHighlight(JSON.stringify(entry.responseHeaders, null, 2));
+  try {
+    var parsed = JSON.parse(entry.responseBody);
+    document.getElementById('responseBody').innerHTML = syntaxHighlight(JSON.stringify(parsed, null, 2));
+  } catch (e) {
+    document.getElementById('responseBody').textContent = entry.responseBody;
+  }
+}
+
+function saveRequest() {
+  var method = document.getElementById('reqMethod').value;
+  var url = document.getElementById('reqUrl').value;
+  if (!url) return;
+  var headers = {};
+  document.querySelectorAll('#headersEditor .header-row').forEach(function(row) {
+    var inputs = row.querySelectorAll('input');
+    var k = inputs[0].value.trim(); var v = inputs[1].value.trim();
+    if (k) headers[k] = v;
+  });
+  var body = document.getElementById('reqBody').value.trim();
+  var saved = JSON.parse(localStorage.getItem('pac-explorer-saved') || '[]');
+  saved.push({ method: method, url: url, headers: headers, body: body, savedAt: Date.now() });
+  localStorage.setItem('pac-explorer-saved', JSON.stringify(saved));
+  alert('Request saved to browser storage');
+}
+
+// ─── Entity Browser ────────────────────────────────────────────
+
+function renderEntityList() {
+  var list = document.getElementById('entityList');
+  var types = Object.keys(state.entities);
+  if (types.length === 0) {
+    list.innerHTML = '<div style="padding:1rem;color:var(--text3);font-size:0.8rem;text-align:center;">Run endpoint discovery first</div>';
+    return;
+  }
+  list.innerHTML = types.map(function(t) {
+    var e = state.entities[t];
+    return '<div class="entity-item" data-type="' + t + '" onclick="browseEntity(\'' + t + '\')">' +
+      '<span>' + t + '</span><span class="count">' + (e.total || e.records.length) + '</span></div>';
+  }).join('');
+}
+
+function browseEntity(type) {
+  document.querySelectorAll('.entity-item').forEach(function(el) { el.classList.toggle('active', el.dataset.type === type); });
+  var e = state.entities[type];
+  if (!e || !e.records || e.records.length === 0) {
+    document.getElementById('entityDetail').innerHTML = '<div class="entity-detail-empty">No records found</div>';
+    return;
+  }
+  var fields = e.fields;
+  var html = '<div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--text2);">' +
+    'Showing ' + e.records.length + ' of ' + (e.total || e.records.length) + ' records from <code>' + escapeHtml(e.path) + '</code></div>';
+  html += '<div class="table-scroll"><table><thead><tr>';
+  fields.forEach(function(f) { html += '<th>' + escapeHtml(f) + '</th>'; });
+  html += '</tr></thead><tbody>';
+  e.records.forEach(function(rec) {
+    html += '<tr>';
+    fields.forEach(function(f) {
+      var val = rec[f];
+      var display = val === null || val === undefined ? '<span style="color:var(--text3)">null</span>' :
+        typeof val === 'object' ? '<span style="color:var(--text3)">' + escapeHtml(JSON.stringify(val)) + '</span>' :
+        escapeHtml(String(val));
+      html += '<td style="font-size:0.78rem;">' + display + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div style="margin-top:0.5rem;"><button class="btn btn-outline btn-sm" onclick="inspectEntitySchema(\'' + type + '\')">Inspect Schema</button> ';
+  html += '<button class="btn btn-outline btn-sm" onclick="mapEntityFields(\'' + type + '\')">Map Fields</button></div>';
+  document.getElementById('entityDetail').innerHTML = html;
+}
+
+function inspectSchema() {
+  var active = document.querySelector('.entity-item.active');
+  if (active) inspectEntitySchema(active.dataset.type);
+  else alert('Select an entity type first');
+}
+
+function inspectEntitySchema(type) {
+  var e = state.entities[type];
+  if (!e || !e.records || e.records.length === 0) return;
+  var schema = {};
+  e.fields.forEach(function(f) {
+    var types = {};
+    e.records.forEach(function(rec) {
+      var t = inferType(rec[f]);
+      types[t] = (types[t] || 0) + 1;
+    });
+    var samples = e.records.map(function(r) { return r[f]; }).filter(function(v) { return v != null; }).slice(0, 3);
+    schema[f] = { types: Object.keys(types), samples: samples, nullable: e.records.some(function(r) { return r[f] == null; }) };
+  });
+
+  var html = '<div class="section-label">Schema: ' + type + '</div>';
+  html += '<div class="table-scroll"><table><thead><tr><th>Field</th><th>Type(s)</th><th>Nullable</th><th>Samples</th><th>Suggested EdgeRuntime Field</th></tr></thead><tbody>';
+  Object.keys(schema).forEach(function(f) {
+    var s = schema[f];
+    var edgeField = guessEdgeField(f);
+    html += '<tr><td class="pac-field">' + escapeHtml(f) + '</td>' +
+      '<td>' + s.types.join(', ') + '</td>' +
+      '<td>' + (s.nullable ? 'Yes' : 'No') + '</td>' +
+      '<td style="font-size:0.75rem;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.samples.map(String).join(', ')) + '</td>' +
+      '<td class="edge-field">' + (edgeField || '<span style="color:var(--text3)">-</span>') + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('entityDetail').innerHTML = html;
+}
+
+function mapEntityFields(type) {
+  // Switch to mapper tab with this entity pre-selected
+  document.getElementById('mapperEntitySelect').value = type;
+  loadMapperEntity();
+  switchTab('mapper');
+}
+
+// ─── Command Tester ────────────────────────────────────────────
+
+var COMMANDS = [
+  { id: 'lock', name: 'Lock Door', desc: 'Send lock command to a specific door', method: 'POST', pathTemplate: '/api/v1/doors/{doorId}/lock', inputs: [{ name: 'doorId', label: 'Door ID', placeholder: '1' }], bodyTemplate: null },
+  { id: 'unlock', name: 'Unlock Door', desc: 'Send unlock command to a specific door', method: 'POST', pathTemplate: '/api/v1/doors/{doorId}/unlock', inputs: [{ name: 'doorId', label: 'Door ID', placeholder: '1' }], bodyTemplate: null },
+  { id: 'pulse', name: 'Pulse Door', desc: 'Momentary unlock (pulse) a door', method: 'POST', pathTemplate: '/api/v1/doors/{doorId}/pulse', inputs: [{ name: 'doorId', label: 'Door ID', placeholder: '1' }], bodyTemplate: '{"duration": 5}' },
+  { id: 'door-status', name: 'Get Door Status', desc: 'Retrieve current status of a door', method: 'GET', pathTemplate: '/api/v1/doors/{doorId}/status', inputs: [{ name: 'doorId', label: 'Door ID', placeholder: '1' }], bodyTemplate: null },
+  { id: 'cardholder', name: 'Get Cardholder', desc: 'Retrieve a cardholder by ID', method: 'GET', pathTemplate: '/api/v1/persons/{personId}', inputs: [{ name: 'personId', label: 'Person ID', placeholder: '1' }], bodyTemplate: null },
+  { id: 'access-levels', name: 'Get Access Levels', desc: 'List all access levels', method: 'GET', pathTemplate: '/api/v1/access-levels', inputs: [], bodyTemplate: null },
+  { id: 'events-since', name: 'Get Events Since', desc: 'Fetch events after a timestamp', method: 'GET', pathTemplate: '/api/v1/events?since={since}', inputs: [{ name: 'since', label: 'Since (ISO)', placeholder: '2026-03-16T00:00:00Z' }], bodyTemplate: null },
+  { id: 'lockdown', name: 'Lockdown All', desc: 'Initiate facility-wide lockdown', method: 'POST', pathTemplate: '/api/v1/lockdown', inputs: [], bodyTemplate: '{"scope": "all", "reason": "Test lockdown"}' },
+  { id: 'lockdown-release', name: 'Release Lockdown', desc: 'Release facility-wide lockdown', method: 'POST', pathTemplate: '/api/v1/lockdown/release', inputs: [], bodyTemplate: null },
+  { id: 'alarm-ack', name: 'Acknowledge Alarm', desc: 'Acknowledge an active alarm', method: 'POST', pathTemplate: '/api/v1/alarms/{alarmId}/acknowledge', inputs: [{ name: 'alarmId', label: 'Alarm ID', placeholder: '1' }], bodyTemplate: null },
+];
+
+var DEMO_CMD_RESULTS = {
+  'lock': { status: 200, body: '{"success":true,"doorId":1,"state":"locked"}' },
+  'unlock': { status: 200, body: '{"success":true,"doorId":1,"state":"unlocked"}' },
+  'pulse': { status: 200, body: '{"success":true,"doorId":1,"state":"pulsed","duration":5}' },
+  'door-status': { status: 200, body: '{"doorId":1,"name":"Main Lobby","state":"secured","lastEvent":"2026-03-16T08:22:11Z"}' },
+  'cardholder': { status: 200, body: '{"id":1,"firstName":"John","lastName":"Smith","badgeId":"100432","status":"Active"}' },
+  'access-levels': { status: 200, body: '{"data":[{"id":1,"name":"General Access"},{"id":2,"name":"Executive Floor"},{"id":3,"name":"Server Room"}],"total":23}' },
+  'events-since': { status: 200, body: '{"data":[{"eventId":88291,"timestamp":"2026-03-16T08:22:11Z","type":"ACCESS_GRANTED","person":"John Smith","door":"Main Lobby"}],"total":47}' },
+  'lockdown': { status: 200, body: '{"success":true,"scope":"all","doorsLocked":128,"timestamp":"2026-03-16T10:00:00Z"}' },
+  'lockdown-release': { status: 200, body: '{"success":true,"doorsReleased":128}' },
+  'alarm-ack': { status: 404, body: '{"error":"Endpoint not found"}' },
+};
+
+function renderCommands() {
+  var grid = document.getElementById('commandGrid');
+  grid.innerHTML = COMMANDS.map(function(cmd) {
+    var inputsHtml = cmd.inputs.map(function(inp) {
+      return '<input type="text" id="cmd-' + cmd.id + '-' + inp.name + '" placeholder="' + inp.placeholder + '" />';
+    }).join('');
+    return '<div class="cmd-card">' +
+      '<h4>' + cmd.name + '</h4>' +
+      '<div class="cmd-desc">' + cmd.desc + '</div>' +
+      '<div class="cmd-desc" style="font-family:monospace;">' + cmd.method + ' ' + escapeHtml(cmd.pathTemplate) + '</div>' +
+      (inputsHtml ? '<div class="cmd-inputs">' + inputsHtml + '</div>' : '') +
+      '<button class="btn btn-accent btn-sm" onclick="testCommand(\'' + cmd.id + '\')">Try It</button>' +
+      '<div class="cmd-result" id="cmd-result-' + cmd.id + '"></div>' +
+      '</div>';
+  }).join('');
+}
+
+async function testCommand(cmdId) {
+  var cmd = COMMANDS.find(function(c) { return c.id === cmdId; });
+  if (!cmd) return;
+  var result = document.getElementById('cmd-result-' + cmdId);
+  result.innerHTML = '<span style="color:var(--text3);font-size:0.75rem;">Sending...</span>';
+
+  var path = cmd.pathTemplate;
+  cmd.inputs.forEach(function(inp) {
+    var val = document.getElementById('cmd-' + cmdId + '-' + inp.name).value || inp.placeholder;
+    path = path.replace('{' + inp.name + '}', encodeURIComponent(val));
+  });
+
+  var entry;
+  if (state.demoMode) {
+    var demo = DEMO_CMD_RESULTS[cmdId] || { status: 404, body: '{"error":"Not Found"}' };
+    entry = { method: cmd.method, url: path, status: demo.status, responseBody: demo.body, duration: Math.floor(Math.random() * 100) + 15, timestamp: Date.now(), headers: {}, responseHeaders: {}, body: cmd.bodyTemplate };
+  } else {
+    var url = (state.baseUrl || document.getElementById('apiUrl').value.replace(/\/+$/, '')) + path;
+    var opts = { method: cmd.method, headers: Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json' }, buildAuthHeaders()) };
+    if (cmd.bodyTemplate && cmd.method !== 'GET') opts.body = cmd.bodyTemplate;
+    var start = Date.now();
+    try {
+      var resp = await fetch(url, opts);
+      entry = { method: cmd.method, url: url, status: resp.status, responseBody: await resp.text(), duration: Date.now() - start, timestamp: Date.now(), headers: opts.headers, responseHeaders: {}, body: cmd.bodyTemplate };
+    } catch (e) {
+      entry = { method: cmd.method, url: url, status: 0, responseBody: e.message, duration: Date.now() - start, timestamp: Date.now(), headers: {}, responseHeaders: {}, body: cmd.bodyTemplate };
+    }
+  }
+
+  state.history.unshift(entry);
+  renderHistory();
+
+  var supported = entry.status >= 200 && entry.status < 300;
+  var notFound = entry.status === 404;
+  var badge = supported ? '<span class="badge supported">Supported (' + entry.status + ')</span>' :
+              notFound ? '<span class="badge unsupported">Not Found (404)</span>' :
+              '<span class="badge unknown">' + entry.status + '</span>';
+  var bodyPreview = '';
+  try { bodyPreview = JSON.stringify(JSON.parse(entry.responseBody), null, 2); } catch (e) { bodyPreview = entry.responseBody; }
+  result.innerHTML = badge + ' <span style="font-size:0.7rem;color:var(--text3);">' + entry.duration + 'ms</span>' +
+    '<div class="json-view" style="margin-top:0.5rem;max-height:150px;font-size:0.72rem;">' + syntaxHighlight(bodyPreview) + '</div>';
+}
+
+// ─── Response History ──────────────────────────────────────────
+
+function renderHistory() {
+  var filter = (document.getElementById('historyFilter').value || '').toLowerCase();
+  var items = state.history.filter(function(h) { return !filter || h.url.toLowerCase().includes(filter); });
+  var empty = document.getElementById('historyEmpty');
+  var list = document.getElementById('historyList');
+  if (items.length === 0) {
+    empty.style.display = 'block';
+    list.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = items.map(function(h, i) {
+    var sc = statusClass(h.status);
+    var path = h.url;
+    try { path = new URL(h.url).pathname; } catch (e) {}
+    return '<div class="history-item" onclick="replayHistory(' + state.history.indexOf(h) + ')">' +
+      '<span class="method ' + h.method + '">' + h.method + '</span>' +
+      '<span class="path">' + escapeHtml(path) + '</span>' +
+      '<span class="status ' + sc + '">' + (h.status || 'ERR') + '</span>' +
+      '<span class="time">' + h.duration + 'ms</span>' +
+      '</div>';
+  }).join('');
+}
+
+function replayHistory(idx) {
+  var h = state.history[idx];
+  if (!h) return;
+  document.getElementById('reqMethod').value = h.method;
+  document.getElementById('reqUrl').value = h.url;
+  document.getElementById('reqBody').value = h.body || '';
+  showResponse(h);
+  switchTab('request');
+}
+
+function exportHistory() {
+  if (state.history.length === 0) { alert('No history to export'); return; }
+  var blob = new Blob([JSON.stringify(state.history, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pac-explorer-history-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function clearHistory() {
+  if (!confirm('Clear all request history?')) return;
+  state.history = [];
+  renderHistory();
+}
+
+// ─── Field Mapper ──────────────────────────────────────────────
+
+function renderMapperSelect() {
+  var select = document.getElementById('mapperEntitySelect');
+  var val = select.value;
+  var types = Object.keys(state.entities);
+  // Also include demo field mapping keys
+  Object.keys(state.fieldMappings).forEach(function(k) { if (types.indexOf(k) < 0) types.push(k); });
+  select.innerHTML = '<option value="">-- Select Entity Type --</option>' +
+    types.map(function(t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
+  if (val && types.indexOf(val) >= 0) select.value = val;
+}
+
+function loadMapperEntity() {
+  var type = document.getElementById('mapperEntitySelect').value;
+  if (!type) {
+    document.getElementById('mapperTableWrap').style.display = 'none';
+    return;
+  }
+  document.getElementById('mapperTableWrap').style.display = 'block';
+  document.getElementById('codeOutput').style.display = 'none';
+
+  // Build mappings if not already present
+  if (!state.fieldMappings[type]) {
+    var e = state.entities[type];
+    if (e && e.fields) {
+      state.fieldMappings[type] = e.fields.map(function(f) {
+        var sample = '';
+        if (e.records && e.records[0]) sample = String(e.records[0][f] || '');
+        var t = e.records && e.records[0] ? inferType(e.records[0][f]) : 'string';
+        var edgeField = guessEdgeField(f);
+        return { pacField: f, type: t, sample: sample, edgeField: edgeField, transform: guessTransform(f, t, edgeField) };
+      });
+    } else {
+      state.fieldMappings[type] = [];
+    }
+  }
+
+  renderMapperTable(type);
+}
+
+function renderMapperTable(type) {
+  var mappings = state.fieldMappings[type] || [];
+  // Determine which EdgeRuntime fields to suggest
+  var edgeType = guessEdgeEntityType(type);
+  var edgeFields = EDGE_FIELDS[edgeType] || EDGE_FIELDS.cardholder;
+
+  var tbody = document.getElementById('mapperTableBody');
+  tbody.innerHTML = mappings.map(function(m, i) {
+    var options = '<option value="">-- unmapped --</option>' +
+      edgeFields.map(function(ef) { return '<option value="' + ef + '"' + (m.edgeField === ef ? ' selected' : '') + '>' + ef + '</option>'; }).join('') +
+      '<option value="__custom__"' + (m.edgeField && edgeFields.indexOf(m.edgeField) < 0 ? ' selected' : '') + '>custom...</option>';
+    return '<tr>' +
+      '<td class="pac-field">' + escapeHtml(m.pacField) + '</td>' +
+      '<td style="font-size:0.75rem;color:var(--text2);">' + m.type + '</td>' +
+      '<td style="font-size:0.75rem;color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(m.sample) + '">' + escapeHtml(m.sample).substring(0, 30) + '</td>' +
+      '<td><select onchange="updateMapping(\'' + type + '\',' + i + ',this.value)">' + options + '</select></td>' +
+      '<td><input type="text" value="' + escapeHtml(m.transform || '') + '" onchange="updateTransform(\'' + type + '\',' + i + ',this.value)" placeholder="none" /></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function guessEdgeEntityType(type) {
+  var t = type.toLowerCase();
+  if (/person|cardholder|user|employee|staff/.test(t)) return 'cardholder';
+  if (/door|reader/.test(t)) return 'door';
+  if (/event|activity|log/.test(t)) return 'event';
+  if (/cam/.test(t)) return 'camera';
+  if (/access.?level|access.?right/.test(t)) return 'accessLevel';
+  if (/cred|badge/.test(t)) return 'credential';
+  if (/visitor|guest/.test(t)) return 'visitor';
+  if (/zone|area|region/.test(t)) return 'zone';
+  if (/sched|timezone/.test(t)) return 'schedule';
+  if (/alarm|alert/.test(t)) return 'alarm';
+  return 'cardholder';
+}
+
+function updateMapping(type, idx, val) {
+  if (state.fieldMappings[type] && state.fieldMappings[type][idx]) {
+    if (val === '__custom__') {
+      var custom = prompt('Enter custom EdgeRuntime field name:');
+      if (custom) state.fieldMappings[type][idx].edgeField = custom;
+    } else {
+      state.fieldMappings[type][idx].edgeField = val;
+    }
+    renderMapperTable(type);
+  }
+}
+
+function updateTransform(type, idx, val) {
+  if (state.fieldMappings[type] && state.fieldMappings[type][idx]) {
+    state.fieldMappings[type][idx].transform = val;
+  }
+}
+
+function autoMapFields() {
+  var type = document.getElementById('mapperEntitySelect').value;
+  if (!type || !state.fieldMappings[type]) { alert('Select an entity type first'); return; }
+  state.fieldMappings[type].forEach(function(m) {
+    m.edgeField = guessEdgeField(m.pacField);
+    m.transform = guessTransform(m.pacField, m.type, m.edgeField);
+  });
+  renderMapperTable(type);
+}
+
+function generateAdapterCode() {
+  var type = document.getElementById('mapperEntitySelect').value;
+  if (!type || !state.fieldMappings[type]) { alert('Select an entity type and set up field mappings first'); return; }
+  var mappings = state.fieldMappings[type].filter(function(m) { return m.edgeField; });
+  var edgeType = guessEdgeEntityType(type);
+  var className = type.charAt(0).toUpperCase() + type.slice(1);
+  var entityPath = state.entities[type] ? state.entities[type].path : '/api/v1/' + type;
+
+  var interfaceName = 'Imported' + (edgeType.charAt(0).toUpperCase() + edgeType.slice(1));
+  var importName = edgeType;
+
+  var code = '/**\n * Auto-generated PAC Adapter for ' + className + '\n * Generated by PAC API Explorer on ' + new Date().toISOString().slice(0, 10) + '\n */\n\n';
+  code += "import { BaseAdapter } from '@edgeruntime/connector-framework';\n\n";
+  code += '// PAC field -> EdgeRuntime field mapping\n';
+  code += 'const FIELD_MAP = {\n';
+  mappings.forEach(function(m) {
+    code += "  '" + m.pacField + "': '" + m.edgeField + "',";
+    if (m.transform) code += '  // transform: ' + m.transform;
+    code += '\n';
+  });
+  code += '} as const;\n\n';
+
+  code += 'interface PacRaw' + className + ' {\n';
+  mappings.forEach(function(m) {
+    var tsType = m.type === 'number' ? 'number' : m.type === 'boolean' ? 'boolean' : 'string';
+    code += '  ' + m.pacField + ': ' + tsType + ';\n';
+  });
+  code += '}\n\n';
+
+  code += 'export class ' + className + 'Adapter extends BaseAdapter {\n';
+  code += '  private baseUrl: string;\n';
+  code += '  private headers: Record<string, string>;\n\n';
+  code += '  constructor(config: { baseUrl: string; apiKey?: string; token?: string }) {\n';
+  code += '    super();\n';
+  code += '    this.baseUrl = config.baseUrl.replace(/\\/+$/, \'\');\n';
+  code += '    this.headers = {\n';
+  code += "      'Accept': 'application/json',\n";
+  code += "      'Content-Type': 'application/json',\n";
+  code += '    };\n';
+  code += "    if (config.apiKey) this.headers['X-API-Key'] = config.apiKey;\n";
+  code += "    if (config.token) this.headers['Authorization'] = `Bearer ${config.token}`;\n";
+  code += '  }\n\n';
+
+  code += '  async connect(): Promise<boolean> {\n';
+  code += '    try {\n';
+  code += '      const resp = await fetch(this.baseUrl, { headers: this.headers });\n';
+  code += '      return resp.ok;\n';
+  code += '    } catch {\n';
+  code += '      return false;\n';
+  code += '    }\n';
+  code += '  }\n\n';
+
+  code += '  async import' + className + '(): Promise<' + interfaceName + '[]> {\n';
+  code += "    const resp = await fetch(`${this.baseUrl}" + entityPath + "`, { headers: this.headers });\n";
+  code += '    const json = await resp.json();\n';
+  code += '    const records: PacRaw' + className + '[] = json.data || json.items || json || [];\n';
+  code += '    return records.map(rec => this.mapRecord(rec));\n';
+  code += '  }\n\n';
+
+  code += '  private mapRecord(raw: PacRaw' + className + '): ' + interfaceName + ' {\n';
+  code += '    return {\n';
+  mappings.forEach(function(m) {
+    var accessor = 'raw.' + m.pacField;
+    if (m.transform === 'toString') accessor = 'String(' + accessor + ')';
+    else if (m.transform === 'toLowerCase') accessor = accessor + '.toLowerCase()';
+    else if (m.transform === 'new Date()') accessor = 'new Date(' + accessor + ').toISOString()';
+    else if (m.transform === 'camelCase') accessor = accessor + ".replace(/_([a-z])/g, (_, c) => c.toUpperCase()).toLowerCase()";
+    code += '      ' + m.edgeField + ': ' + accessor + ',\n';
+  });
+  code += '    };\n';
+  code += '  }\n\n';
+
+  code += '  async create' + className + '(data: Partial<' + interfaceName + '>): Promise<' + interfaceName + '> {\n';
+  code += "    const resp = await fetch(`${this.baseUrl}" + entityPath + "`, {\n";
+  code += "      method: 'POST',\n";
+  code += '      headers: this.headers,\n';
+  code += '      body: JSON.stringify(this.reverseMap(data)),\n';
+  code += '    });\n';
+  code += '    return this.mapRecord(await resp.json());\n';
+  code += '  }\n\n';
+
+  code += '  private reverseMap(data: Partial<' + interfaceName + '>): Partial<PacRaw' + className + '> {\n';
+  code += '    const result: any = {};\n';
+  code += '    const reverse: Record<string, string> = {};\n';
+  code += '    for (const [pac, edge] of Object.entries(FIELD_MAP)) reverse[edge] = pac;\n';
+  code += '    for (const [key, val] of Object.entries(data)) {\n';
+  code += '      if (reverse[key]) result[reverse[key]] = val;\n';
+  code += '    }\n';
+  code += '    return result;\n';
+  code += '  }\n';
+  code += '}\n';
+
+  document.getElementById('codeOutput').style.display = 'block';
+  document.getElementById('generatedCode').textContent = code;
+}
+
+function copyCode() {
+  var code = document.getElementById('generatedCode').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    alert('Code copied to clipboard');
+  });
+}
+
+// ─── Init ──────────────────────────────────────────────────────
+
+(function init() {
+  updateAuthFields();
+  renderCommands();
+  renderHistory();
+
+  // Pick up accent color from parent iframe
+  try {
+    var parentAccent = new URLSearchParams(window.location.search).get('accent');
+    if (parentAccent) {
+      document.documentElement.style.setProperty('--accent', parentAccent);
+      document.documentElement.style.setProperty('--accent-hover', parentAccent);
+      document.documentElement.style.setProperty('--accent-dim', parentAccent + '22');
+    }
+  } catch (e) {}
+
+  // Auto-fill URL from query param
+  try {
+    var urlParam = new URLSearchParams(window.location.search).get('url');
+    if (urlParam) document.getElementById('apiUrl').value = urlParam;
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

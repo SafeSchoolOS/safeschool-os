@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Badge Template Designer</title>
+<style>
+/*
+ * Badge Designer Adapter UI
+ *
+ * Standalone designer component that implements the BadgeDesignAdapter interface.
+ * Embeddable via iframe or direct load. Communicates with host via postMessage.
+ *
+ * BadgeTemplate: { id, name, width, height, orientation, background, elements[] }
+ * BadgeElement:  { id, type, x, y, width, height, rotation, properties }
+ * Element types: text, image, barcode, qrcode, photo, shape, logo
+ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f23; --bg2: #1a1a2e; --bg3: #252540; --border: #2a2a45;
+  --text: #e4e6f0; --text2: #8b8da3; --text3: #5a5c72;
+  --accent: #0891b2; --accent-hover: #06b6d4; --accent-dim: rgba(8,145,178,0.15);
+  --red: #ef4444; --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6; --purple: #8b5cf6;
+}
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; overflow: hidden; height: 100vh; }
+.designer { display: grid; grid-template-columns: 220px 1fr 280px; height: 100vh; }
+
+/* Left panel */
+.panel-left { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+.panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); padding: 12px 12px 6px; }
+.tpl-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-left: 3px solid transparent; transition: all 0.15s; }
+.tpl-item:hover { background: var(--bg3); }
+.tpl-item.active { background: var(--accent-dim); border-left-color: var(--accent); color: var(--accent-hover); }
+.tpl-item .tpl-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.toolbox { padding: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.tool-btn { padding: 6px 4px; text-align: center; font-size: 11px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); cursor: pointer; transition: all 0.15s; }
+.tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+.el-list { flex: 1; overflow-y: auto; }
+.el-item { padding: 6px 12px; cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; align-items: center; border-left: 2px solid transparent; }
+.el-item:hover { background: var(--bg3); }
+.el-item.selected { background: var(--accent-dim); border-left-color: var(--accent); }
+.el-item .el-type { font-size: 10px; text-transform: uppercase; color: var(--text3); margin-right: 6px; }
+.el-item .el-pos { font-size: 10px; color: var(--text3); }
+.el-item .el-del { font-size: 10px; color: var(--red); cursor: pointer; opacity: 0; padding: 2px 4px; }
+.el-item:hover .el-del { opacity: 1; }
+
+/* Center: Canvas */
+.panel-center { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0a0a18; position: relative; }
+.canvas-wrap { position: relative; }
+.badge-canvas { position: relative; overflow: hidden; cursor: default; }
+.badge-el { position: absolute; cursor: move; }
+.badge-el:hover { outline: 1px dashed rgba(255,255,255,0.3); outline-offset: 1px; }
+.badge-el.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.badge-el.selected::after { content: ''; position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; pointer-events: none; }
+.canvas-info { margin-top: 12px; font-size: 11px; color: var(--text3); display: flex; gap: 16px; }
+
+/* Right: Properties */
+.panel-right { background: var(--bg2); border-left: 1px solid var(--border); overflow-y: auto; }
+.prop-group { padding: 12px; border-bottom: 1px solid var(--border); }
+.prop-label { font-size: 11px; color: var(--text3); margin-bottom: 3px; display: block; }
+.prop-input { width: 100%; padding: 5px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 12px; outline: none; }
+.prop-input:focus { border-color: var(--accent); }
+.prop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+select.prop-input { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%235a5c72'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; }
+.merge-tag { display: inline-block; padding: 2px 6px; background: var(--bg); border-radius: 3px; font-size: 10px; font-family: monospace; color: var(--accent); cursor: pointer; margin: 2px; }
+.merge-tag:hover { background: var(--accent-dim); }
+.btn { padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 600; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn-danger:hover { background: rgba(239,68,68,0.1); }
+.btn-save { background: var(--blue); color: #fff; }
+.btn-save:hover { background: #2563eb; }
+
+/* Toast notification */
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: 600; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+.toast.show { opacity: 1; }
+.toast.success { background: #166534; color: #bbf7d0; }
+.toast.error { background: #7f1d1d; color: #fecaca; }
+.toast.info { background: #1e3a5f; color: #bae6fd; }
+</style>
+</head>
+<body>
+<div class="designer" id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+(function() {
+  'use strict';
+
+  // ---- Default sample data for merge field previews ----
+  var SAMPLE_DATA = {
+    firstName: 'Jane', lastName: 'Smith', name: 'Jane Smith', photo: '',
+    title: 'Registered Nurse', department: 'ICU / Critical Care',
+    company: 'Rhode Island Hospital', badgeNumber: '28491',
+    accessLevel: 'Level 3', hostName: 'Dr. Wilson',
+    validFrom: '03/14/2026', validUntil: '03/14/2027',
+    grade: '10th Grade', studentNumber: 'STU-20261847',
+    reason: 'Badge Replacement'
+  };
+
+  var MERGE_FIELDS = ['firstName','lastName','name','photo','title','department','company','badgeNumber','accessLevel','validFrom','validUntil','hostName','grade','studentNumber','reason'];
+
+  // ---- 5 preset templates ----
+  var templates = [
+    { id:'corporate-id', name:'Corporate ID', width:85.6, height:53.98, orientation:'landscape',
+      background:'linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%)', elements:[
+      { id:'ci1', type:'shape', x:0, y:0, width:85.6, height:16, properties:{shape:'rect', fill:'rgba(0,0,0,0.3)'} },
+      { id:'ci2', type:'logo', x:4, y:3, width:10, height:10, properties:{fit:'contain'} },
+      { id:'ci3', type:'text', x:16, y:3, width:50, height:6, properties:{content:'Rhode Island Hospital', fontSize:9, fontWeight:'bold', color:'#ffffff', fontFamily:'sans-serif'} },
+      { id:'ci4', type:'text', x:16, y:10, width:50, height:4, properties:{content:'{{department}}', fontSize:6, color:'#7db8e0', dataField:'department'} },
+      { id:'ci5', type:'photo', x:4, y:20, width:20, height:25, properties:{fit:'cover', dataField:'photo'} },
+      { id:'ci6', type:'text', x:28, y:20, width:54, height:7, properties:{content:'{{firstName}} {{lastName}}', fontSize:13, fontWeight:'bold', color:'#ffffff', dataField:'name'} },
+      { id:'ci7', type:'text', x:28, y:28, width:54, height:5, properties:{content:'{{title}}', fontSize:7, color:'#60a5fa', dataField:'title'} },
+      { id:'ci8', type:'text', x:28, y:34, width:54, height:4, properties:{content:'Access: {{accessLevel}}', fontSize:6, color:'#34d399', dataField:'accessLevel'} },
+      { id:'ci9', type:'barcode', x:28, y:40, width:40, height:10, properties:{dataField:'badgeNumber', format:'CODE128'} },
+      { id:'ci10', type:'text', x:4, y:48, width:30, height:4, properties:{content:'ID: {{badgeNumber}}', fontSize:5, color:'#64748b'} },
+    ]},
+    { id:'visitor', name:'Visitor Pass', width:53.98, height:85.6, orientation:'portrait',
+      background:'#ffffff', elements:[
+      { id:'vp1', type:'shape', x:0, y:0, width:53.98, height:20, properties:{shape:'rect', fill:'#0891b2'} },
+      { id:'vp2', type:'text', x:0, y:3, width:53.98, height:12, properties:{content:'VISITOR', fontSize:18, fontWeight:'bold', color:'#ffffff', align:'center', fontFamily:'sans-serif'} },
+      { id:'vp3', type:'photo', x:14, y:24, width:26, height:28, properties:{fit:'cover', dataField:'photo'} },
+      { id:'vp4', type:'text', x:3, y:55, width:48, height:7, properties:{content:'{{firstName}} {{lastName}}', fontSize:11, fontWeight:'bold', color:'#111827', align:'center', dataField:'name'} },
+      { id:'vp5', type:'text', x:3, y:62, width:48, height:5, properties:{content:'{{company}}', fontSize:7, color:'#6b7280', align:'center', dataField:'company'} },
+      { id:'vp6', type:'text', x:3, y:67, width:48, height:4, properties:{content:'Host: {{hostName}}', fontSize:6, color:'#9ca3af', align:'center'} },
+      { id:'vp7', type:'qrcode', x:18, y:72, width:18, height:12, properties:{dataField:'badgeNumber'} },
+    ]},
+    { id:'contractor', name:'Contractor', width:85.6, height:53.98, orientation:'landscape',
+      background:'linear-gradient(135deg, #5b21b6 0%, #1e1b4b 100%)', elements:[
+      { id:'ct1', type:'shape', x:0, y:0, width:85.6, height:14, properties:{shape:'rect', fill:'rgba(0,0,0,0.25)'} },
+      { id:'ct2', type:'text', x:4, y:3, width:40, height:8, properties:{content:'CONTRACTOR', fontSize:11, fontWeight:'bold', color:'#c4b5fd', fontFamily:'sans-serif'} },
+      { id:'ct3', type:'photo', x:4, y:18, width:20, height:24, properties:{fit:'cover', dataField:'photo'} },
+      { id:'ct4', type:'text', x:28, y:18, width:54, height:7, properties:{content:'{{firstName}} {{lastName}}', fontSize:12, fontWeight:'bold', color:'#ffffff', dataField:'name'} },
+      { id:'ct5', type:'text', x:28, y:26, width:54, height:5, properties:{content:'{{company}}', fontSize:7, color:'#a78bfa', dataField:'company'} },
+      { id:'ct6', type:'barcode', x:28, y:33, width:40, height:9, properties:{dataField:'badgeNumber', format:'CODE128'} },
+      { id:'ct7', type:'text', x:4, y:46, width:78, height:4, properties:{content:'Valid: {{validFrom}} - {{validUntil}}', fontSize:6, color:'#94a3b8'} },
+    ]},
+    { id:'temporary', name:'Temporary', width:85.6, height:53.98, orientation:'landscape',
+      background:'#374151', elements:[
+      { id:'tm1', type:'shape', x:0, y:0, width:85.6, height:14, properties:{shape:'rect', fill:'#92400e'} },
+      { id:'tm2', type:'text', x:0, y:3, width:85.6, height:8, properties:{content:'TEMPORARY', fontSize:12, fontWeight:'bold', color:'#fbbf24', align:'center', fontFamily:'sans-serif'} },
+      { id:'tm3', type:'text', x:4, y:18, width:78, height:7, properties:{content:'{{firstName}} {{lastName}}', fontSize:12, fontWeight:'bold', color:'#ffffff', align:'center', dataField:'name'} },
+      { id:'tm4', type:'text', x:4, y:27, width:78, height:5, properties:{content:'Reason: {{reason}}', fontSize:7, color:'#d1d5db', align:'center'} },
+      { id:'tm5', type:'text', x:4, y:33, width:78, height:5, properties:{content:'Expires: {{validUntil}}', fontSize:7, color:'#fbbf24', align:'center'} },
+      { id:'tm6', type:'barcode', x:20, y:40, width:45, height:10, properties:{dataField:'badgeNumber', format:'CODE128'} },
+    ]},
+    { id:'student-id', name:'Student ID', width:85.6, height:53.98, orientation:'landscape',
+      background:'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 60%, #172554 100%)', elements:[
+      { id:'st1', type:'shape', x:0, y:0, width:85.6, height:14, properties:{shape:'rect', fill:'rgba(255,255,255,0.1)'} },
+      { id:'st2', type:'text', x:4, y:2, width:60, height:6, properties:{content:'Lincoln High School', fontSize:9, fontWeight:'bold', color:'#ffffff', fontFamily:'sans-serif'} },
+      { id:'st3', type:'text', x:4, y:9, width:40, height:4, properties:{content:'Student Identification', fontSize:5, color:'#93c5fd'} },
+      { id:'st4', type:'photo', x:4, y:18, width:20, height:25, properties:{fit:'cover', dataField:'photo'} },
+      { id:'st5', type:'text', x:28, y:18, width:54, height:7, properties:{content:'{{firstName}} {{lastName}}', fontSize:12, fontWeight:'bold', color:'#ffffff', dataField:'name'} },
+      { id:'st6', type:'text', x:28, y:26, width:54, height:5, properties:{content:'{{grade}}', fontSize:7, color:'#93c5fd', dataField:'grade'} },
+      { id:'st7', type:'text', x:28, y:32, width:54, height:4, properties:{content:'ID: {{studentNumber}}', fontSize:6, color:'#cbd5e1', dataField:'studentNumber'} },
+      { id:'st8', type:'barcode', x:28, y:38, width:40, height:10, properties:{dataField:'studentNumber', format:'CODE128'} },
+      { id:'st9', type:'text', x:4, y:48, width:30, height:4, properties:{content:'2025-2026', fontSize:5, color:'#64748b'} },
+    ]},
+  ];
+
+  var state = {
+    tpl: templates[0],
+    sel: null,
+    dragging: null,
+    dragStart: null,
+  };
+
+  // ---- Helpers ----
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function uid() { return 'el-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4); }
+
+  function interpolate(str) {
+    return String(str || '').replace(/\{\{(\w+)\}\}/g, function(_, k) { return SAMPLE_DATA[k] || k; });
+  }
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + (type || 'info') + ' show';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function() { t.classList.remove('show'); }, 3000);
+  }
+
+  // ---- Scale: mm to px. CR-80 is 85.6mm wide; target ~420px wide ----
+  var SCALE = 4.9;
+
+  // ---- API helpers ----
+  function getBaseUrl() {
+    try {
+      var params = new URLSearchParams(location.search);
+      if (params.get('apiBase')) return params.get('apiBase');
+    } catch(e) {}
+    return '';
+  }
+
+  function getAuthHeader() {
+    return 'Bearer ' + (window._jwtToken || localStorage.getItem('jwt') || '');
+  }
+
+  function apiSaveTemplate(tpl, cb) {
+    var url = getBaseUrl() + '/api/v1/badges/templates';
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': getAuthHeader() },
+      body: JSON.stringify(tpl),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) { cb(null, res); })
+    .catch(function(err) { cb(err); });
+  }
+
+  function apiLoadTemplates(cb) {
+    var url = getBaseUrl() + '/api/v1/badges/templates';
+    fetch(url, { headers: { 'Authorization': getAuthHeader() } })
+    .then(function(r) { return r.json(); })
+    .then(function(res) { cb(null, res); })
+    .catch(function(err) { cb(err); });
+  }
+
+  function apiPrintBadge(tpl, data, cb) {
+    var url = getBaseUrl() + '/api/v1/badges/print';
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': getAuthHeader() },
+      body: JSON.stringify({ template: tpl, data: data }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) { cb(null, res); })
+    .catch(function(err) { cb(err); });
+  }
+
+  // ---- Generate realistic barcode SVG (Code 128-like pattern) ----
+  function generateBarcodeSVG(w, h, value) {
+    // Create a deterministic but realistic-looking barcode pattern from the value
+    var text = value || '28491';
+    var seed = 0;
+    for (var i = 0; i < text.length; i++) seed = ((seed << 5) - seed) + text.charCodeAt(i);
+
+    var barsArea = w - 4; // margins
+    var barH = h * 0.72;
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">';
+    svg += '<rect width="' + w + '" height="' + h + '" fill="#ffffff" rx="2"/>';
+
+    // Start/stop patterns and data bars
+    var x = 3;
+    var widths = [1, 1.5, 2, 1, 2.5, 1, 1.5, 1, 2, 1.5]; // bar width patterns
+    var isBar = true;
+    var idx = 0;
+    while (x < w - 3) {
+      var bw = widths[(idx + Math.abs(seed >> idx)) % widths.length];
+      if (bw + x > w - 3) bw = w - 3 - x;
+      if (bw <= 0) break;
+      if (isBar) {
+        svg += '<rect x="' + x.toFixed(1) + '" y="2" width="' + bw.toFixed(1) + '" height="' + barH.toFixed(1) + '" fill="#111111"/>';
+      }
+      x += bw;
+      isBar = !isBar;
+      idx++;
+    }
+
+    // Number below bars
+    var fs = Math.min(h * 0.2, 9);
+    svg += '<text x="' + (w/2) + '" y="' + (h - 1.5) + '" text-anchor="middle" font-size="' + fs.toFixed(1) + '" font-family="monospace,Consolas,Monaco" fill="#111111">' + esc(text) + '</text>';
+    svg += '</svg>';
+    return svg;
+  }
+
+  // ---- Generate realistic QR code SVG ----
+  function generateQRCodeSVG(w, h, value) {
+    var text = value || '28491';
+    var seed = 0;
+    for (var i = 0; i < text.length; i++) seed = ((seed << 5) - seed) + text.charCodeAt(i);
+
+    var size = Math.min(w, h);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">';
+    svg += '<rect width="' + w + '" height="' + h + '" fill="#ffffff" rx="2"/>';
+
+    var modules = 21; // QR version 1 = 21x21
+    var pad = 2;
+    var cellW = (size - pad * 2) / modules;
+    var ox = (w - size) / 2 + pad;
+    var oy = (h - size) / 2 + pad;
+
+    // Draw finder patterns (the 3 big squares in corners)
+    function drawFinder(fx, fy) {
+      // Outer
+      svg += '<rect x="' + (ox + fx * cellW).toFixed(2) + '" y="' + (oy + fy * cellW).toFixed(2) + '" width="' + (7 * cellW).toFixed(2) + '" height="' + (7 * cellW).toFixed(2) + '" fill="#111111"/>';
+      // Inner white
+      svg += '<rect x="' + (ox + (fx+1) * cellW).toFixed(2) + '" y="' + (oy + (fy+1) * cellW).toFixed(2) + '" width="' + (5 * cellW).toFixed(2) + '" height="' + (5 * cellW).toFixed(2) + '" fill="#ffffff"/>';
+      // Center
+      svg += '<rect x="' + (ox + (fx+2) * cellW).toFixed(2) + '" y="' + (oy + (fy+2) * cellW).toFixed(2) + '" width="' + (3 * cellW).toFixed(2) + '" height="' + (3 * cellW).toFixed(2) + '" fill="#111111"/>';
+    }
+
+    drawFinder(0, 0);
+    drawFinder(modules - 7, 0);
+    drawFinder(0, modules - 7);
+
+    // Fill data area with pseudo-random modules
+    for (var row = 0; row < modules; row++) {
+      for (var col = 0; col < modules; col++) {
+        // Skip finder patterns
+        if ((row < 8 && col < 8) || (row < 8 && col >= modules - 8) || (row >= modules - 8 && col < 8)) continue;
+        // Timing patterns
+        if (row === 6 || col === 6) {
+          if ((row + col) % 2 === 0) {
+            svg += '<rect x="' + (ox + col * cellW).toFixed(2) + '" y="' + (oy + row * cellW).toFixed(2) + '" width="' + cellW.toFixed(2) + '" height="' + cellW.toFixed(2) + '" fill="#111111"/>';
+          }
+          continue;
+        }
+        // Pseudo-random data
+        var hash = ((seed * (row + 1) * 31 + col * 17 + row * col) & 0xFFFF);
+        if (hash % 3 === 0) {
+          svg += '<rect x="' + (ox + col * cellW).toFixed(2) + '" y="' + (oy + row * cellW).toFixed(2) + '" width="' + cellW.toFixed(2) + '" height="' + cellW.toFixed(2) + '" fill="#111111"/>';
+        }
+      }
+    }
+
+    svg += '</svg>';
+    return svg;
+  }
+
+  // ---- Generate photo placeholder SVG (gray silhouette) ----
+  function generatePhotoSVG(w, h) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">';
+    svg += '<rect width="' + w + '" height="' + h + '" fill="#cbd5e1" rx="3"/>';
+    // Head circle
+    var cx = w / 2;
+    var headR = Math.min(w, h) * 0.18;
+    var headY = h * 0.35;
+    svg += '<circle cx="' + cx.toFixed(1) + '" cy="' + headY.toFixed(1) + '" r="' + headR.toFixed(1) + '" fill="#94a3b8"/>';
+    // Shoulders ellipse
+    var shoulderW = Math.min(w, h) * 0.38;
+    var shoulderH = Math.min(w, h) * 0.22;
+    var shoulderY = h * 0.65;
+    svg += '<ellipse cx="' + cx.toFixed(1) + '" cy="' + shoulderY.toFixed(1) + '" rx="' + shoulderW.toFixed(1) + '" ry="' + shoulderH.toFixed(1) + '" fill="#94a3b8"/>';
+    svg += '</svg>';
+    return svg;
+  }
+
+  // ---- Generate logo placeholder SVG ----
+  function generateLogoSVG(w, h) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">';
+    svg += '<rect width="' + w + '" height="' + h + '" fill="#1e3a5f" rx="3"/>';
+    var cx = w / 2, cy = h / 2;
+    var r = Math.min(w, h) * 0.32;
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r.toFixed(1) + '" fill="none" stroke="#60a5fa" stroke-width="1.5"/>';
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * 0.5).toFixed(1) + '" fill="#60a5fa"/>';
+    svg += '</svg>';
+    return svg;
+  }
+
+  // ---- Render a single element as DOM node ----
+  function createElementNode(el) {
+    var node = document.createElement('div');
+    node.className = 'badge-el' + (state.sel && state.sel.id === el.id ? ' selected' : '');
+    node.dataset.id = el.id;
+    node.style.cssText = 'left:' + (el.x * SCALE) + 'px;top:' + (el.y * SCALE) + 'px;width:' + (el.width * SCALE) + 'px;height:' + (el.height * SCALE) + 'px;';
+    if (el.rotation) node.style.transform = 'rotate(' + el.rotation + 'deg)';
+
+    var p = el.properties || {};
+    var pw = el.width * SCALE;
+    var ph = el.height * SCALE;
+
+    if (el.type === 'text') {
+      var fs = (p.fontSize || 8) * SCALE * 0.35;
+      node.style.fontSize = fs + 'px';
+      node.style.fontWeight = p.fontWeight || 'normal';
+      node.style.color = p.color || '#fff';
+      node.style.textAlign = p.align || 'left';
+      node.style.fontFamily = p.fontFamily || 'system-ui, -apple-system, "Segoe UI", sans-serif';
+      node.style.overflow = 'hidden';
+      node.style.lineHeight = '1.25';
+      node.style.letterSpacing = '0.01em';
+      node.style.display = 'flex';
+      node.style.alignItems = 'flex-start';
+      if (p.align === 'center') node.style.justifyContent = 'center';
+      else if (p.align === 'right') node.style.justifyContent = 'flex-end';
+      node.textContent = interpolate(p.content);
+    }
+    else if (el.type === 'photo') {
+      node.style.borderRadius = '4px';
+      node.style.overflow = 'hidden';
+      node.innerHTML = generatePhotoSVG(pw, ph);
+      node.querySelector('svg').style.display = 'block';
+    }
+    else if (el.type === 'logo') {
+      node.style.borderRadius = '4px';
+      node.style.overflow = 'hidden';
+      node.innerHTML = generateLogoSVG(pw, ph);
+      node.querySelector('svg').style.display = 'block';
+    }
+    else if (el.type === 'barcode') {
+      node.style.overflow = 'hidden';
+      node.style.borderRadius = '2px';
+      var barcodeVal = SAMPLE_DATA[p.dataField] || p.dataField || '28491';
+      node.innerHTML = generateBarcodeSVG(pw, ph, barcodeVal);
+      node.querySelector('svg').style.display = 'block';
+    }
+    else if (el.type === 'qrcode') {
+      node.style.overflow = 'hidden';
+      node.style.borderRadius = '2px';
+      var qrVal = SAMPLE_DATA[p.dataField] || p.dataField || '28491';
+      node.innerHTML = generateQRCodeSVG(pw, ph, qrVal);
+      node.querySelector('svg').style.display = 'block';
+    }
+    else if (el.type === 'shape') {
+      var fill = p.fill || '#334155';
+      node.style.background = fill;
+      if (p.shape === 'circle') node.style.borderRadius = '50%';
+    }
+    else {
+      node.style.background = 'var(--bg3)';
+      node.style.borderRadius = '2px';
+    }
+
+    return node;
+  }
+
+  // ---- Build left panel HTML ----
+  function buildLeftPanel() {
+    var t = state.tpl;
+    var html = '';
+    html += '<div class="panel-title">Templates</div>';
+    templates.forEach(function(tpl) {
+      html += '<div class="tpl-item' + (tpl.id === t.id ? ' active' : '') + '" data-tpl="' + tpl.id + '">';
+      html += '<div>' + esc(tpl.name) + '</div>';
+      html += '<div class="tpl-sub">' + tpl.width + 'x' + tpl.height + 'mm &middot; ' + tpl.elements.length + ' el</div>';
+      html += '</div>';
+    });
+
+    html += '<div class="panel-title" style="margin-top:8px">Add Element</div>';
+    html += '<div class="toolbox">';
+    [['text','Aa Text'],['photo','Photo'],['logo','Logo'],['barcode','Barcode'],['qrcode','QR Code'],['shape','Shape']].forEach(function(t) {
+      html += '<div class="tool-btn" data-add="' + t[0] + '">' + t[1] + '</div>';
+    });
+    html += '</div>';
+
+    html += '<div class="panel-title">Elements</div>';
+    html += '<div class="el-list">';
+    t.elements.forEach(function(el) {
+      var p = el.properties || {};
+      var label = el.type === 'text' ? (p.content || '').substring(0, 18) : el.type;
+      html += '<div class="el-item' + (state.sel && state.sel.id === el.id ? ' selected' : '') + '" data-id="' + el.id + '">';
+      html += '<span><span class="el-type">' + el.type + '</span>' + esc(label) + '</span>';
+      html += '<span class="el-pos">' + el.x.toFixed(0) + ',' + el.y.toFixed(0) + ' <span class="el-del" data-del="' + el.id + '">&times;</span></span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // ---- Build right panel HTML ----
+  function buildRightPanel() {
+    var t = state.tpl;
+    var html = '';
+
+    // Template properties
+    html += '<div class="prop-group">';
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px">Template</div>';
+    html += '<label class="prop-label">Name</label>';
+    html += '<input class="prop-input" id="pTplName" value="' + esc(t.name) + '">';
+    html += '<div class="prop-row" style="margin-top:8px">';
+    html += '<div><label class="prop-label">Width (mm)</label><input class="prop-input" id="pTplW" type="number" value="' + t.width + '"></div>';
+    html += '<div><label class="prop-label">Height (mm)</label><input class="prop-input" id="pTplH" type="number" value="' + t.height + '"></div>';
+    html += '</div>';
+    html += '<label class="prop-label">Orientation</label>';
+    html += '<select class="prop-input" id="pTplOrient"><option' + (t.orientation === 'landscape' ? ' selected' : '') + '>landscape</option><option' + (t.orientation === 'portrait' ? ' selected' : '') + '>portrait</option></select>';
+    html += '<label class="prop-label" style="margin-top:6px">Background</label>';
+    html += '<input class="prop-input" id="pTplBg" value="' + esc(t.background || '') + '">';
+    html += '</div>';
+
+    // Selected element properties
+    if (state.sel) {
+      var el = state.sel;
+      var p = el.properties || {};
+      html += '<div class="prop-group">';
+      html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;display:flex;justify-content:space-between"><span>' + el.type.toUpperCase() + '</span><button class="btn btn-danger" id="pElDel" style="font-size:10px;padding:2px 8px">Delete</button></div>';
+
+      html += '<div class="prop-row">';
+      html += '<div><label class="prop-label">X (mm)</label><input class="prop-input pElProp" data-prop="x" type="number" step="0.5" value="' + el.x + '"></div>';
+      html += '<div><label class="prop-label">Y (mm)</label><input class="prop-input pElProp" data-prop="y" type="number" step="0.5" value="' + el.y + '"></div>';
+      html += '</div>';
+      html += '<div class="prop-row">';
+      html += '<div><label class="prop-label">Width</label><input class="prop-input pElProp" data-prop="width" type="number" step="0.5" value="' + el.width + '"></div>';
+      html += '<div><label class="prop-label">Height</label><input class="prop-input pElProp" data-prop="height" type="number" step="0.5" value="' + el.height + '"></div>';
+      html += '</div>';
+      html += '<div><label class="prop-label">Rotation</label><input class="prop-input pElProp" data-prop="rotation" type="number" value="' + (el.rotation || 0) + '"></div>';
+
+      if (el.type === 'text') {
+        html += '<label class="prop-label" style="margin-top:8px">Content</label>';
+        html += '<input class="prop-input pElSubProp" data-sub="content" value="' + esc(p.content || '') + '">';
+        html += '<div style="margin:4px 0">';
+        MERGE_FIELDS.forEach(function(f) {
+          html += '<span class="merge-tag" data-field="' + f + '">{{' + f + '}}</span>';
+        });
+        html += '</div>';
+        html += '<div class="prop-row">';
+        html += '<div><label class="prop-label">Font Size</label><input class="prop-input pElSubProp" data-sub="fontSize" type="number" value="' + (p.fontSize || 8) + '"></div>';
+        html += '<div><label class="prop-label">Weight</label><select class="prop-input pElSubProp" data-sub="fontWeight"><option' + (p.fontWeight === 'bold' ? ' selected' : '') + '>bold</option><option' + (p.fontWeight !== 'bold' ? ' selected' : '') + '>normal</option></select></div>';
+        html += '</div>';
+        html += '<div class="prop-row">';
+        html += '<div><label class="prop-label">Color</label><input class="prop-input pElSubProp" data-sub="color" type="color" value="' + (p.color || '#ffffff') + '" style="height:30px;padding:2px"></div>';
+        html += '<div><label class="prop-label">Align</label><select class="prop-input pElSubProp" data-sub="align"><option' + ((p.align||'left') === 'left' ? ' selected' : '') + '>left</option><option' + (p.align === 'center' ? ' selected' : '') + '>center</option><option' + (p.align === 'right' ? ' selected' : '') + '>right</option></select></div>';
+        html += '</div>';
+        html += '<label class="prop-label">Data Field</label>';
+        html += '<select class="prop-input pElSubProp" data-sub="dataField"><option value="">(static text)</option>';
+        MERGE_FIELDS.forEach(function(f) { html += '<option' + (p.dataField === f ? ' selected' : '') + '>' + f + '</option>'; });
+        html += '</select>';
+      }
+      if (el.type === 'barcode' || el.type === 'qrcode') {
+        html += '<label class="prop-label" style="margin-top:8px">Data Field</label>';
+        html += '<select class="prop-input pElSubProp" data-sub="dataField">';
+        MERGE_FIELDS.forEach(function(f) { html += '<option' + (p.dataField === f ? ' selected' : '') + '>' + f + '</option>'; });
+        html += '</select>';
+        if (el.type === 'barcode') {
+          html += '<label class="prop-label" style="margin-top:4px">Format</label>';
+          html += '<select class="prop-input pElSubProp" data-sub="format"><option>CODE128</option><option' + (p.format === 'CODE39' ? ' selected' : '') + '>CODE39</option><option' + (p.format === 'EAN13' ? ' selected' : '') + '>EAN13</option></select>';
+        }
+      }
+      if (el.type === 'shape') {
+        html += '<label class="prop-label" style="margin-top:8px">Shape</label>';
+        html += '<select class="prop-input pElSubProp" data-sub="shape"><option' + ((p.shape||'rect') === 'rect' ? ' selected' : '') + '>rect</option><option' + (p.shape === 'circle' ? ' selected' : '') + '>circle</option></select>';
+        html += '<label class="prop-label" style="margin-top:4px">Fill Color</label>';
+        html += '<input class="prop-input pElSubProp" data-sub="fill" type="color" value="' + (p.fill || '#334155') + '" style="height:30px;padding:2px">';
+      }
+      if (el.type === 'photo' || el.type === 'logo') {
+        html += '<label class="prop-label" style="margin-top:8px">Fit</label>';
+        html += '<select class="prop-input pElSubProp" data-sub="fit"><option' + ((p.fit||'cover') === 'cover' ? ' selected' : '') + '>cover</option><option' + (p.fit === 'contain' ? ' selected' : '') + '>contain</option></select>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="prop-group" style="color:var(--text3);font-size:12px;text-align:center;padding:24px">Click an element to edit its properties</div>';
+    }
+
+    // Actions
+    html += '<div class="prop-group">';
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px">Actions</div>';
+    html += '<button class="btn btn-save" id="pSave" style="width:100%;margin-bottom:6px">Save Template</button>';
+    html += '<button class="btn btn-accent" id="pExport" style="width:100%;margin-bottom:6px">Export JSON</button>';
+    html += '<button class="btn" id="pPrint" style="width:100%;margin-bottom:6px;background:#22c55e;color:#fff">Print Badge</button>';
+    html += '<div id="pStatus" style="font-size:11px;display:none;margin-bottom:6px;padding:6px 8px;border-radius:4px"></div>';
+    html += '<div style="font-size:10px;color:var(--text3)">Save persists to API. Print sends to connected print agent.</div>';
+    html += '</div>';
+
+    return html;
+  }
+
+  // ---- Build the canvas (center panel) ----
+  function buildCanvas() {
+    var t = state.tpl;
+    var cw = t.width * SCALE;
+    var ch = t.height * SCALE;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'canvas-wrap';
+
+    var canvas = document.createElement('div');
+    canvas.className = 'badge-canvas';
+    canvas.id = 'canvas';
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    canvas.style.background = t.background || '#1e293b';
+    canvas.style.borderRadius = '10px';
+    canvas.style.boxShadow = '0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)';
+
+    t.elements.forEach(function(el) {
+      canvas.appendChild(createElementNode(el));
+    });
+
+    wrap.appendChild(canvas);
+
+    var info = document.createElement('div');
+    info.className = 'canvas-info';
+    info.innerHTML = '<span>CR-80 &middot; ' + t.width + ' x ' + t.height + ' mm</span>'
+      + '<span>' + t.orientation + '</span>'
+      + '<span>' + t.elements.length + ' elements</span>'
+      + '<span>Scale: ' + SCALE.toFixed(1) + 'x</span>';
+    wrap.appendChild(info);
+
+    return wrap;
+  }
+
+  // ---- Full render ----
+  function render() {
+    var app = document.getElementById('app');
+    app.innerHTML = '';
+
+    var left = document.createElement('div');
+    left.className = 'panel-left';
+    left.innerHTML = buildLeftPanel();
+    app.appendChild(left);
+
+    var center = document.createElement('div');
+    center.className = 'panel-center';
+    center.appendChild(buildCanvas());
+    app.appendChild(center);
+
+    var right = document.createElement('div');
+    right.className = 'panel-right';
+    right.innerHTML = buildRightPanel();
+    app.appendChild(right);
+
+    bindEvents();
+  }
+
+  // ---- Update only the canvas (for drag performance) ----
+  function renderCanvas() {
+    var center = document.querySelector('.panel-center');
+    if (!center) return;
+    center.innerHTML = '';
+    center.appendChild(buildCanvas());
+    bindCanvasEvents();
+  }
+
+  // ---- Update element list only (for drag coordinate display) ----
+  function updateElementList() {
+    var list = document.querySelector('.el-list');
+    if (!list) return;
+    var t = state.tpl;
+    var html = '';
+    t.elements.forEach(function(el) {
+      var p = el.properties || {};
+      var label = el.type === 'text' ? (p.content || '').substring(0, 18) : el.type;
+      html += '<div class="el-item' + (state.sel && state.sel.id === el.id ? ' selected' : '') + '" data-id="' + el.id + '">';
+      html += '<span><span class="el-type">' + el.type + '</span>' + esc(label) + '</span>';
+      html += '<span class="el-pos">' + el.x.toFixed(0) + ',' + el.y.toFixed(0) + ' <span class="el-del" data-del="' + el.id + '">&times;</span></span>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+    // Rebind element list events
+    bindElementListEvents();
+  }
+
+  // ---- Bind canvas-specific events ----
+  function bindCanvasEvents() {
+    var canvas = document.getElementById('canvas');
+    if (!canvas) return;
+
+    // Click canvas background to deselect
+    canvas.addEventListener('mousedown', function(e) {
+      if (e.target === canvas) {
+        state.sel = null;
+        render();
+      }
+    });
+
+    // Element mousedown for selection + drag start
+    canvas.querySelectorAll('.badge-el').forEach(function(node) {
+      node.addEventListener('mousedown', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        var found = state.tpl.elements.find(function(x) { return x.id === node.dataset.id; });
+        if (!found) return;
+        state.sel = found;
+        state.dragging = found;
+        state.dragStart = { mx: e.clientX, my: e.clientY, ox: found.x, oy: found.y };
+
+        // Highlight selection immediately without full re-render
+        canvas.querySelectorAll('.badge-el').forEach(function(n) {
+          n.classList.toggle('selected', n.dataset.id === found.id);
+        });
+
+        // Update right panel and element list
+        var right = document.querySelector('.panel-right');
+        if (right) right.innerHTML = buildRightPanel();
+        bindRightPanelEvents();
+        updateElementList();
+      });
+    });
+  }
+
+  // ---- Bind element list click events ----
+  function bindElementListEvents() {
+    document.querySelectorAll('.el-item').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        if (e.target.classList.contains('el-del')) return;
+        state.sel = state.tpl.elements.find(function(x) { return x.id === el.dataset.id; }) || null;
+        render();
+      });
+    });
+    document.querySelectorAll('.el-del').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        state.tpl.elements = state.tpl.elements.filter(function(x) { return x.id !== el.dataset.del; });
+        if (state.sel && state.sel.id === el.dataset.del) state.sel = null;
+        render();
+      });
+    });
+  }
+
+  // ---- Bind right panel events ----
+  function bindRightPanelEvents() {
+    var pName = document.getElementById('pTplName');
+    if (pName) pName.addEventListener('input', function() { state.tpl.name = this.value; updateElementList(); });
+    var pW = document.getElementById('pTplW');
+    if (pW) pW.addEventListener('change', function() { state.tpl.width = parseFloat(this.value) || 85.6; render(); });
+    var pH2 = document.getElementById('pTplH');
+    if (pH2) pH2.addEventListener('change', function() { state.tpl.height = parseFloat(this.value) || 53.98; render(); });
+    var pOrient = document.getElementById('pTplOrient');
+    if (pOrient) pOrient.addEventListener('change', function() { state.tpl.orientation = this.value; render(); });
+    var pBg = document.getElementById('pTplBg');
+    if (pBg) pBg.addEventListener('change', function() { state.tpl.background = this.value; render(); });
+
+    // Element position props
+    document.querySelectorAll('.pElProp').forEach(function(input) {
+      input.addEventListener('input', function() {
+        if (!state.sel) return;
+        state.sel[this.dataset.prop] = parseFloat(this.value) || 0;
+        renderCanvas();
+        updateElementList();
+      });
+    });
+
+    // Element sub-properties (live update)
+    document.querySelectorAll('.pElSubProp').forEach(function(input) {
+      input.addEventListener('input', function() {
+        if (!state.sel) return;
+        var sub = this.dataset.sub;
+        var val = this.value;
+        if (sub === 'fontSize') val = parseFloat(val) || 8;
+        state.sel.properties[sub] = val;
+        renderCanvas();
+      });
+    });
+
+    // Delete element button
+    var pDel = document.getElementById('pElDel');
+    if (pDel) pDel.addEventListener('click', function() {
+      if (!state.sel) return;
+      state.tpl.elements = state.tpl.elements.filter(function(x) { return x.id !== state.sel.id; });
+      state.sel = null;
+      render();
+    });
+
+    // Merge tag click
+    document.querySelectorAll('.merge-tag').forEach(function(tag) {
+      tag.addEventListener('click', function() {
+        var input = document.querySelector('.pElSubProp[data-sub="content"]');
+        if (input) {
+          input.value += '{{' + tag.dataset.field + '}}';
+          input.dispatchEvent(new Event('input'));
+        }
+      });
+    });
+
+    // Save template
+    var pSave = document.getElementById('pSave');
+    if (pSave) pSave.addEventListener('click', function() {
+      var tpl = JSON.parse(JSON.stringify(state.tpl));
+      tpl.createdAt = tpl.createdAt || new Date().toISOString();
+      tpl.updatedAt = new Date().toISOString();
+      pSave.textContent = 'Saving...';
+      pSave.disabled = true;
+      apiSaveTemplate(tpl, function(err, res) {
+        pSave.textContent = 'Save Template';
+        pSave.disabled = false;
+        if (err) {
+          showToast('Save failed: ' + err.message, 'error');
+        } else if (res && res.success) {
+          showToast('Template saved', 'success');
+        } else {
+          showToast('Save failed: ' + (res && res.error || 'Unknown'), 'error');
+        }
+      });
+      // postMessage
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'badge-template-save', template: tpl }, '*');
+      }
+    });
+
+    // Export JSON
+    var pExport = document.getElementById('pExport');
+    if (pExport) pExport.addEventListener('click', function() {
+      var tpl = JSON.parse(JSON.stringify(state.tpl));
+      tpl.createdAt = tpl.createdAt || new Date().toISOString();
+      tpl.updatedAt = new Date().toISOString();
+      var json = JSON.stringify(tpl, null, 2);
+      navigator.clipboard.writeText(json).then(function() {
+        showToast('Template JSON copied to clipboard', 'success');
+      }).catch(function() {
+        var blob = new Blob([json], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = tpl.id + '.json';
+        a.click();
+        showToast('Template JSON downloaded', 'info');
+      });
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'badge-template-export', template: tpl }, '*');
+      }
+    });
+
+    // Print badge
+    var pPrint = document.getElementById('pPrint');
+    if (pPrint) pPrint.addEventListener('click', function() {
+      var tpl = JSON.parse(JSON.stringify(state.tpl));
+      pPrint.textContent = 'Sending...';
+      pPrint.disabled = true;
+      var statusEl = document.getElementById('pStatus');
+
+      apiPrintBadge(tpl, SAMPLE_DATA, function(err, res) {
+        pPrint.textContent = 'Print Badge';
+        pPrint.disabled = false;
+
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          if (err) {
+            statusEl.style.background = 'rgba(239,68,68,0.15)';
+            statusEl.style.color = 'var(--red)';
+            statusEl.textContent = 'Network error: ' + err.message;
+          } else if (res && res.success) {
+            statusEl.style.background = 'rgba(34,197,94,0.15)';
+            statusEl.style.color = 'var(--green)';
+            statusEl.textContent = 'Print job ' + (res.jobId || '').substring(0, 8) + '... queued' + (res.agent ? ' on ' + res.agent.name : '');
+            showToast('Print job queued', 'success');
+          } else {
+            statusEl.style.background = 'rgba(239,68,68,0.15)';
+            statusEl.style.color = 'var(--red)';
+            statusEl.textContent = 'Error: ' + ((res && res.error) || 'Unknown error');
+          }
+          clearTimeout(statusEl._timer);
+          statusEl._timer = setTimeout(function() { statusEl.style.display = 'none'; }, 5000);
+        }
+
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'badge-print-sent', result: res }, '*');
+        }
+      });
+    });
+  }
+
+  // ---- Bind all events ----
+  function bindEvents() {
+    // Template selection
+    document.querySelectorAll('.tpl-item').forEach(function(el) {
+      el.addEventListener('click', function() {
+        state.tpl = templates.find(function(t) { return t.id === el.dataset.tpl; }) || templates[0];
+        state.sel = null;
+        render();
+      });
+    });
+
+    // Add element
+    document.querySelectorAll('[data-add]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var type = btn.dataset.add;
+        var el = { id: uid(), type: type, x: 10, y: 10, width: 20, height: 8, properties: {} };
+        if (type === 'text') el.properties = { content: 'New Text', fontSize: 8, color: '#ffffff', fontFamily: 'sans-serif' };
+        if (type === 'photo') { el.width = 20; el.height = 25; el.properties = { fit: 'cover', dataField: 'photo' }; }
+        if (type === 'logo') { el.width = 12; el.height = 12; el.properties = { fit: 'contain' }; }
+        if (type === 'barcode') { el.width = 40; el.height = 10; el.properties = { dataField: 'badgeNumber', format: 'CODE128' }; }
+        if (type === 'qrcode') { el.width = 16; el.height = 16; el.properties = { dataField: 'badgeNumber' }; }
+        if (type === 'shape') { el.width = 30; el.height = 10; el.properties = { shape: 'rect', fill: '#334155' }; }
+        state.tpl.elements.push(el);
+        state.sel = el;
+        render();
+      });
+    });
+
+    bindElementListEvents();
+    bindCanvasEvents();
+    bindRightPanelEvents();
+  }
+
+  // ---- Global mouse move/up for drag (never removed) ----
+  document.addEventListener('mousemove', function(e) {
+    if (!state.dragging || !state.dragStart) return;
+
+    var dx = (e.clientX - state.dragStart.mx) / SCALE;
+    var dy = (e.clientY - state.dragStart.my) / SCALE;
+    var newX = Math.max(0, Math.round((state.dragStart.ox + dx) * 2) / 2);
+    var newY = Math.max(0, Math.round((state.dragStart.oy + dy) * 2) / 2);
+
+    // Clamp to canvas bounds
+    newX = Math.min(newX, state.tpl.width - state.dragging.width);
+    newY = Math.min(newY, state.tpl.height - state.dragging.height);
+    newX = Math.max(0, newX);
+    newY = Math.max(0, newY);
+
+    state.dragging.x = newX;
+    state.dragging.y = newY;
+
+    // Move the DOM element directly (no full re-render)
+    var node = document.querySelector('.badge-el[data-id="' + state.dragging.id + '"]');
+    if (node) {
+      node.style.left = (newX * SCALE) + 'px';
+      node.style.top = (newY * SCALE) + 'px';
+    }
+
+    // Update position in property panel inputs if visible
+    var xInput = document.querySelector('.pElProp[data-prop="x"]');
+    var yInput = document.querySelector('.pElProp[data-prop="y"]');
+    if (xInput) xInput.value = newX;
+    if (yInput) yInput.value = newY;
+
+    // Update element list coordinates
+    updateElementList();
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (state.dragging) {
+      state.dragging = null;
+      state.dragStart = null;
+    }
+  });
+
+  // ---- Listen for external template load (postMessage) ----
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'badge-template-load' && e.data.template) {
+      var tpl = e.data.template;
+      var existing = templates.findIndex(function(t) { return t.id === tpl.id; });
+      if (existing >= 0) templates[existing] = tpl;
+      else templates.push(tpl);
+      state.tpl = tpl;
+      state.sel = null;
+      render();
+    }
+  });
+
+  // Accept accent color from parent
+  try {
+    var params = new URLSearchParams(location.search);
+    var accent = params.get('accent');
+    if (accent) {
+      document.documentElement.style.setProperty('--accent', accent);
+      document.documentElement.style.setProperty('--accent-dim', accent + '22');
+    }
+  } catch(e) {}
+
+  // ---- Load saved templates from API on startup ----
+  apiLoadTemplates(function(err, res) {
+    if (!err && res && res.templates && res.templates.length > 0) {
+      res.templates.forEach(function(tpl) {
+        var existing = templates.findIndex(function(t) { return t.id === tpl.id; });
+        if (existing >= 0) templates[existing] = tpl;
+        else templates.push(tpl);
+      });
+      render();
+    }
+  });
+
+  // ---- Initial render ----
+  render();
+})();
+</script>
+</body>
+</html>
