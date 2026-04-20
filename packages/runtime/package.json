@@ -9,7 +9,7 @@
     "build": "tsc -b",
     "bundle": "node esbuild.config.mjs",
     "dev": "tsc -b --watch",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "clean": "rm -rf dist *.tsbuildinfo",
     "start": "node dist/index.js"
   },

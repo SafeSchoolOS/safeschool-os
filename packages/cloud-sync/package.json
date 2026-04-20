@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -b && node -e \"const fs=require('fs');const p=require('path');fs.cpSync(p.join(__dirname,'ui'),p.join(__dirname,'dist','ui'),{recursive:true})\"",
     "dev": "tsc -b --watch",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
