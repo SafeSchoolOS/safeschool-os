@@ -1,7 +1,7 @@
 /**
  * Recipe routes — stubbed in public release.
  *
- * Recipes encode multi-product demo configurations (healthcare, datacenter,
+ * Recipes encode multi-product demo configurations (safeschool, safeschool,
  * enterprise, etc.) that reference private vendor adapters. Public builds
  * get a no-op stub.
  */

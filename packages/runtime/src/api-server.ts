@@ -208,7 +208,7 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
   // credentials. Override via env when a new deploy is added.
   const trustedRailwaySubs = new Set(
     (process.env.CORS_RAILWAY_ALLOW ||
-      'api-production-5f06.up.railway.app,safeschool.up.railway.app,jubilant-alignment-production-d240.up.railway.app'
+      'api-production-5f06.up.railway.app,safeschool.up.railway.app,safeschoolos.org'
     ).split(',').map(s => s.trim()).filter(Boolean)
   );
   await app.register(fastifyCors, {
@@ -1518,7 +1518,7 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
     const adapterPages = ['guard-tours', 'door-camera', 'asset-tracker', 'patient-flow', 'compliance', 'tenant-portal', 'package-room', 'ivr-doorrelease', 'property-analytics', 'amenity-booking', 'elevator-control', 'work-orders', 'move-inout', 'intercom', 'credentials', 'door-schedules', 'mobile-credentials', 'visitors', 'incidents', 'alerts', 'reports', 'floor-map', 'audit-trail', 'cameras', 'doors', 'events', 'cardholders', 'settings', 'connectors', 'travel-risk',
       // Kiosk modes for Sicunet Android wall unit
       'kiosk-visitor', 'kiosk-package', 'kiosk-directory', 'kiosk-amenity', 'kiosk-conference', 'kiosk-tardy',
-      'kiosk-guard', 'kiosk-contractor', 'kiosk-muster', 'kiosk-datacenter', 'kiosk-hotdesk', 'kiosk-timeclock',
+      'kiosk-guard', 'kiosk-contractor', 'kiosk-muster', 'kiosk-safeschool', 'kiosk-hotdesk', 'kiosk-timeclock',
       'kiosk-patient-checkin', 'kiosk-hand-hygiene', 'kiosk-staff-id', 'kiosk-emergency-info',
       'cardholder-sync', 'pac-explorer'];
     for (const page of adapterPages) {
@@ -1592,9 +1592,6 @@ export async function createApiServer(deps: ApiServerDeps): Promise<ApiServerRes
       2: { product: 'safeschool', name: 'SafeSchool' },
       3: { product: 'safeschool', name: 'SafeSchool' },
       4: { product: 'safeschool', name: 'SafeSchool' },
-      5: { product: 'healthcare', name: 'Healthcare' },
-      6: { product: 'property-guard', name: 'PropertyGuard' },
-      7: { product: 'datacenter', name: 'Nexus DataCenter' },
       8: { product: 'lds-church', name: 'LDS Church MTC' },
     };
 

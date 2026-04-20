@@ -41,7 +41,7 @@ const VMS_CAMERAS: Record<string, { name: string; location: string; color: strin
   'cam-gsoc-perimeter-s': { name: 'Perimeter South', location: 'South Gate', color: '#00ff88' },
   'cam-gsoc-lobby': { name: 'GSOC Lobby', location: 'Main Building', color: '#00ff88' },
   'cam-gsoc-command': { name: 'Command Center', location: 'GSOC Floor', color: '#00ff88' },
-  'cam-gsoc-datacenter': { name: 'Data Center', location: 'DC1', color: '#00ff88' },
+  'cam-gsoc-safeschool': { name: 'Data Center', location: 'DC1', color: '#00ff88' },
   'cam-gsoc-rooftop': { name: 'Rooftop', location: 'Roof', color: '#00ff88' },
   'cam-gsoc-parking': { name: 'Executive Parking', location: 'VIP Lot', color: '#00ff88' },
   'cam-gsoc-warehouse': { name: 'Warehouse', location: 'Warehouse', color: '#00ff88' },

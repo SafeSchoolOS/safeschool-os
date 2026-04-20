@@ -290,13 +290,7 @@ let cachedPairingCode: { code: string; expiresAt: string } | null = null;
 
 /** Hardcoded cloud URLs per product — fallback when proxy table lookup fails */
 const PRODUCT_CLOUD_URLS: Record<string, string> = {
-  safeschool: 'https://edgeruntime-cloud-production-09ab.up.railway.app',
-  safeschool: 'https://edgeruntime-cloud-production.up.railway.app',
-  'safeschool': 'https://edgeruntime-cloud-production-313d.up.railway.app',
-  healthcare: 'https://jubilant-alignment-production-d240.up.railway.app',
-  'property-guard': 'https://calm-caring-production-959c.up.railway.app',
   safeschool: 'https://safeschoolos.org',
-  safeschool: 'https://backend-production-10c4.up.railway.app',
 };
 
 /** Resolve the effective product slug, handling 'unified' mode */

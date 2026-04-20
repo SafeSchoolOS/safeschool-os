@@ -861,10 +861,10 @@ export async function startDemoEmulator(opts: {
     'badge-guard': 'safeschool',
     'safeschool': 'gsoc',
     gsoc: 'gsoc',
-    'property-guard': 'property-mgmt',
+    'safeschool': 'property-mgmt',
     propertyguard: 'property-mgmt',
-    datacenter: 'datacenter',
-    'nexus-datacenter': 'datacenter',
+    safeschool: 'safeschool',
+    'nexus-safeschool': 'safeschool',
   };
 
   const recipeName = productMap[product.toLowerCase()] || product.toLowerCase();

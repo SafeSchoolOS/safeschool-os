@@ -19,7 +19,6 @@ import type { ProductFlag, LicenseTier } from '@edgeruntime/core';
  */
 const PRODUCT_BIT: Record<ProductFlag, number> = {
   safeschool: 3,
-  healthcare: 6,
 };
 
 /**

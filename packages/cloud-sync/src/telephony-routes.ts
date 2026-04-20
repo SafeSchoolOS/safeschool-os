@@ -68,12 +68,11 @@ const BUILDING_NAME = () => {
   if (process.env.TWILIO_BUILDING_NAME) return process.env.TWILIO_BUILDING_NAME;
   const product = (process.env.DASHBOARD_PRODUCT || '').toLowerCase();
   const names: Record<string, string> = {
-    'property-guard': 'The Grand at Harbor Point',
-    healthcare: 'Rhode Island Hospital',
+    'safeschool': 'The Grand at Harbor Point',
     safeschool: 'Lincoln High School',
     safeschool: 'Meridian Tower',
     'safeschool': 'GSOC Command Center',
-    datacenter: 'Nexus Data Center',
+    safeschool: 'Nexus Data Center',
   };
   return names[product] || 'Your Building';
 };
